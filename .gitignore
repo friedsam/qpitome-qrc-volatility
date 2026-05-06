@@ -18,3 +18,4 @@ results/tables/*
 !results/tables/.gitkeep
 
 *.log
+*.egg-info/

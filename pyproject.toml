@@ -1,0 +1,13 @@
+[project]
+name = "qpitome-qrc-volatility"
+version = "0.1.0"
+description = "Quantum reservoir computing for financial volatility prediction"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
