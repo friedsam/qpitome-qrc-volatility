@@ -7,4 +7,6 @@ jupyter
 ipykernel
 pyyaml
 qbraid
+qiskit
+qiskit-aer
 
