@@ -120,3 +120,82 @@ The next version should make the prototype more relevant without overbuilding. C
 ```
 
 The next choice should depend on which piece becomes the bottleneck first.
+
+## v0.2 — Real-data QRC diagnostic
+
+**Date:** 2026-05-12  
+**Script:** `scripts/run_qrc_real_tiny.py`  
+**Status:** Runs successfully, but QRC-only performance is weak.
+
+This version connects the QRC prototype to the same processed market-stress dataset and chronological train/validation/test split used by the ESN baseline.
+
+Pipeline:
+
+```text
+20 × 12 market-stress sequence
+→ flatten to 240 features
+→ StandardScaler + PCA(4)
+→ 4-qubit QRC reservoir
+→ Z and nearest-neighbor ZZ expectation features
+→ LogisticRegression readout
+```
+
+Configuration:
+
+```text
+n_qubits = 4
+n_layers = 2
+PCA components = 4
+QRC observables = 8
+backend = Qiskit Statevector expectation values
+readout = LogisticRegression(class_weight="balanced")
+```
+
+Data split:
+
+```text
+train: 1993-03-26 → 2015-12-31, n = 5732
+val:   2016-01-04 → 2019-12-31, n = 1006
+test:  2020-01-02 → 2024-04-08, n = 1073
+```
+
+Main test results:
+
+```text
+Majority baseline:
+balanced_accuracy = 0.500
+PR-AUC            = 0.249
+
+PCA-raw LogisticRegression:
+balanced_accuracy = 0.738
+PR-AUC            = 0.550
+confusion matrix  = [[484, 322],
+                     [ 33, 234]]
+
+QRC-only LogisticRegression:
+balanced_accuracy = 0.524
+PR-AUC            = 0.215
+confusion matrix  = [[235, 571],
+                     [ 65, 202]]
+
+PCA+QRC LogisticRegression:
+balanced_accuracy = 0.740
+PR-AUC            = 0.560
+confusion matrix  = [[514, 292],
+                     [ 42, 225]]
+```
+
+Interpretation:
+
+QRC-only is not useful in this configuration. It performs near chance by balanced accuracy and produces many false positives.
+
+The PCA-compressed linear baseline is much stronger than QRC-only. Adding QRC features to PCA gives only a small improvement: slightly higher balanced accuracy and PR-AUC, and fewer false positives than PCA alone, but the gain is marginal.
+
+Current conclusion:
+
+```text
+The real-data QRC pipeline works technically.
+The current shallow random QRC is not yet a competitive model.
+PCA compression plus a linear readout is the stronger baseline.
+Future QRC work should focus on controlled ablations, not blind reservoir tweaking.
+```
