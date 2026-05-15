@@ -111,6 +111,21 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         out["spy_log_return"].shift(-1).rolling(window=5).std().shift(-4) * np.sqrt(252)
     )
 
+    # Additional multi-scale realized volatility.
+    out["rv_60d"] = out["spy_log_return"].rolling(window=60).std() * np.sqrt(252)
+
+    # Causal smoothing of short-term volatility.
+    out["rv_5d_ewm_5"] = out["rv_5d"].ewm(span=5, adjust=False).mean()
+    out["rv_5d_ewm_20"] = out["rv_5d"].ewm(span=20, adjust=False).mean()
+
+    # Multi-scale volatility contrast features.
+    out["rv_ratio_5_20"] = out["rv_5d"] / out["rv_20d"]
+    out["rv_ratio_20_60"] = out["rv_20d"] / out["rv_60d"]
+
+    # Short-term volatility excess over slower background.
+    out["rv_excess_5_vs_20"] = out["rv_5d"] - out["rv_5d_ewm_20"]
+    out["rv_excess_5_vs_60"] = out["rv_5d"] - out["rv_60d"]
+
     return out
 
 
@@ -150,6 +165,13 @@ def main() -> None:
         "vix_ma_5d",
         "future_rv_5d",
         "future_high_vol_label",
+        "rv_60d",
+        "rv_5d_ewm_5",
+        "rv_5d_ewm_20",
+        "rv_ratio_5_20",
+        "rv_ratio_20_60",
+        "rv_excess_5_vs_20",
+        "rv_excess_5_vs_60",
     ]
     df_model = df.dropna(subset=core_cols).reset_index(drop=True)
 
