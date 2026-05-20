@@ -47,3 +47,130 @@ Current branch preserves the emergency/high-stress-label approach. The next alig
 3. derived regime/transition metrics as secondary interpretation;
 4. QRC architecture justification tied to nonlinear multivariate temporal structure, memory, and reservoir expressivity;
 5. qubit-count, encoding-density, shot-budget, and noise studies for Phase 3 planning.
+
+## QRC hardware/reservoir-system primers
+
+The challenge description lists several possible quantum reservoirs: transverse-field Ising chains, Rydberg atom arrays, and cavity QED systems. These are not just circuit templates; they correspond to different physical hardware strategies and different implementation risks.
+
+### Transverse-field Ising chain
+
+Hardware mapping:
+
+- gate-based superconducting or trapped-ion platforms through digital simulation;
+- neutral-atom analog systems when formulated as Ising/Rydberg dynamics;
+- classical statevector/density-matrix simulators for first implementation.
+
+Pros:
+
+- strongest default choice for this project;
+- closest to the QRC volatility-forecasting literature;
+- easy to simulate first;
+- clean Hamiltonian story;
+- compatible with small qubit-count sweeps;
+- can be approximated with gate-based circuits if analog access is unavailable.
+
+Cons:
+
+- gate-based depth/noise can limit usable memory;
+- analog interactions/geometries may not match the ideal model exactly;
+- fully connected or dense Ising dynamics are easier in simulation than on hardware.
+
+Strategy implication:
+
+- Primary implementation path: simulator-based transverse-field Ising QRC for volatility forecasting.
+- Use as the baseline QRC architecture before trying more hardware-specific variants.
+
+### Rydberg atom array
+
+Hardware mapping:
+
+- neutral-atom analog platforms such as QuEra/Aquila-style systems;
+- Bloqade-style simulation and prototyping.
+
+Pros:
+
+- strong conceptual fit to analog QRC and scalable many-body dynamics;
+- good story for hardware-informed reservoir computing;
+- natural connection to Rydberg/Ising dynamics and large Hilbert spaces;
+- potential Phase 3 hardware/scaling narrative.
+
+Cons:
+
+- input encoding is less flexible than generic gate-based circuits;
+- geometry/connectivity constraints matter;
+- hardware access and queue/runtime constraints may limit iteration;
+- measurement/readout options may be less flexible.
+
+Strategy implication:
+
+- Strong hardware-aligned extension after the simulator pipeline works.
+- Not the first debugging target unless the challenge/rubric strongly rewards hardware-specific analog design.
+
+### Cavity QED / few-body feedback reservoirs
+
+Hardware mapping:
+
+- specialized photonic or cavity-QED experimental systems;
+- generally not a standard qBraid-accessible backend.
+
+Pros:
+
+- strong memory/feedback and physical-reservoir story;
+- useful conceptual support for minimal QRC and rich dynamics from few degrees of freedom.
+
+Cons:
+
+- likely not implementable in our qBraid workflow;
+- harder to reproduce;
+- weaker near-term submission path.
+
+Strategy implication:
+
+- Cite as conceptual motivation only, not as implementation backbone.
+
+### Gate-based random-unitary / RF-QRC fallback
+
+Hardware mapping:
+
+- IBM, IonQ, Rigetti, IQM, Braket/qBraid simulators, and other circuit-model platforms.
+
+Pros:
+
+- most portable;
+- easy to reproduce;
+- straightforward qubit-count, shot-budget, and noise sweeps;
+- fits finite-sampling and noisy-QRC analysis.
+
+Cons:
+
+- less physically distinctive than analog QRC;
+- may require many shots;
+- advantage story can be weaker unless tied to robustness, compactness, or scaling.
+
+Strategy implication:
+
+- Best fallback/reproducibility path.
+- Use as a comparison architecture if TFIM or Rydberg path becomes blocked.
+
+## Current hardware-choice recommendation
+
+Primary route:
+
+- transverse-field Ising QRC on simulator;
+- task: multivariate realized-volatility forecasting;
+- metrics: RMSE, QLIKE, Mincer-Zarnowitz;
+- secondary: derived regime/transition-warning metrics.
+
+Hardware-aligned extension:
+
+- Rydberg/neutral-atom Ising-style QRC via Bloqade/QuEra path.
+
+Fallback:
+
+- gate-based RF-QRC or random-unitary QRC with the same input/output/metrics.
+
+Expected result target:
+
+- do not promise large quantum advantage;
+- aim to match strong classical reservoir baselines, show small RMSE/QLIKE gains if available, and document qubit-count/noise/shot-budget behavior;
+- emphasize compact reservoir/readout design and alignment with nonlinear multivariate temporal dynamics.
