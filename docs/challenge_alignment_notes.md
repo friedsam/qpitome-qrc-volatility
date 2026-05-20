@@ -2,11 +2,32 @@
 
 Date: May 20, 2026
 
+Status: living working notes. These notes capture current strategic decisions while reading the Phase 2 challenge description and QRC literature. They should be revised as the challenge brief is scanned further.
+
 ## Challenge framing
 
 Track A is financial volatility prediction. The challenge asks for a QRC system that uses public equity-market data to identify volatility regime shifts and forecast their transitions.
 
 The strongest alignment is therefore not a binary high-stress classifier alone. The primary benchmark should be volatility forecasting, with regime/transition interpretation derived afterward.
+
+## Scope correction from current dev branch
+
+The current `dev` branch contains a useful but partially misaligned emergency path:
+
+- input: SPY/VIX-derived rolling market features;
+- target: `future_high_vol_label`;
+- task: classify high-stress vs non-stress future windows;
+- metrics: PR-AUC, ROC-AUC, precision, recall, F1, balanced accuracy.
+
+This is a simplified future-regime/stress proxy. It should be preserved as a fallback, but not treated as the strongest challenge-aligned primary task.
+
+The alignment branch should instead emphasize:
+
+- continuous realized-volatility forecasting;
+- multi-horizon future volatility prediction;
+- derived stress/regime/transition warnings from the predicted volatility path;
+- challenge metrics: RMSE, QLIKE, Mincer-Zarnowitz;
+- QRC design choices justified through signal class, Hamiltonian, encoding, noise, and baseline comparison.
 
 ## Recommended Track A metrics from the challenge brief
 
@@ -38,15 +59,76 @@ For S&P 500 realized-volatility forecasting:
 
 Interpretation: expected QRC advantage is modest, not dramatic. Matching the strongest classical reservoir within error bars is already useful. A small improvement in RMSE/QLIKE, better robustness, or better scaling/noise behavior would be meaningful.
 
-## Project implication
+## Dataset strategy
 
-Current branch preserves the emergency/high-stress-label approach. The next alignment branch should pivot to:
+Challenge-suggested data sources include Yahoo Finance/Kaggle OHLCV, Oxford-Man realized-volatility data, and FRED macroeconomic time series.
 
-1. continuous volatility forecasting: future_rv_5d / future_rv_20d or multi-horizon volatility vector;
-2. Track A metrics: RMSE, QLIKE, Mincer-Zarnowitz;
-3. derived regime/transition metrics as secondary interpretation;
-4. QRC architecture justification tied to nonlinear multivariate temporal structure, memory, and reservoir expressivity;
-5. qubit-count, encoding-density, shot-budget, and noise studies for Phase 3 planning.
+Current data status:
+
+- Yahoo-style SPY OHLCV + VIX-derived features: already used and useful.
+- Oxford-Man realized-volatility library: not yet used; likely better aligned for realized-volatility forecasting.
+- FRED macro data: optional later extension; do not add first because frequency alignment and macro lag structure add complexity.
+
+Recommended target branch design:
+
+- primary target: Oxford-Man realized volatility / realized variance if feasible;
+- fallback target: current derived `future_rv_5d` / `future_rv_20d` from SPY/VIX pipeline;
+- features: lagged realized-volatility features, SPY OHLCV features, VIX level/change, drawdown/range features;
+- optional later: macro/FRED regime context only if the core pipeline is already working.
+
+## Regime interpretation
+
+A regime is not simply one thresholded volatility point. Better definition:
+
+- persistent latent or observable market state;
+- cluster/region in multidimensional temporal feature space;
+- characterized by volatility level, volatility trend, VIX level/change, returns, ranges, drawdown, volume, and persistence.
+
+Operational interpretation:
+
+- primary model forecasts the volatility path;
+- secondary logic derives regimes from forecast geometry:
+  - calm: low predicted volatility, flat path;
+  - unstable transition: moderate volatility with rising slope/acceleration;
+  - stress/crisis: high and persistent predicted volatility.
+
+Do not start by inventing mushy regime labels. First forecast volatility; then derive or test regime labels once forecast outputs exist. If scalar volatility forecasting underwhelms, upgrade early to multivariate trajectory/regime targets rather than over-tuning a bad target.
+
+## QRC design philosophy
+
+The challenge is asking for an experimental research program, not just a model. Every experiment should explicitly address one or more of:
+
+1. signal class: scalar volatility, multivariate volatility trajectory, transition/regime dynamics, MNIST;
+2. reservoir Hamiltonian: TFIM, Rydberg/Ising, random-unitary/RF-QRC;
+3. encoding strategy: direct feature-to-qubit encoding, data re-uploading, virtual nodes/time multiplexing, amplitude/feature-map encoding;
+4. noise/expressivity/baseline interaction: whether noise destroys, regularizes, or can be mitigated in reservoir states;
+5. classical competition: HAR, ridge/persistence, ESN, LSTM, GARCH-family models where feasible.
+
+Pre-run note template:
+
+- Signal class:
+- Hamiltonian:
+- Encoding:
+- Readout:
+- Noise/shot setting:
+- Classical baseline:
+- Metric:
+- Hypothesis:
+- Decision rule:
+
+Post-run note template:
+
+- Result:
+- Passed/failed decision rule:
+- Likely bottleneck:
+- Next action:
+- Final-report relevance:
+
+Time-control rule:
+
+- Every experiment must answer one challenge-question axis.
+- No experiment gets expanded unless it changes target choice, hardware choice, encoding choice, or final comparison.
+- Do not reopen broad classical exploration unless needed for QRC comparison.
 
 ## QRC hardware/reservoir-system primers
 
@@ -174,3 +256,90 @@ Expected result target:
 - do not promise large quantum advantage;
 - aim to match strong classical reservoir baselines, show small RMSE/QLIKE gains if available, and document qubit-count/noise/shot-budget behavior;
 - emphasize compact reservoir/readout design and alignment with nonlinear multivariate temporal dynamics.
+
+## Phase 2 desired outcomes mapped to current work
+
+Outcome 1: QRC architecture with explicit theoretical/analytical justification.
+
+- Phase 2 relevance: required/central.
+- Need now: Hamiltonian, input encoding, readout, feedback/no-feedback, and why these match volatility signals.
+
+Outcome 2: Benchmark against strong classical baselines.
+
+- Phase 2 relevance: required/central.
+- Need now: persistence/HAR-like/ridge plus ESN; LSTM/GARCH can be optional, delegated, or included as future work if time is tight.
+
+Outcome 3: Scaling with reservoir size, encoding density, shot budget, and noise.
+
+- Phase 2 relevance: partial but important.
+- Need now: pilot sweeps, not exhaustive final characterization.
+- Minimal axes: 4/6/8 qubits or feasible sizes; direct vs re-uploading encoding; exact vs 512/2048 shots; noiseless vs simple depolarizing/amplitude damping.
+
+Outcome 4: Fully reproducible qBraid workflow.
+
+- Phase 2 relevance: not the full final requirement yet.
+- Need now: qBraid-ready local workflow, clean dependencies, deterministic notebooks, saved outputs, backend abstraction.
+- Actual qBraid credentials/cloud execution can wait; reproducibility debt should not accumulate.
+
+## Revised experimental sequence
+
+Experiment 0: target/data realignment.
+
+- Build continuous realized-volatility targets.
+- Prefer Oxford-Man target if feasible; otherwise current `future_rv_5d` / `future_rv_20d`.
+- Implement RMSE, QLIKE, Mincer-Zarnowitz.
+
+Experiment 1: classical forecasting baselines.
+
+- Persistence.
+- HAR-like ridge.
+- Compact ridge / random forest / gradient boosting if fast.
+- ESN regression.
+- Goal: establish reproducible RMSE/QLIKE benchmark, not optimize classifier PR-AUC.
+
+Experiment 2: first TFIM-QRC regression.
+
+- Input: PCA-6 or selected compact volatility-market features.
+- Reservoir: small TFIM QRC.
+- Readout: ridge regression.
+- Metrics: RMSE, QLIKE, Mincer-Zarnowitz.
+- Decision: does QRC match or approach HAR/ESN?
+
+Experiment 3: encoding-density sweep.
+
+- Direct PCA-6 to 6 qubits.
+- Fewer qubits with feature re-uploading.
+- Selected interpretable physical features vs PCA features.
+
+Experiment 4: reservoir-size/time/noise/shot pilot.
+
+- Qubits: small feasible set.
+- Evolution time: low/medium/high.
+- Shots: exact, 512, 2048.
+- Noise: none, depolarizing, amplitude damping.
+
+Experiment 5: regime interpretation.
+
+- Convert predicted volatility path to level/slope/persistence features.
+- Evaluate derived calm/rising-instability/stress warnings.
+- Only expand if regression outputs are meaningful or if scalar regression underwhelms and a multivariate regime target is the better QRC opportunity.
+
+## qBraid readiness without credentials
+
+Start qBraid-compatible reproducibility now, but do not block on credentials.
+
+Do now:
+
+- environment files;
+- backend abstraction: `local_simulator`, later `qbraid_simulator`, later optional `qbraid_qpu`;
+- notebooks runnable top-to-bottom locally;
+- no hidden paths or local-only credentials;
+- saved tables/figures under `reports/`;
+- qBraid runbook draft.
+
+Wait for credentials for:
+
+- actual qBraid cloud jobs;
+- backend discovery;
+- hardware/backend execution validation;
+- judge-style rerun test.
