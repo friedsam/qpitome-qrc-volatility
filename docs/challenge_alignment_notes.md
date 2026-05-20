@@ -130,6 +130,40 @@ Time-control rule:
 - No experiment gets expanded unless it changes target choice, hardware choice, encoding choice, or final comparison.
 - Do not reopen broad classical exploration unless needed for QRC comparison.
 
+## Phase 2 rubric checkpoint
+
+Use this 2-minute checkpoint after every completed milestone. Score each criterion qualitatively: strong / adequate / weak / missing.
+
+1. QRC Architecture Design
+   - Did this milestone clarify Hamiltonian, encoding, readout, feedback/no-feedback, or hybrid integration?
+   - Evidence to capture: architecture diagram, equations, code module, or design note.
+
+2. Theoretical & Analytical Justification
+   - Did this milestone strengthen the case that QRC is appropriate for this signal class?
+   - Evidence to capture: literature link, memory/nonlinearity argument, scaling/expressivity argument, or prototype result.
+
+3. Data Modeling Strategy
+   - Did this milestone improve dataset choice, preprocessing, target definition, baseline quality, or metrics?
+   - Evidence to capture: data source, split logic, leakage checks, RMSE/QLIKE/Mincer-Zarnowitz, baseline table.
+
+4. Track Selection & Problem Framing
+   - Did this milestone make the Track A sub-problem clearer and more challenge-aligned?
+   - Evidence to capture: volatility forecasting target, derived regime-transition interpretation, stakeholder-use framing.
+
+5. Platform Justification & Resources
+   - Did this milestone clarify backend choice, qubit count, depth/evolution time, shot budget, simulator/QPU path, or qBraid integration?
+   - Evidence to capture: resource table, backend abstraction, runtime estimate, hardware plan.
+
+6. Phase 3 Execution Plan
+   - Did this milestone make the next-phase plan more concrete and feasible?
+   - Evidence to capture: milestone timeline, fallback path, minimal viable final deliverable, risks.
+
+7. Clarity of Communication
+   - Did this milestone produce a clean figure/table/explanation usable in the submission?
+   - Evidence to capture: report-ready plot, one-paragraph interpretation, README/runbook update.
+
+Rule: if a milestone does not improve at least one rubric criterion, it probably should not be expanded.
+
 ## QRC hardware/reservoir-system primers
 
 The challenge description lists several possible quantum reservoirs: transverse-field Ising chains, Rydberg atom arrays, and cavity QED systems. These are not just circuit templates; they correspond to different physical hardware strategies and different implementation risks.
