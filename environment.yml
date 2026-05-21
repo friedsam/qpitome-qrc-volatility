@@ -16,4 +16,5 @@ dependencies:
       - qbraid
       - qiskit
       - qiskit-aer
+      - reservoirpy
   

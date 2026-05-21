@@ -1,2 +1,0 @@
-n_rows,n_columns,date_min,date_max,target,positive_rate,compact_features,expanded_features
-7790,29,1993-04-27,2024-04-08,future_high_vol_label,0.20154043645699615,12,19

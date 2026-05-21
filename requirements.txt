@@ -9,4 +9,5 @@ pyyaml
 qbraid
 qiskit
 qiskit-aer
+reservoirpy
 
