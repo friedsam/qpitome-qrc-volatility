@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .env
 .DS_Store
+*.pyc
 
 data/legacy_classifier_branch/*
 data/raw/*
