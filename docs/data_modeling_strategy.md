@@ -160,3 +160,75 @@ Transition-event rates:
 Interpretation:
 
 The transition label is useful as an event-warning interpretation layer, but it is too sparse to serve as the only Phase 2 supervised target. The main modeling target remains realized-volatility forecasting, evaluated with RMSE, QLIKE, and Mincer-Zarnowitz. Regime-transition warnings are derived from the forecast path using train-only thresholds.
+
+## May 22 validation
+
+The Phase 2 data/metrics infrastructure was validated using the processed fallback dataset:
+
+- processed file: `data/processed/phase2_spy_vix_volatility.csv`
+- loader: `load_phase2_volatility_data()`
+- split utility: `chronological_tabular_split()`
+- transition utility: `add_train_only_transition_flags()`
+- metrics: RMSE, QLIKE, Mincer-Zarnowitz
+
+A naive persistence forecast was evaluated as an initial baseline floor:
+
+- `rv_5d` or `rv_10d` predicting `future_rv_5d`
+- `rv_20d` or `rv_60d` predicting `future_rv_20d`
+
+Best observed persistence results:
+
+| target | split | best persistence predictor | RMSE | QLIKE | MZ R² |
+|---|---:|---|---:|---:|---:|
+| `future_rv_5d` | validation | `rv_10d` | 0.06846 | -2.79026 | 0.28200 |
+| `future_rv_5d` | test | `rv_10d` | 0.10246 | -2.22157 | 0.50171 |
+| `future_rv_20d` | validation | `rv_60d` | 0.06484 | -2.88638 | 0.09657 |
+| `future_rv_20d` | test | `rv_20d` | 0.12431 | -2.00401 | 0.25156 |
+
+Interpretation:
+
+Persistence is a meaningful baseline because volatility clusters, but validation/test behavior differs substantially. This supports the challenge framing: volatility-regime forecasting is nonstationary and difficult. Future baselines and QRC prototypes should be compared against this persistence floor before making stronger claims.
+
+### Model-ready feature and scaling validation
+
+The Phase 2 SPY+VIX pipeline now produces leakage-safe model inputs for both tabular regression baselines and sequence-based reservoir models.
+
+The finalized model interface contains 27 feature columns and two continuous realized-volatility targets:
+
+- `future_rv_5d`
+- `future_rv_20d`
+
+Feature normalization is performed after chronological splitting. The scaler is fit on the training split only and then applied unchanged to validation and test splits. This preserves the leakage rule that validation and test statistics must not influence preprocessing, normalization, thresholding, or model fitting.
+
+For target `future_rv_20d`, the validated tabular arrays are:
+
+| Split | X shape | y shape |
+|---|---:|---:|
+| Train | `(5459, 27)` | `(5459,)` |
+| Validation | `(1258, 27)` | `(1258,)` |
+| Test | `(1058, 27)` | `(1058,)` |
+
+The validated configuration is:
+
+```text
+target = future_rv_20d
+feature_count = 27
+scaler = standard
+```
+
+For sequence-based ESN/QRC-style models, a 20-trading-day lookback produces:
+
+```text
+X_train_sequence = (5440, 20, 27)
+y_train_sequence = (5440,)
+first_sequence_target_date = 1993-05-24
+last_sequence_target_date = 2014-12-31
+```
+
+The sequence count is correct:
+
+```text
+5459 train rows - 20 lookback + 1 = 5440 sequences
+```
+
+This completes the May 22 data-pipeline infrastructure needed before May 23 classical baselines.

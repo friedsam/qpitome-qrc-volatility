@@ -132,7 +132,7 @@ Outputs:
   - RMSE;
   - QLIKE;
   - Mincer-Zarnowitz regression.
-- Smoke-test notebook/table showing train/val/test sizes and no obvious leakage.
+- First-test notebook/table showing train/val/test sizes and no obvious leakage.
 
 Required checks before sign-off:
 
