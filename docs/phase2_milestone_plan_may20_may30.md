@@ -172,13 +172,25 @@ Minimum baselines:
 Optional / Phase 3 noted, not required now:
 
 - GARCH-family.
-- LSTM.
+- LSTM / GRU sequence models.
 
 Outputs:
 
 - Baseline notebook/script.
 - Metrics table: RMSE, QLIKE, Mincer-Zarnowitz for each baseline.
 - One paragraph interpreting baseline difficulty and what QRC must plausibly improve or match.
+
+Completion artifacts:
+
+- `docs/classical_baseline_notes.md`.
+- `notebooks/phase2_esn_regression_baseline_tuning.ipynb`.
+- `src/qpitome_qrc/baselines/esn_regression.py`.
+- `src/qpitome_qrc/data/pca.py`.
+- Curated ESN/PCA result tables if force-added despite `gitignore`.
+
+Completion note:
+
+- The classical floor is stronger than the original minimum plan. In addition to persistence and HAR-like/regularized linear regression, a ReservoirPy ESN regression baseline was adapted from the earlier binary-classification prototype to the current realized-volatility regression framing. The useful ESN version uses PCA-compressed volatility/VIX inputs, 40-day memory, ridge readout on log-volatility, and RMSE/QLIKE/Mincer-Zarnowitz evaluation. This establishes a meaningful classical reservoir comparator for QRC, not merely a naive or primitive classifier baseline.
 
 Required checks before sign-off:
 
@@ -199,7 +211,7 @@ Stop condition:
 
 Scope-control warning:
 
-- Do not run an extensive ESN/LSTM/GARCH campaign. Phase 2 needs strong enough baselines to contextualize the QRC design.
+- Do not run an extensive ESN/LSTM/GARCH campaign. Phase 2 needs strong enough baselines to contextualize the QRC design. Broader ESN sweeps, GARCH-family models, and LSTM/GRU baselines are Phase 3 robustness extensions.
 
 ---
 
@@ -220,10 +232,30 @@ Required architecture fields:
 
 Outputs:
 
-- `docs/qrc_architecture_design.md` or equivalent.
-- Architecture diagram draft.
+- `docs/qrc_literature_design_map.md`.
+- `docs/qrc_architecture_design.md`.
+- `docs/qrc_architecture_diagram.mmd`.
 - Initial resource table.
 - Config schema for QRC experiments.
+
+Concrete architecture decisions:
+
+- Primary reservoir family: TFIM / spin-system QRC.
+- Primary input: train-only PCA-compressed SPY+VIX volatility-state features.
+- Primary input dimensions: PCA-8 first; PCA-6 fallback; PCA-10 sensitivity extension.
+- Primary memory target: 40-day rolling window, motivated by the May 23 ESN result.
+- First temporal implementation: compressed anchor/virtual-node injection from the 40-day window.
+- First encoding: bounded angle encoding through `Ry` or `Rz`/`Ry` rotations.
+- First reset policy: reset per 40-day sample/window.
+- First feedback policy: no feedback.
+- First readout: exact expectation values, then finite-shot estimates later.
+- Observable ladder: `Z` first; `Z + X`; then `Z + X + nearest-neighbor ZZ`.
+- Classical head: ridge regression on `log(future_rv_20d)`, with exponentiation before RMSE/QLIKE/MZ evaluation.
+- Classical comparator: PCA-compressed ESN log-target reservoir baseline, plus persistence and HAR/Ridge/ElasticNet.
+
+Completion note:
+
+- Milestone 4 is complete. The QRC architecture is specified as a literature-grounded experimental design, not a final architecture claim. The design starts from a primary TFIM-QRC prototype and defines controlled probes over PCA dimension, qubit count, anchor count, observable set, evolution depth, exact versus finite-shot estimates, and later RF-QRC/onion-QRC extensions.
 
 Required checks before sign-off:
 
@@ -245,7 +277,7 @@ Stop condition:
 
 Scope-control warning:
 
-- Do not implement multiple QRC families yet. TFIM first; RF-QRC/Rydberg remain fallback/extensions.
+- Do not implement multiple QRC families yet. TFIM first; RF-QRC, onion/parallel QRC, Rydberg/analog reservoirs, amplitude encoding, and carryover-state recurrence remain fallback/extensions.
 
 ---
 
@@ -257,21 +289,27 @@ Goal:
 
 Prototype target:
 
-- 7-12 qubit simulator if feasible; smaller fallback accepted if runtime limits appear.
-- Input: compact feature representation.
-- Output: realized-volatility / variance forecast and derived transition-risk output if available.
-- Readout: ridge/linear head.
+- Fallback prototype: 6 qubits, PCA-6 input, 6 temporal anchors, Z-only exact expectations.
+- Primary prototype if feasible: 8 qubits, PCA-8 input, 8 temporal anchors, Z/X or Z/X/ZZ expectations.
+- Hamiltonian: sparse or nearest-neighbor TFIM first.
+- Input: train-only PCA-compressed volatility/VIX features.
+- Memory: 40-day window compressed into anchor/virtual nodes.
+- Output: `future_rv_20d` forecast first; `future_rv_5d` second only if the 20-day path is clean.
+- Readout: ridge regression on log-volatility.
+- Evaluation: RMSE, QLIKE, Mincer-Zarnowitz.
 
 Outputs:
 
 - Runnable QRC prototype notebook/script.
-- Metrics table against at least one classical baseline.
-- Saved reservoir feature matrix diagnostics.
+- Metrics table against at least one classical baseline, preferably the PCA-compressed ESN and HAR/Ridge.
+- Saved QRC reservoir feature matrix diagnostics.
 - One paragraph: what the prototype proves and does not prove.
 
 Required checks before sign-off:
 
 - Challenge description: light-touch prototyping guidance and QRC Architecture Design.
+- `docs/qrc_architecture_design.md`: primary design and config schema.
+- `docs/qrc_literature_design_map.md`: literature-to-design rationale.
 - `docs/phase2_execution_guardrails.md`: Phase 2 prototype boundary.
 - `docs/theoretical_justification_notes.md`: lightweight prototype probes.
 - `docs/track_a_metrics_notes.md`: metrics are still central.
@@ -285,11 +323,11 @@ Rubric criteria addressed:
 
 Stop condition:
 
-- QRC runs end-to-end and produces interpretable outputs, even if not yet better than baselines.
+- QRC runs end-to-end and produces interpretable reservoir features and volatility forecasts, even if not yet better than baselines.
 
 Scope-control warning:
 
-- Do not chase performance. This milestone is viability evidence.
+- Do not chase performance. This milestone is viability evidence and architecture validation. If the full primary prototype is slow, use the 6-qubit fallback and record the resource limitation.
 
 ---
 
@@ -301,10 +339,20 @@ Goal:
 
 Choose one based on May 25 result:
 
-- Memory probe: evolution time / re-uploading depth.
-- Encoding probe: PCA-6 vs selected interpretable features.
-- Reservoir-size probe: small qubit-count comparison.
-- Shot-budget probe: exact vs 512/2048 shots.
+- Observable probe: `Z` versus `Z + X` versus `Z + X + ZZ`.
+- Memory probe: 6 versus 8 temporal anchors.
+- Evolution probe: one versus two Trotter steps per anchor.
+- Input probe: PCA-6 versus PCA-8.
+- Resource probe: 6 versus 8 qubits.
+- Shot-budget probe: exact versus 512/2048 shots.
+
+Preferred probe if May 25 runs cleanly:
+
+- Observable ladder probe, because it directly tests whether richer quantum/reservoir features add information beyond the simplest computational-basis readout.
+
+Fallback probe if runtime is tight:
+
+- PCA-6 / 6-qubit / Z-only exact expectation resource probe, with a clear statement of what prevents scaling.
 
 Outputs:
 
@@ -315,6 +363,8 @@ Outputs:
 Required checks before sign-off:
 
 - Challenge description: theoretical/analytical justification, resource planning, light-touch prototype boundary.
+- `docs/qrc_architecture_design.md`: controlled probe plan.
+- `docs/qrc_literature_design_map.md`: memory/stability/observable rationale.
 - `docs/theoretical_justification_notes.md`: prototype probes.
 - `docs/phase2_execution_guardrails.md`: stop rule.
 - `docs/platform_stakeholder_phase3_notes.md`: resource planning and Phase 3 fallback.
