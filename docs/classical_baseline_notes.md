@@ -76,6 +76,40 @@ seeds: 1–5
 
 The log-target readout was important. Direct raw-volatility ESN prediction produced occasional near-zero volatility forecasts, which caused pathological QLIKE values even when RMSE looked acceptable. Predicting log-volatility and transforming back with `exp()` removed this failure mode and produced much more stable QLIKE behavior.
 
+## PCA compression diagnostics
+
+The PCA diagnostics for the current 27-feature Phase 2 regression feature set are different from the older compact/correlation-pruned classifier feature set. The older compact-feature analysis showed much higher cumulative variance at PCA-6. That number should not be used for the current full-feature regression pipeline.
+
+Current train-only PCA explained variance for the 27-feature Phase 2 feature set:
+
+| Component | Explained variance ratio | Cumulative explained variance |
+|---:|---:|---:|
+| 1 | 0.408573 | 0.408573 |
+| 2 | 0.112421 | 0.520994 |
+| 3 | 0.090849 | 0.611843 |
+| 4 | 0.073259 | 0.685102 |
+| 5 | 0.064206 | 0.749308 |
+| 6 | 0.055584 | 0.804892 |
+| 7 | 0.036496 | 0.841388 |
+| 8 | 0.032709 | 0.874098 |
+| 9 | 0.031574 | 0.905672 |
+| 10 | 0.016945 | 0.922617 |
+
+Interpretation:
+
+```text
+PCA-6:
+  aggressive small-qubit fallback; captures ~80.5% of current full-feature variance
+
+PCA-8:
+  primary QRC input setting; captures ~87.4% of current full-feature variance
+
+PCA-10:
+  sensitivity / larger-input extension; captures ~92.3% of current full-feature variance
+```
+
+This does not invalidate the PCA-compressed ESN result or the QRC design. It clarifies the architecture ladder: PCA-6 is a deliberately compressed fallback, while PCA-8 and PCA-10 preserve more information for the primary and sensitivity QRC settings.
+
 ## Key results
 
 The persistence baseline confirmed that volatility clustering provides useful signal, but it was clearly weaker than learned models.
