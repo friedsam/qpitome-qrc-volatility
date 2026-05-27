@@ -12,14 +12,15 @@ from qpitome_qrc.evaluation.metrics import VolatilityForecastMetrics, evaluate_v
 
 ObservableMode = Literal["z", "zx", "zxzz"]
 AnchorPolicy = Literal["even", "recent"]
+Topology = Literal["chain", "full"]
 
 
 @dataclass(frozen=True)
 class TFIMQRCConfig:
     """Exact-state TFIM QRC prototype configuration.
 
-    This is intentionally simulator-first and small-qubit. It is designed for
-    Phase 2/early Phase 3 architecture validation, not final performance.
+    Defaults preserve the May-25/v1 behavior. Optional v1.5 settings add
+    fully connected ZZ topology and virtual-node readout inside each anchor.
     """
 
     qubits: int = 6
@@ -29,6 +30,8 @@ class TFIMQRCConfig:
     anchor_policy: AnchorPolicy = "even"
     observable_mode: ObservableMode = "z"
     trotter_steps_per_anchor: int = 1
+    virtual_nodes_per_anchor: int = 1
+    topology: Topology = "chain"
     coupling_scale: float = 0.7
     transverse_field: float = 0.5
     evolution_time: float = 0.5
@@ -165,6 +168,15 @@ def encode_input_angles(
     return state
 
 
+def _edge_count(config: TFIMQRCConfig) -> int:
+    n = config.qubits
+    if config.topology == "chain":
+        return max(n - 1, 0)
+    if config.topology == "full":
+        return n * (n - 1) // 2
+    raise ValueError(f"Unknown topology: {config.topology}")
+
+
 def _fixed_disorder_factors(config: TFIMQRCConfig) -> tuple[np.ndarray, np.ndarray]:
     """Return deterministic fixed edge and qubit disorder factors.
 
@@ -173,11 +185,12 @@ def _fixed_disorder_factors(config: TFIMQRCConfig) -> tuple[np.ndarray, np.ndarr
     parameters are fixed, not trained.
     """
     n = config.qubits
+    edge_count = _edge_count(config)
     if not config.use_disorder or config.disorder_strength == 0.0:
-        return np.ones(max(n - 1, 0)), np.ones(n)
+        return np.ones(edge_count), np.ones(n)
 
     rng = np.random.default_rng(config.seed)
-    edge_factors = 1.0 + config.disorder_strength * rng.normal(size=max(n - 1, 0))
+    edge_factors = 1.0 + config.disorder_strength * rng.normal(size=edge_count)
     field_factors = 1.0 + config.disorder_strength * rng.normal(size=n)
 
     # Avoid sign flips in the first disorder probe; this keeps the test local
@@ -194,17 +207,26 @@ def evolve_tfim_step(
     edge_factors: np.ndarray | None = None,
     field_factors: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Apply one shallow nearest-neighbor TFIM Trotter step."""
+    """Apply one TFIM Trotter step with chain or fully connected ZZ topology."""
     n = config.qubits
     dt = config.evolution_time / max(config.trotter_steps_per_anchor, 1)
 
     if edge_factors is None or field_factors is None:
         edge_factors, field_factors = _fixed_disorder_factors(config)
 
-    # ZZ nearest-neighbor interaction layer.
-    for q in range(n - 1):
-        angle = config.coupling_scale * edge_factors[q] * dt
-        state = _apply_zz_phase(state, q, q + 1, angle, n)
+    if config.topology == "chain":
+        for q in range(n - 1):
+            angle = config.coupling_scale * edge_factors[q] * dt
+            state = _apply_zz_phase(state, q, q + 1, angle, n)
+    elif config.topology == "full":
+        pair_idx = 0
+        for q_a in range(n - 1):
+            for q_b in range(q_a + 1, n):
+                angle = config.coupling_scale * edge_factors[pair_idx] * dt
+                state = _apply_zz_phase(state, q_a, q_b, angle, n)
+                pair_idx += 1
+    else:
+        raise ValueError(f"Unknown topology: {config.topology}")
 
     # Transverse-field X layer.
     for q in range(n):
@@ -219,12 +241,15 @@ def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> 
 
     By default, this returns final-state observables only. If
     ``collect_anchor_features`` is enabled, observables are collected after each
-    temporal anchor and concatenated. This exposes virtual-node style temporal
-    readout features while preserving the May-25 final-state behavior by
-    default.
+    temporal anchor and concatenated. If ``virtual_nodes_per_anchor > 1``,
+    observables are collected after intermediate Trotter steps as virtual nodes.
     """
     if window.ndim != 2:
         raise ValueError(f"Expected window shape (lookback, features), got {window.shape}")
+    if config.virtual_nodes_per_anchor < 1:
+        raise ValueError("virtual_nodes_per_anchor must be >= 1")
+    if config.virtual_nodes_per_anchor > config.trotter_steps_per_anchor:
+        raise ValueError("virtual_nodes_per_anchor must be <= trotter_steps_per_anchor")
 
     state = initialize_zero_state(config.qubits)
     anchor_indices = select_anchor_indices(
@@ -235,6 +260,13 @@ def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> 
     edge_factors, field_factors = _fixed_disorder_factors(config)
 
     anchor_features: list[np.ndarray] = []
+    readout_steps = set(
+        np.linspace(
+            1,
+            config.trotter_steps_per_anchor,
+            config.virtual_nodes_per_anchor,
+        ).round().astype(int)
+    )
 
     for idx in anchor_indices:
         state = encode_input_angles(
@@ -243,15 +275,17 @@ def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> 
             n_qubits=config.qubits,
             angle_max=config.angle_max,
         )
-        for _ in range(config.trotter_steps_per_anchor):
+        for step in range(1, config.trotter_steps_per_anchor + 1):
             state = evolve_tfim_step(
                 state,
                 config,
                 edge_factors=edge_factors,
                 field_factors=field_factors,
             )
+            if config.collect_anchor_features and step in readout_steps:
+                anchor_features.append(observable_features(state, config))
 
-        if config.collect_anchor_features:
+        if config.collect_anchor_features and config.trotter_steps_per_anchor == 0:
             anchor_features.append(observable_features(state, config))
 
     if config.collect_anchor_features:
@@ -286,7 +320,12 @@ def expectation_zz(state: np.ndarray, qubit_a: int, qubit_b: int, n_qubits: int)
 
 
 def observable_features(state: np.ndarray, config: TFIMQRCConfig) -> np.ndarray:
-    """Extract Z, X, and/or nearest-neighbor ZZ expectations."""
+    """Extract Z, X, and/or nearest-neighbor ZZ expectations.
+
+    The ZZ observable readout intentionally remains nearest-neighbor for
+    comparability with the v1 17-feature ZXZZ baseline, even when the Hamiltonian
+    topology is fully connected.
+    """
     n = config.qubits
     feats: list[float] = []
 
