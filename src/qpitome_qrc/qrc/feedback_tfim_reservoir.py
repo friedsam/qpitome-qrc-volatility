@@ -26,16 +26,18 @@ from qpitome_qrc.qrc.tfim_reservoir import (
 ObservableMode = Literal["z", "zx", "zxzz"]
 TargetTransform = Literal["log", "none"]
 TemporalPolicy = Literal["even", "recent", "all"]
+FeatureCollection = Literal["trajectory", "summary"]
 
 
 @dataclass(frozen=True)
 class FeedbackTFIMQRCConfig:
     """Sequential dense-TFIM QRC with deterministic expectation feedback.
 
-    This v2 prototype preserves the essential feedback-reservoir mechanism:
-    measured reservoir summaries at time t alter the quantum dynamics at time
-    t+1. It intentionally avoids stochastic weak-measurement trajectories in the
-    first implementation so feedback can be tested cleanly against no-feedback.
+    feature_collection="trajectory" returns observables at every temporal
+    injection point. feature_collection="summary" keeps the sequential dynamics
+    but compresses the readout to final observables plus low-dimensional temporal
+    summaries. This tests memory without dumping the entire trajectory into the
+    classical readout.
     """
 
     qubits: int = 6
@@ -47,6 +49,7 @@ class FeedbackTFIMQRCConfig:
     memory_qubits: tuple[int, ...] = (2, 3, 4)
     readout_qubits: tuple[int, ...] = (5,)
     observable_mode: ObservableMode = "zxzz"
+    feature_collection: FeatureCollection = "trajectory"
     trotter_steps_per_time: int = 1
     evolution_time: float = 0.25
     input_scale: float = np.pi / 2
@@ -218,7 +221,7 @@ def _evolve_dense_tfim_step(
 
 
 def feedback_observable_features(state: np.ndarray, config: FeedbackTFIMQRCConfig) -> np.ndarray:
-    """Extract observables, prioritizing memory/readout qubits but including all qubits."""
+    """Extract full-state observables at one temporal injection point."""
     n = config.qubits
     feats: list[float] = []
 
@@ -232,11 +235,42 @@ def feedback_observable_features(state: np.ndarray, config: FeedbackTFIMQRCConfi
             for j in range(i + 1, n):
                 feats.append(expectation_zz(state, i, j, n))
 
-    # Explicit low-dimensional feedback/memory summaries help interpretability.
     feats.append(_readout_feedback_signal(state, config))
     feats.append(float(np.mean([expectation_z(state, q, n) for q in config.memory_qubits])))
 
     return np.asarray(feats, dtype=float)
+
+
+def _compact_summary_features(
+    trajectory_features: list[np.ndarray],
+    memory_z_history: list[np.ndarray],
+    readout_history: list[float],
+) -> np.ndarray:
+    """Compress temporal QRC trajectory to final state plus trajectory statistics."""
+    traj = np.asarray(trajectory_features, dtype=float)
+    memory_z = np.asarray(memory_z_history, dtype=float)
+    readout = np.asarray(readout_history, dtype=float).reshape(-1, 1)
+
+    final_full = traj[-1]
+    traj_mean = traj.mean(axis=0)
+    traj_std = traj.std(axis=0)
+
+    compact_parts = [
+        final_full,
+        traj_mean,
+        traj_std,
+        memory_z[-1],
+        memory_z.mean(axis=0),
+        memory_z.std(axis=0),
+        memory_z.min(axis=0),
+        memory_z.max(axis=0),
+        readout[-1],
+        readout.mean(axis=0),
+        readout.std(axis=0),
+        readout.min(axis=0),
+        readout.max(axis=0),
+    ]
+    return np.concatenate([np.ravel(part) for part in compact_parts])
 
 
 def run_feedback_tfim_reservoir_for_window(
@@ -257,6 +291,8 @@ def run_feedback_tfim_reservoir_for_window(
     field_factors = _field_factors(config)
 
     feature_blocks: list[np.ndarray] = []
+    memory_z_history: list[np.ndarray] = []
+    readout_history: list[float] = []
     feedback_signal = 0.0
 
     for idx in temporal_indices:
@@ -268,8 +304,16 @@ def run_feedback_tfim_reservoir_for_window(
 
         feedback_signal = _readout_feedback_signal(state, config)
         feature_blocks.append(feedback_observable_features(state, config))
+        memory_z_history.append(
+            np.asarray([expectation_z(state, q, config.qubits) for q in config.memory_qubits], dtype=float)
+        )
+        readout_history.append(feedback_signal)
 
-    return np.concatenate(feature_blocks)
+    if config.feature_collection == "trajectory":
+        return np.concatenate(feature_blocks)
+    if config.feature_collection == "summary":
+        return _compact_summary_features(feature_blocks, memory_z_history, readout_history)
+    raise ValueError(f"Unknown feature_collection: {config.feature_collection}")
 
 
 def build_feedback_qrc_feature_matrix(
