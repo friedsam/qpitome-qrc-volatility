@@ -37,6 +37,8 @@ class TFIMQRCConfig:
     target_transform: Literal["log", "none"] = "log"
     seed: int = 42
     collect_anchor_features: bool = False
+    use_disorder: bool = False
+    disorder_strength: float = 0.0
 
 
 @dataclass
@@ -163,18 +165,50 @@ def encode_input_angles(
     return state
 
 
-def evolve_tfim_step(state: np.ndarray, config: TFIMQRCConfig) -> np.ndarray:
+def _fixed_disorder_factors(config: TFIMQRCConfig) -> tuple[np.ndarray, np.ndarray]:
+    """Return deterministic fixed edge and qubit disorder factors.
+
+    Disorder is fixed by config seed and is therefore identical for every sample
+    in a run. This preserves the reservoir-computing assumption: the reservoir
+    parameters are fixed, not trained.
+    """
+    n = config.qubits
+    if not config.use_disorder or config.disorder_strength == 0.0:
+        return np.ones(max(n - 1, 0)), np.ones(n)
+
+    rng = np.random.default_rng(config.seed)
+    edge_factors = 1.0 + config.disorder_strength * rng.normal(size=max(n - 1, 0))
+    field_factors = 1.0 + config.disorder_strength * rng.normal(size=n)
+
+    # Avoid sign flips in the first disorder probe; this keeps the test local
+    # around the homogeneous TFIM reservoir rather than changing the model class.
+    edge_factors = np.clip(edge_factors, 0.05, None)
+    field_factors = np.clip(field_factors, 0.05, None)
+    return edge_factors, field_factors
+
+
+def evolve_tfim_step(
+    state: np.ndarray,
+    config: TFIMQRCConfig,
+    *,
+    edge_factors: np.ndarray | None = None,
+    field_factors: np.ndarray | None = None,
+) -> np.ndarray:
     """Apply one shallow nearest-neighbor TFIM Trotter step."""
     n = config.qubits
     dt = config.evolution_time / max(config.trotter_steps_per_anchor, 1)
 
+    if edge_factors is None or field_factors is None:
+        edge_factors, field_factors = _fixed_disorder_factors(config)
+
     # ZZ nearest-neighbor interaction layer.
     for q in range(n - 1):
-        state = _apply_zz_phase(state, q, q + 1, config.coupling_scale * dt, n)
+        angle = config.coupling_scale * edge_factors[q] * dt
+        state = _apply_zz_phase(state, q, q + 1, angle, n)
 
     # Transverse-field X layer.
-    x_gate = rx(2.0 * config.transverse_field * dt)
     for q in range(n):
+        x_gate = rx(2.0 * config.transverse_field * field_factors[q] * dt)
         state = _apply_single_qubit_gate(state, x_gate, q, n)
 
     return state
@@ -198,6 +232,7 @@ def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> 
         config.anchor_count,
         config.anchor_policy,
     )
+    edge_factors, field_factors = _fixed_disorder_factors(config)
 
     anchor_features: list[np.ndarray] = []
 
@@ -209,7 +244,12 @@ def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> 
             angle_max=config.angle_max,
         )
         for _ in range(config.trotter_steps_per_anchor):
-            state = evolve_tfim_step(state, config)
+            state = evolve_tfim_step(
+                state,
+                config,
+                edge_factors=edge_factors,
+                field_factors=field_factors,
+            )
 
         if config.collect_anchor_features:
             anchor_features.append(observable_features(state, config))
