@@ -36,6 +36,7 @@ class TFIMQRCConfig:
     ridge_alpha: float = 10.0
     target_transform: Literal["log", "none"] = "log"
     seed: int = 42
+    collect_anchor_features: bool = False
 
 
 @dataclass
@@ -180,7 +181,14 @@ def evolve_tfim_step(state: np.ndarray, config: TFIMQRCConfig) -> np.ndarray:
 
 
 def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> np.ndarray:
-    """Run one rolling-window sample through the TFIM reservoir."""
+    """Run one rolling-window sample through the TFIM reservoir.
+
+    By default, this returns final-state observables only. If
+    ``collect_anchor_features`` is enabled, observables are collected after each
+    temporal anchor and concatenated. This exposes virtual-node style temporal
+    readout features while preserving the May-25 final-state behavior by
+    default.
+    """
     if window.ndim != 2:
         raise ValueError(f"Expected window shape (lookback, features), got {window.shape}")
 
@@ -191,6 +199,8 @@ def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> 
         config.anchor_policy,
     )
 
+    anchor_features: list[np.ndarray] = []
+
     for idx in anchor_indices:
         state = encode_input_angles(
             state,
@@ -200,6 +210,12 @@ def run_tfim_reservoir_for_window(window: np.ndarray, config: TFIMQRCConfig) -> 
         )
         for _ in range(config.trotter_steps_per_anchor):
             state = evolve_tfim_step(state, config)
+
+        if config.collect_anchor_features:
+            anchor_features.append(observable_features(state, config))
+
+    if config.collect_anchor_features:
+        return np.concatenate(anchor_features)
 
     return observable_features(state, config)
 
@@ -213,7 +229,6 @@ def expectation_z(state: np.ndarray, qubit: int, n_qubits: int) -> float:
 
 
 def expectation_x(state: np.ndarray, qubit: int, n_qubits: int) -> float:
-    flipped = state.copy()
     indices = np.arange(state.size)
     flip_mask = 1 << (n_qubits - 1 - qubit)
     flipped = state[indices ^ flip_mask]
@@ -260,6 +275,105 @@ def build_qrc_feature_matrix(
             print(f"QRC sample {i}/{len(X_windows)}")
         rows.append(run_tfim_reservoir_for_window(window, config))
     return np.asarray(rows, dtype=float)
+
+
+def _safe_feature_target_correlations(H: np.ndarray, y: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """Compute feature-target correlations, returning zero for degenerate columns."""
+    H = np.asarray(H, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    H_centered = H - H.mean(axis=0, keepdims=True)
+    y_centered = y - y.mean()
+
+    h_norm = np.linalg.norm(H_centered, axis=0)
+    y_norm = np.linalg.norm(y_centered)
+    denom = h_norm * max(y_norm, eps)
+
+    corr = np.zeros(H.shape[1], dtype=float)
+    valid = denom > eps
+    corr[valid] = (H_centered[:, valid].T @ y_centered) / denom[valid]
+    return corr
+
+
+def diagnose_reservoir_features(
+    H: np.ndarray,
+    y: np.ndarray | None = None,
+    *,
+    name: str = "split",
+    near_constant_tol: float = 1e-8,
+    sv_tol: float = 1e-10,
+) -> dict:
+    """Return compact diagnostics for a reservoir feature matrix.
+
+    These diagnostics are intended to decide whether QRC features are useful
+    enough to justify model tuning. They should be inspected before large
+    parameter sweeps.
+    """
+    H = np.asarray(H, dtype=float)
+    if H.ndim != 2:
+        raise ValueError(f"Expected H shape (samples, features), got {H.shape}")
+
+    std = H.std(axis=0)
+    centered = H - H.mean(axis=0, keepdims=True)
+    singular_values = np.linalg.svd(centered, full_matrices=False, compute_uv=False)
+    positive_sv = singular_values[singular_values > sv_tol]
+
+    if positive_sv.size == 0:
+        effective_rank = 0.0
+        condition_number = np.inf
+    else:
+        weights = positive_sv / positive_sv.sum()
+        effective_rank = float(np.exp(-np.sum(weights * np.log(weights))))
+        condition_number = float(positive_sv[0] / positive_sv[-1])
+
+    diagnostics = {
+        "split": name,
+        "n_samples": int(H.shape[0]),
+        "n_features": int(H.shape[1]),
+        "near_constant_features": int(np.sum(std < near_constant_tol)),
+        "feature_std_min": float(np.min(std)),
+        "feature_std_median": float(np.median(std)),
+        "feature_std_max": float(np.max(std)),
+        "effective_rank": effective_rank,
+        "condition_number": condition_number,
+    }
+
+    if y is not None:
+        corr = _safe_feature_target_correlations(H, np.asarray(y, dtype=float))
+        diagnostics.update(
+            {
+                "mean_abs_feature_target_corr": float(np.mean(np.abs(corr))),
+                "max_abs_feature_target_corr": float(np.max(np.abs(corr))),
+            }
+        )
+
+    return diagnostics
+
+
+def diagnose_reservoir_feature_splits(
+    H_train: np.ndarray,
+    H_val: np.ndarray,
+    H_test: np.ndarray,
+    y_train: np.ndarray | None = None,
+    y_val: np.ndarray | None = None,
+    y_test: np.ndarray | None = None,
+) -> pd.DataFrame:
+    """Diagnose train/validation/test reservoir feature matrices."""
+    rows = [
+        diagnose_reservoir_features(H_train, y_train, name="train"),
+        diagnose_reservoir_features(H_val, y_val, name="val"),
+        diagnose_reservoir_features(H_test, y_test, name="test"),
+    ]
+
+    train_mean = np.asarray(H_train, dtype=float).mean(axis=0)
+    train_std = np.asarray(H_train, dtype=float).std(axis=0) + 1e-12
+
+    for row, H in zip(rows, [H_train, H_val, H_test], strict=True):
+        z_shift = (np.asarray(H, dtype=float).mean(axis=0) - train_mean) / train_std
+        row["mean_abs_shift_vs_train"] = float(np.mean(np.abs(z_shift)))
+        row["max_abs_shift_vs_train"] = float(np.max(np.abs(z_shift)))
+
+    return pd.DataFrame(rows)
 
 
 def fit_qrc_readout(
