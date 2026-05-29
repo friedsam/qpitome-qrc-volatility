@@ -1,53 +1,53 @@
 %%{init: {"theme": "base", "themeVariables": {"fontSize": "18px"}} }%%
 flowchart TD
-    A[Public market data: SPY OHLCV + VIX] --> B[Feature engineering\nreturns, realized volatility, ranges, drawdowns, VIX level/change]
-    B --> C[Chronological train / validation / test split]
-    C --> D[Train-only scaling + PCA-6]
-    D --> E[40-day rolling market window]
-    E --> F[Recent temporal anchors\n10 anchors from each window]
-    F --> G[Leaky trajectory encoding\nanchor_t = leak * anchor_t + (1-leak) * anchor_{t-1}]
-    G --> H[Angle encoding\nPCA components to Ry or Rz-Ry rotations]
+    A["Public market data: SPY OHLCV and VIX"] --> B["Feature engineering<br/>returns, realized volatility, ranges, drawdowns, VIX level/change"]
+    B --> C["Chronological train / validation / test split"]
+    C --> D["Train-only scaling and PCA-6"]
+    D --> E["40-day rolling market window"]
+    E --> F["Recent temporal anchors<br/>10 anchors from each window"]
+    F --> G["Leaky trajectory encoding<br/>blends current and previous anchor"]
+    G --> H["Angle encoding<br/>PCA components to Ry or Rz-Ry rotations"]
 
-    H --> I[6-qubit TFIM QRC reservoir\nfull topology, disorder, transverse field]
-    I --> J[Reservoir evolution\n3 Trotter steps per anchor]
-    J --> K[Virtual-node trajectory features\n3 virtual nodes per anchor]
-    K --> L[Observable readout]
-    L --> L1[Z observables]
-    L --> L2[X / ZX-style observables]
-    L --> L3[ZZ correlators / pair features]
-    L1 --> M[Reservoir feature matrix]
+    H --> I["6-qubit TFIM QRC reservoir<br/>full topology, disorder, transverse field"]
+    I --> J["Reservoir evolution<br/>3 Trotter steps per anchor"]
+    J --> K["Virtual-node trajectory features<br/>3 virtual nodes per anchor"]
+    K --> L["Observable readout"]
+    L --> L1["Z observables"]
+    L --> L2["X / ZX-style observables"]
+    L --> L3["ZZ correlators / pair features"]
+    L1 --> M["Reservoir feature matrix"]
     L2 --> M
     L3 --> M
 
-    M --> N[Train-only winsorization + top-k feature selection]
-    N --> O[Ridge readout\ntrained on log future realized volatility]
-    O --> P[exp transform]
-    P --> Q[future_rv_20d forecast]
-    Q --> R[Required Track A metrics\nRMSE / QLIKE / Mincer-Zarnowitz]
-    Q --> S[Forecast-aware regime layer\nq80 watch / q90 warning / q95 crisis-like]
-    S --> T[Stakeholder interpretation\nvolatility-regime transition early warning]
+    M --> N["Train-only winsorization and top-k feature selection"]
+    N --> O["Ridge readout<br/>trained on log future realized volatility"]
+    O --> P["exp transform"]
+    P --> Q["future_rv_20d forecast"]
+    Q --> R["Required Track A metrics<br/>RMSE / QLIKE / Mincer-Zarnowitz"]
+    Q --> S["Forecast-aware regime layer<br/>q80 watch / q90 warning / q95 crisis-like"]
+    S --> T["Stakeholder interpretation<br/>volatility-regime transition early warning"]
 
-    U[Classical baselines] --> U1[Persistence / naive forecast]
-    U --> U2[HAR-like ridge]
-    U --> U3[ESN reference reservoir\nn=500, sr=0.9, leak=0.5]
+    U["Classical baselines"] --> U1["Persistence / naive forecast"]
+    U --> U2["HAR-like ridge"]
+    U --> U3["ESN reference reservoir<br/>n=500, sr=0.9, leak=0.5"]
     U1 --> R
     U2 --> R
     U3 --> R
-    U3 --> V[Reservoir-computing ceiling\nand diagnostic target]
+    U3 --> V["Reservoir-computing ceiling<br/>and diagnostic target"]
     V -. identifies gap .-> G
     V -. tail-amplitude / calibration gap .-> N
 
-    W[Phase 3 hardware plan] --> W1[QuEra / Aquila\nprimary analog neutral-atom QRC]
-    W --> W2[IonQ\nhigh-connectivity digital QRC comparator]
-    W --> W3[IBM / Qiskit\naccessible superconducting benchmark]
+    W["Phase 3 hardware plan"] --> W1["QuEra / Aquila<br/>primary analog neutral-atom QRC"]
+    W --> W2["IonQ<br/>high-connectivity digital QRC comparator"]
+    W --> W3["IBM / Qiskit<br/>accessible superconducting benchmark"]
     I -. digital QRC path .-> W2
     I -. resource baseline .-> W3
     I -. analog reformulation to Rydberg/Ising .-> W1
 
-    X[Controlled Phase 2 probes] --> X1[initial QRC v0 anchor snapshot]
-    X --> X2[full topology + virtual nodes]
-    X --> X3[leaky-input trajectory encoding]
-    X --> X4[final encoding/readout calibration]
+    X["Controlled Phase 2 probes"] --> X1["initial QRC v0 anchor snapshot"]
+    X --> X2["full topology and virtual nodes"]
+    X --> X3["leaky-input trajectory encoding"]
+    X --> X4["final encoding/readout calibration"]
     X1 -.-> I
     X2 -.-> I
     X3 -.-> G
