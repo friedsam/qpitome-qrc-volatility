@@ -1,51 +1,68 @@
 %%{init: {"theme": "base", "themeVariables": {"fontSize": "18px"}} }%%
 flowchart TD
-    A[SPY + VIX daily market data] --> B[Engineered volatility, return, range, drawdown, and VIX features]
+    A[Public market data: SPY OHLCV + VIX] --> B[Feature engineering\nreturns, realized volatility, ranges, drawdowns, VIX level/change]
     B --> C[Chronological train / validation / test split]
-    C --> D[Train-only StandardScaler + PCA]
+    C --> D[Train-only scaling + PCA-6]
     D --> E[40-day rolling market window]
-    E --> F[Temporal anchor selection / virtual nodes]
-    F --> G[Angle encoding: PCA components to Ry or Rz-Ry rotations]
-    G --> H[Fixed TFIM quantum reservoir]
-    H --> I[Reservoir evolution across temporal anchors]
-    I --> J[Observable expectations]
-    J --> J1[Z observables]
-    J --> J2[X observables]
-    J --> J3[ZZ nearest-neighbor correlators]
-    J1 --> K[Reservoir feature matrix]
-    J2 --> K
-    J3 --> K
-    K --> L[Ridge readout trained on log future realized volatility]
-    L --> M[exp transform]
-    M --> N[future_rv_20d forecast]
-    N --> O[RMSE / QLIKE / Mincer-Zarnowitz]
+    E --> F[Recent temporal anchors\n10 anchors from each window]
+    F --> G[Leaky trajectory encoding\nanchor_t = leak * anchor_t + (1-leak) * anchor_{t-1}]
+    G --> H[Angle encoding\nPCA components to Ry or Rz-Ry rotations]
 
-    P[Classical comparison floor] --> P1[Persistence]
-    P --> P2[HAR / Ridge / ElasticNet]
-    P --> P3[PCA-compressed ESN log-target reservoir]
-    P1 --> O
-    P2 --> O
-    P3 --> O
+    H --> I[6-qubit TFIM QRC reservoir\nfull topology, disorder, transverse field]
+    I --> J[Reservoir evolution\n3 Trotter steps per anchor]
+    J --> K[Virtual-node trajectory features\n3 virtual nodes per anchor]
+    K --> L[Observable readout]
+    L --> L1[Z observables]
+    L --> L2[X / ZX-style observables]
+    L --> L3[ZZ correlators / pair features]
+    L1 --> M[Reservoir feature matrix]
+    L2 --> M
+    L3 --> M
 
-    Q[Controlled QRC probes] --> Q1[qubits: 6 / 8 / 10 / 12]
-    Q --> Q2[PCA dim: 6 / 8 / 10]
-    Q --> Q3[anchors: 6 / 8 / 10 / full 40]
-    Q --> Q4[observables: Z / Z+X / Z+X+ZZ]
-    Q --> Q5[exact expectations then finite shots]
-    Q1 -.-> H
-    Q2 -.-> D
-    Q3 -.-> F
-    Q4 -.-> J
-    Q5 -.-> J
+    M --> N[Train-only winsorization + top-k feature selection]
+    N --> O[Ridge readout\ntrained on log future realized volatility]
+    O --> P[exp transform]
+    P --> Q[future_rv_20d forecast]
+    Q --> R[Required Track A metrics\nRMSE / QLIKE / Mincer-Zarnowitz]
+    Q --> S[Forecast-aware regime layer\nq80 watch / q90 warning / q95 crisis-like]
+    S --> T[Stakeholder interpretation\nvolatility-regime transition early warning]
+
+    U[Classical baselines] --> U1[Persistence / naive forecast]
+    U --> U2[HAR-like ridge]
+    U --> U3[ESN reference reservoir\nn=500, sr=0.9, leak=0.5]
+    U1 --> R
+    U2 --> R
+    U3 --> R
+    U3 --> V[Reservoir-computing ceiling\nand diagnostic target]
+    V -. identifies gap .-> G
+    V -. tail-amplitude / calibration gap .-> N
+
+    W[Phase 3 hardware plan] --> W1[QuEra / Aquila\nprimary analog neutral-atom QRC]
+    W --> W2[IonQ\nhigh-connectivity digital QRC comparator]
+    W --> W3[IBM / Qiskit\naccessible superconducting benchmark]
+    I -. digital QRC path .-> W2
+    I -. resource baseline .-> W3
+    I -. analog reformulation to Rydberg/Ising .-> W1
+
+    X[Controlled Phase 2 probes] --> X1[initial QRC v0 anchor snapshot]
+    X --> X2[full topology + virtual nodes]
+    X --> X3[leaky-input trajectory encoding]
+    X --> X4[final encoding/readout calibration]
+    X1 -.-> I
+    X2 -.-> I
+    X3 -.-> G
+    X4 -.-> N
 
     classDef data fill:#f5f5f5,stroke:#555,stroke-width:1px;
     classDef quantum fill:#e8f0ff,stroke:#2454a6,stroke-width:1.5px;
     classDef readout fill:#fff4dc,stroke:#9a6b00,stroke-width:1.5px;
     classDef metrics fill:#eaf7ea,stroke:#2e7d32,stroke-width:1.5px;
-    classDef probe fill:#f8eaff,stroke:#7b1fa2,stroke-width:1px;
+    classDef baseline fill:#f8eaff,stroke:#7b1fa2,stroke-width:1px;
+    classDef hardware fill:#ffecec,stroke:#b71c1c,stroke-width:1.2px;
 
-    class A,B,C,D,E,F data;
-    class G,H,I,J,J1,J2,J3 quantum;
-    class K,L,M readout;
-    class N,O metrics;
-    class P,P1,P2,P3,Q,Q1,Q2,Q3,Q4,Q5 probe;
+    class A,B,C,D,E,F,G data;
+    class H,I,J,K,L,L1,L2,L3 quantum;
+    class M,N,O,P readout;
+    class Q,R,S,T metrics;
+    class U,U1,U2,U3,V,X,X1,X2,X3,X4 baseline;
+    class W,W1,W2,W3 hardware;
