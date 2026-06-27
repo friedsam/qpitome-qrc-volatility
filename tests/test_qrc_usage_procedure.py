@@ -76,27 +76,18 @@ def test_qrc_feature_matrix_has_one_row_per_window():
 def test_tiny_qrc_regressor_returns_valid_predictions_and_summary():
     config = _tiny_config()
     base_window = _tiny_window()
-    X = np.stack(
-        [
-            base_window,
-            base_window + 0.05,
-            base_window + 0.10,
-            base_window + 0.15,
-            base_window + 0.20,
-            base_window + 0.25,
-            base_window + 0.30,
-            base_window + 0.35,
-            base_window + 0.40,
-        ],
-        axis=0,
+    offsets = np.arange(12, dtype=float) * 0.05
+    X = np.stack([base_window + offset for offset in offsets], axis=0)
+    y = np.array(
+        [0.10, 0.11, 0.13, 0.15, 0.18, 0.20, 0.23, 0.26, 0.30, 0.34, 0.38, 0.42],
+        dtype=float,
     )
-    y = np.array([0.10, 0.11, 0.13, 0.15, 0.18, 0.20, 0.23, 0.26, 0.30], dtype=float)
     dates = pd.date_range("2020-01-01", periods=len(y), freq="D")
 
     sequence_splits = {
-        "train": (X[:5], y[:5], dates[:5]),
-        "val": (X[5:7], y[5:7], dates[5:7]),
-        "test": (X[7:], y[7:], dates[7:]),
+        "train": (X[:6], y[:6], dates[:6]),
+        "val": (X[6:9], y[6:9], dates[6:9]),
+        "test": (X[9:], y[9:], dates[9:]),
     }
 
     result = fit_feedback_tfim_qrc_regressor(
@@ -107,9 +98,9 @@ def test_tiny_qrc_regressor_returns_valid_predictions_and_summary():
     )
     summary = summarize_feedback_qrc_result(result)
 
-    assert result.train_predictions.shape == y[:5].shape
-    assert result.val_predictions.shape == y[5:7].shape
-    assert result.test_predictions.shape == y[7:].shape
+    assert result.train_predictions.shape == y[:6].shape
+    assert result.val_predictions.shape == y[6:9].shape
+    assert result.test_predictions.shape == y[9:].shape
     assert np.isfinite(result.train_predictions).all()
     assert np.isfinite(result.val_predictions).all()
     assert np.isfinite(result.test_predictions).all()
@@ -137,6 +128,6 @@ def test_tiny_qrc_regressor_returns_valid_predictions_and_summary():
     assert expected_summary_keys.issubset(summary.keys())
     assert summary["model"] == "feedback_tfim_qrc_exact"
     assert summary["target"] == "future_rv_20d"
-    assert summary["train_n"] == 5
-    assert summary["val_n"] == 2
-    assert summary["test_n"] == 2
+    assert summary["train_n"] == 6
+    assert summary["val_n"] == 3
+    assert summary["test_n"] == 3
