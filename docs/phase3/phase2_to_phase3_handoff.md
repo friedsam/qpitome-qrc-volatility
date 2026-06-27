@@ -185,8 +185,8 @@ Do not claim quantum advantage unless the evidence supports it. The defensible i
 |---|---|
 | Regression target is the right substrate | `docs/challenge_alignment_notes.md`, `docs/track_a_metrics_notes.md`, final Phase 2 writeup |
 | Data pipeline is leakage-aware | `src/qpitome_qrc/data/`, `scripts/prepare_phase2_spy_vix_dataset.py`, data validation notebook |
-| ESN validates reservoir computing | `docs/classical_baseline_notes.md`, `notebooks/phase2_esn_regression_baseline_tuning.ipynb`, ESN result tables |
-| QRC v0 was under-dispersed | `notebooks/phase2_tfim_qrc_light_touch_prototype.ipynb`, QRC v0 prediction exports |
+| ESN validates reservoir computing | `docs/classical_baseline_notes.md`, archived Phase 2 ESN notebook, ESN result tables |
+| QRC v0 was under-dispersed | archived Phase 2 QRC notebook and archived QRC v0 prediction exports |
 | Leaky trajectory encoding improved QRC | `docs/may26_milestone6_design_probe_closeout.md`, leaky/final QRC notebooks and result tables |
 | Regime-warning layer is transparent and useful | `docs/may27_milestone7_regime_transition_closeout.md`, forecast-aware regime notebooks |
 | Neutral atoms are the primary Phase 3 hardware route | `docs/may28_milestone8_platform_phase3_plan.md`, final Phase 2 writeup |

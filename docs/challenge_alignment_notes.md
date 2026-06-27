@@ -368,7 +368,7 @@ Do now:
 - backend abstraction: `local_simulator`, later `qbraid_simulator`, later optional `qbraid_qpu`;
 - notebooks runnable top-to-bottom locally;
 - no hidden paths or local-only credentials;
-- saved tables/figures under `reports/`;
+- saved tables/figures under `results/`;
 - qBraid runbook draft.
 
 Wait for credentials for:
