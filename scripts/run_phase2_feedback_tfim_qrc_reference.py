@@ -244,7 +244,8 @@ def main() -> None:
         write_outputs=not args.no_write,
     )
     print(pd.DataFrame([summary]).T)
-    print(predictions.head())
+    print("\nPrediction preview:")
+    print(predictions.head().to_string(index=False))
 
 
 if __name__ == "__main__":
