@@ -31,6 +31,7 @@ from sklearn.preprocessing import StandardScaler
 SEED = 42
 TARGET_COL = "future_rv_20d"
 DATA_CANDIDATES = [
+    "data/processed/phase2_spy_vix_volatility.csv",
     "data/processed/phase2_spy_vix_dataset.csv",
     "data/processed/phase2_spy_vix_features.csv",
     "data/processed/phase2_modeling_dataset.csv",
@@ -40,20 +41,29 @@ DATA_CANDIDATES = [
 ]
 
 
+def project_root_from_cwd() -> Path:
+    """Return repo root whether called from repo root or notebooks/."""
+    cwd = Path.cwd()
+    if cwd.name == "notebooks" and (cwd.parent / "scripts").exists():
+        return cwd.parent
+    return cwd
+
+
 def find_dataset(project_root: Path, explicit: str | None) -> Path:
     if explicit:
         p = Path(explicit)
-        if not p.is_absolute():
-            p = project_root / p
-        if not p.exists():
-            raise FileNotFoundError(p)
-        return p
+        candidates = [p] if p.is_absolute() else [project_root / p, Path.cwd() / p]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        raise FileNotFoundError(candidates[0])
     for rel in DATA_CANDIDATES:
         p = project_root / rel
         if p.exists():
             return p
     raise FileNotFoundError(
-        "No Phase 2 modeling dataset found. Pass --data-path with a CSV containing future_rv_20d."
+        "No Phase 2 modeling dataset found. Run scripts/prepare_phase2_spy_vix_dataset.py "
+        "or pass --data-path with a CSV containing future_rv_20d."
     )
 
 
@@ -302,11 +312,13 @@ def parse_args(argv: Iterable[str] | None = None):
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = parse_args(argv)
-    root = Path.cwd()
+    root = project_root_from_cwd()
     results_dir = root / "results" / "tables"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     data_path = find_dataset(root, args.data_path)
+    print(f"Project root: {root}")
+    print(f"Dataset: {data_path}")
     X, y, split, dates, feature_cols = load_matrix(data_path, args.target_col)
     U = make_quantum_inputs(X, split, args.input_mode, args.n_qubits)
     U = leaky_filter(U, args.leak)
