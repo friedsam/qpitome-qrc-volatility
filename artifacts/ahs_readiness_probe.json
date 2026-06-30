@@ -1,0 +1,27 @@
+{
+  "ahs_ir_preview": "braketSchemaHeader=BraketSchemaHeader(name='braket.ir.ahs.program', version='1') setup=Setup(ahs_register=AtomArrangement(sites=[[Decimal('-0.000009'), Decimal('0.0')], [Decimal('-0.000003'), Decimal('0.0')], [Decimal('0.000003'), Decimal('0.0')], [Decimal('0.000009'), Decimal('0.0')]], filling=[1, 1, 1, 1])) hamiltonian=Hamiltonian(drivingFields=[DrivingField(amplitude=PhysicalField(time_series=TimeSeries(values=[Decimal('0.0'), Decimal('6300000.0'), Decimal('6300000.0'), Decimal('0.0')], times=[Decimal('0.0'), Decimal('3E-7'), Decimal('0.0000027'), Decimal('0.000003')]), pattern='uniform'), phase=PhysicalField(time_series=TimeSeries(values=[Decimal('0.0'), Decimal('0.0')], times=[Decimal('0.0'), Decimal('0.000003')]), pattern='uniform'), detuning=PhysicalField(time_series=TimeSeries(values=[Decimal('-25200000.0'), Decimal('25200000.0')], times=[Decimal('0.0'), Decimal('0.000003')]), pattern='uniform'))], localDetuning=[])",
+  "aquila_arn": "arn:aws:braket:us-east-1::device/qpu/quera/Aquila",
+  "config": {
+    "detuning_multiple": 4.0,
+    "n_atoms": 4,
+    "omega_max_rad_s": 6300000.0,
+    "shots": 20,
+    "spacing_um": 6.0,
+    "time_max_s": 3e-06,
+    "time_ramp_s": 3e-07
+  },
+  "local_ahs_simulator": {
+    "empty_site_shot_fraction": 0.0,
+    "mean_rydberg_excitations": 2.0,
+    "n_unique_states": 1,
+    "shots_returned": 20,
+    "top_counts": [
+      [
+        "duud",
+        20
+      ]
+    ]
+  },
+  "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+  "timestamp_utc": "2026-06-30T23:54:13.750753+00:00"
+}
