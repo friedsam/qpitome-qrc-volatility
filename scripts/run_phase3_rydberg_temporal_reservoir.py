@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """True temporal Rydberg reservoir experiment.
 
-Runs four variants on identical level/rate inputs so any difference is
+Runs six variants on identical level/rate inputs so any difference is
 attributable to the reservoir transformation, not the inputs:
 
-  raw_baseline        anchor values + window summaries, no quantum dynamics
-  rydberg_temporal    one state evolved through the whole drive waveform
-  rydberg_memoryless  fresh state per anchor (honest response-grid analog)
-  rydberg_shuffled    temporal, but anchor order permuted (order control)
+  raw_baseline               anchor values + window summaries, no quantum dynamics
+  rydberg_temporal           one state evolved through the whole drive waveform
+  rydberg_memoryless         fresh state per anchor (honest response-grid analog)
+  rydberg_shuffled           temporal, but anchor order permuted (order control)
+  rydberg_constant_omega     temporal, but rate channel is disabled
+  rydberg_omega_zero         temporal with transverse drive disabled
 
 Readout heads per variant:
   regression  ridge on log future_rv_20d  -> RMSE / QLIKE / MZ-R2
@@ -17,9 +19,12 @@ Readout heads per variant:
 Outputs go to scratch/ by default (git-ignored); promote intentionally.
 
 Interpretation guide:
-  temporal > memoryless  -> temporal quantum memory adds value
-  temporal ~ shuffled    -> reservoir is not using temporal order
-  temporal <= raw        -> reservoir transformation not (yet) useful
+  temporal > memoryless       -> temporal quantum memory adds value
+  temporal ~ shuffled         -> reservoir is not using temporal order
+  temporal <= raw             -> reservoir transformation not (yet) useful
+  temporal <= constant_omega  -> rate-to-Omega encoding is not helping
+  temporal <= omega_zero      -> transverse-drive dynamics are not helping
+
 Note: the raw baseline here is deliberately minimal. Repo ESN / classical
 baselines remain the external comparison; do not claim advantage from this
 script alone, and evaluate under purged walk-forward CV before any claims.
@@ -47,6 +52,7 @@ from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.data.splits import chronological_tabular_split
 from qpitome_qrc.qrc.rydberg_reservoir import (
+    C6_RAD_UM6_PER_US,
     RydbergQRCConfig,
     build_rydberg_feature_matrix,
     fit_rydberg_qrc_regressor,
@@ -79,6 +85,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--stride", type=int, default=1, help="Subsample windows for smoke runs")
     p.add_argument("--out-dir", type=Path, default=Path("scratch/rydberg_temporal_reservoir"))
     p.add_argument("--tag", default="v1")
+    p.add_argument("--verbose", action="store_true", help="Print per-segment reservoir progress")
     return p.parse_args()
 
 
@@ -94,6 +101,41 @@ def raw_baseline_features(X: np.ndarray, anchor_indices: np.ndarray) -> np.ndarr
             )
         )
     return np.column_stack([anchors] + stats)
+
+
+def phase_budget(config: RydbergQRCConfig) -> dict[str, float | None]:
+    """Dimensionless per-segment phase diagnostics for interpretable tuning."""
+    k = int(config.anchor_count)
+    t_seg = float(config.total_time_us / k)
+    delta_abs_max = float(abs(config.delta_center_rad_us) + abs(config.delta_span_rad_us))
+
+    if config.omega_mode == "constant":
+        omega_min = omega_max = float(config.omega_base_rad_us)
+    else:
+        omega_min = float(max(config.omega_base_rad_us * (1.0 - abs(config.omega_mod_frac)), 0.0))
+        omega_max = float(config.omega_base_rad_us * (1.0 + abs(config.omega_mod_frac)))
+
+    if config.geometry == "dual_chain":
+        v_slow = float(C6_RAD_UM6_PER_US / config.spacing_slow_um**6)
+        v_fast = float(C6_RAD_UM6_PER_US / config.spacing_fast_um**6)
+    else:
+        v_slow = float(C6_RAD_UM6_PER_US / config.chain_spacing_um**6)
+        v_fast = None
+
+    out: dict[str, float | None] = {
+        "t_segment_us": t_seg,
+        "omega_min_rad_us": omega_min,
+        "omega_max_rad_us": omega_max,
+        "omega_min_t_segment": omega_min * t_seg,
+        "omega_max_t_segment": omega_max * t_seg,
+        "delta_abs_max_rad_us": delta_abs_max,
+        "delta_abs_max_t_segment": delta_abs_max * t_seg,
+        "v_slow_nn_rad_us": v_slow,
+        "v_slow_nn_t_segment": v_slow * t_seg,
+        "v_fast_nn_rad_us": v_fast,
+        "v_fast_nn_t_segment": None if v_fast is None else v_fast * t_seg,
+    }
+    return out
 
 
 def warning_head(
@@ -174,6 +216,12 @@ def main() -> None:
         "rydberg_temporal": base_config,
         "rydberg_memoryless": replace(base_config, memory_mode="memoryless"),
         "rydberg_shuffled": replace(base_config, shuffle_anchors=True),
+        "rydberg_constant_omega": replace(base_config, omega_mode="constant"),
+        "rydberg_omega_zero": replace(
+            base_config,
+            omega_base_rad_us=0.0,
+            omega_mod_frac=0.0,
+        ),
     }
 
     anchor_idx = select_anchor_indices(args.lookback, args.anchors, "even")
@@ -184,6 +232,7 @@ def main() -> None:
         "rate_col": args.rate_col,
         "stride": args.stride,
         "feasibility": feasibility,
+        "base_phase_budget": phase_budget(base_config),
         "variants": {},
     }
     rows = []
@@ -193,6 +242,7 @@ def main() -> None:
         if config is None:
             H = {k: raw_baseline_features(seq[k][0], anchor_idx) for k in seq}
             reg_row = {"model": name, "n_reservoir_features": H["train"].shape[1]}
+            variant_phase_budget = None
             # Ridge regression head on the same features for comparability.
             from qpitome_qrc.qrc.tfim_reservoir import fit_qrc_readout, predict_qrc_readout
             from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
@@ -205,9 +255,12 @@ def main() -> None:
                 reg_row[f"{split}_qlike"] = m.qlike
                 reg_row[f"{split}_mz_r2"] = m.mz_r2
         else:
-            result = fit_rydberg_qrc_regressor(seq, config=config, target=TARGET, verbose=True)
+            result = fit_rydberg_qrc_regressor(seq, config=config, target=TARGET, verbose=args.verbose)
             reg_row = summarize_rydberg_result(result)
             reg_row["model"] = name
+            variant_phase_budget = phase_budget(config)
+            for key, value in variant_phase_budget.items():
+                reg_row[f"phase_{key}"] = value
             H = {
                 "train": result.train_features,
                 "val": result.val_features,
@@ -221,6 +274,7 @@ def main() -> None:
                 if any(k.startswith(s) for s in ("train_", "val_", "test_"))
             },
             "n_features": int(reg_row["n_reservoir_features"]),
+            "phase_budget": variant_phase_budget,
             "q90_warning": warning_head(H, y, 0.90),
             "q95_crisis": warning_head(H, y, 0.95),
         }
