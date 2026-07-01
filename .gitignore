@@ -21,5 +21,7 @@ results/tables/*
 !results/figures/.gitkeep
 !results/tables/.gitkeep
 
+scratch/
+
 *.log
 *.egg-info/
