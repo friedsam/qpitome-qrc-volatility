@@ -54,7 +54,6 @@ from qpitome_qrc.data.splits import chronological_tabular_split
 from qpitome_qrc.qrc.rydberg_reservoir import (
     C6_RAD_UM6_PER_US,
     RydbergQRCConfig,
-    build_rydberg_feature_matrix,
     fit_rydberg_qrc_regressor,
     make_level_rate_sequence_splits,
     summarize_rydberg_result,
@@ -72,6 +71,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--rate-col", default="rv_accel_log_5_20")
     p.add_argument("--lookback", type=int, default=40)
     p.add_argument("--anchors", type=int, default=6)
+    p.add_argument("--anchor-policy", choices=("even", "recent"), default="even")
+    p.add_argument("--reverse-anchors", action="store_true", help="Inject selected anchors newest-to-oldest")
+    p.add_argument("--shuffle-seed", type=int, default=1234, help="Seed for the shuffled-anchor control")
     p.add_argument("--total-time-us", type=float, default=1.8)
     p.add_argument("--n-slow", type=int, default=4)
     p.add_argument("--n-fast", type=int, default=4)
@@ -87,6 +89,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tag", default="v1")
     p.add_argument("--verbose", action="store_true", help="Print per-segment reservoir progress")
     return p.parse_args()
+
+
+def raw_anchor_indices(args: argparse.Namespace) -> np.ndarray:
+    """Anchor indices for the raw baseline under the same exposed order policy."""
+    anchor_idx = select_anchor_indices(args.lookback, args.anchors, args.anchor_policy)
+    if args.reverse_anchors:
+        anchor_idx = anchor_idx[::-1]
+    return np.asarray(anchor_idx, dtype=int)
 
 
 def raw_baseline_features(X: np.ndarray, anchor_indices: np.ndarray) -> np.ndarray:
@@ -201,6 +211,9 @@ def main() -> None:
         spacing_fast_um=args.spacing_fast_um,
         lookback_days=args.lookback,
         anchor_count=args.anchors,
+        anchor_policy=args.anchor_policy,
+        reverse_anchors=args.reverse_anchors,
+        shuffle_seed=args.shuffle_seed,
         total_time_us=args.total_time_us,
         delta_center_rad_us=args.delta_center,
         delta_span_rad_us=args.delta_span,
@@ -224,13 +237,16 @@ def main() -> None:
         ),
     }
 
-    anchor_idx = select_anchor_indices(args.lookback, args.anchors, "even")
+    anchor_idx = raw_anchor_indices(args)
     summary: dict = {
         "tag": args.tag,
         "target": TARGET,
         "level_col": args.level_col,
         "rate_col": args.rate_col,
         "stride": args.stride,
+        "anchor_policy": args.anchor_policy,
+        "reverse_anchors": args.reverse_anchors,
+        "shuffle_seed": args.shuffle_seed,
         "feasibility": feasibility,
         "base_phase_budget": phase_budget(base_config),
         "variants": {},
