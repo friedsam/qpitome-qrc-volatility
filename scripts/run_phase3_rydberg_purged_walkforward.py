@@ -33,6 +33,7 @@ from qpitome_qrc.qrc.rydberg_reservoir import (
 from qpitome_qrc.qrc.tfim_reservoir import fit_qrc_readout, predict_qrc_readout, select_anchor_indices
 
 TARGET = "future_rv_20d"
+SPLIT_NAMES = ("train", "val", "test")
 
 
 def parse_args():
@@ -175,7 +176,10 @@ def main() -> None:
 
     for f in folds:
         fold_id = f["fold"]
-        split_frames = {name: df.iloc[a:b].copy().reset_index(drop=True) for name, (a, b) in f.items() if name in {"train", "val", "test"}}
+        split_frames = {
+            name: df.iloc[f[name][0]:f[name][1]].copy().reset_index(drop=True)
+            for name in SPLIT_NAMES
+        }
         seq = make_level_rate_sequence_splits(split_frames, level_col=args.level_col, rate_col=args.rate_col, target_column=TARGET, lookback_days=args.lookback)
         if args.stride > 1:
             seq = {k: (X[::args.stride], y[::args.stride], d[::args.stride].reset_index(drop=True)) for k, (X, y, d) in seq.items()}
