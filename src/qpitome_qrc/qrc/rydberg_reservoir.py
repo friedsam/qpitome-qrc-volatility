@@ -41,6 +41,7 @@ Controls built in (internal ablations):
   and isolates the value of temporal quantum memory.
 - shuffle_anchors=True: fixed permutation of anchor order; if performance is
   insensitive, the reservoir is not using temporal structure.
+- reverse_anchors=True: inject selected anchors newest-to-oldest.
 - omega_mode="constant": disables the rate channel (level-only encoding).
 
 Hardware caveat: Aquila constraint constants below reflect publicly documented
@@ -52,7 +53,7 @@ hardware; `validate_aquila_feasibility` estimates that time cost.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Literal
 
 import numpy as np
@@ -77,6 +78,7 @@ ObservableMode = Literal["n", "n_nn"]
 
 # --- Aquila-like hardware constants (VERIFY against current QuEra docs) -----
 C6_RAD_UM6_PER_US = 5.42e6  # C6 / hbar for Rb 70S, rad * um^6 / us
+
 
 @dataclass(frozen=True)
 class AquilaConstraints:
@@ -132,6 +134,7 @@ class RydbergQRCConfig:
 
     # Reservoir controls / ablations
     memory_mode: MemoryMode = "temporal"
+    reverse_anchors: bool = False
     shuffle_anchors: bool = False
     shuffle_seed: int = 1234
 
@@ -358,6 +361,19 @@ def _measure_features(
     return np.concatenate(feats, axis=1)
 
 
+def select_rydberg_anchor_indices(config: RydbergQRCConfig) -> np.ndarray:
+    """Select and optionally reorder anchor indices for Rydberg drive injection."""
+    anchor_indices = select_anchor_indices(
+        config.lookback_days, config.anchor_count, config.anchor_policy
+    )
+    if config.reverse_anchors:
+        anchor_indices = anchor_indices[::-1]
+    if config.shuffle_anchors:
+        perm_rng = np.random.default_rng(config.shuffle_seed)
+        anchor_indices = anchor_indices[perm_rng.permutation(len(anchor_indices))]
+    return np.asarray(anchor_indices, dtype=int)
+
+
 def build_rydberg_feature_matrix(
     X_windows: np.ndarray,
     config: RydbergQRCConfig,
@@ -376,12 +392,7 @@ def build_rydberg_feature_matrix(
     S = X_windows.shape[0]
     dim = 2**pre.n_atoms
 
-    anchor_indices = select_anchor_indices(
-        config.lookback_days, config.anchor_count, config.anchor_policy
-    )
-    if config.shuffle_anchors:
-        perm_rng = np.random.default_rng(config.shuffle_seed)
-        anchor_indices = anchor_indices[perm_rng.permutation(len(anchor_indices))]
+    anchor_indices = select_rydberg_anchor_indices(config)
     K = len(anchor_indices)
     t_seg = config.total_time_us / K
 
