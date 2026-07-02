@@ -58,12 +58,13 @@ def parse_args():
     p.add_argument("--spacing-fast-um", type=float, default=15.0)
     p.add_argument("--delta-center", type=float, default=6.0)
     p.add_argument("--delta-span", type=float, default=4.0)
+    p.add_argument("--encoding", choices=("plateau", "ramp"), default="plateau")
     p.add_argument("--omega-base", type=float, default=6.0)
     p.add_argument("--omega-mod-frac", type=float, default=0.5)
     p.add_argument("--shots", type=int, default=None)
     p.add_argument("--stride", type=int, default=1, help="Optional within-fold subsampling for smoke tests")
     p.add_argument("--variants", nargs="*", default=["raw_baseline", "rydberg_temporal", "rydberg_memoryless", "rydberg_shuffled", "rydberg_constant_omega"],
-                   help="Subset: raw_baseline rydberg_temporal rydberg_memoryless rydberg_shuffled rydberg_constant_omega rydberg_omega_zero")
+                   help="Subset: raw_baseline raw_products rydberg_temporal rydberg_memoryless rydberg_shuffled rydberg_constant_omega rydberg_omega_zero rydberg_ramp rydberg_ramp_memoryless rydberg_ramp_shuffled")
     p.add_argument("--out-dir", type=Path, default=Path("scratch/rydberg_walkforward"))
     p.add_argument("--tag", default="tt055_a8_reverse")
     p.add_argument("--verbose", action="store_true")
@@ -102,13 +103,26 @@ def raw_anchor_indices(args) -> np.ndarray:
     return np.asarray(idx, dtype=int)
 
 
-def raw_features(X: np.ndarray, anchor_idx: np.ndarray) -> np.ndarray:
+def raw_features(X: np.ndarray, anchor_idx: np.ndarray, *, products: bool = False) -> np.ndarray:
     anchors = X[:, anchor_idx, :].reshape(len(X), -1)
     stats = []
     for ch in range(X.shape[2]):
         w = X[:, :, ch]
         stats.append(np.column_stack([w[:, -1], w.mean(1), w.std(1), w.min(1), w.max(1)]))
-    return np.column_stack([anchors] + stats)
+    feats = [anchors] + stats
+    if products:
+        # Product-augmented classical baseline: explicit pairwise products of
+        # all anchor values (both channels). If the temporal reservoir only
+        # MATCHES this, its memory is effectively second-order and classically
+        # replicable; if it EXCEEDS it, higher-order many-body memory is doing
+        # work on the task.
+        m = anchors.shape[1]
+        prods = np.stack(
+            [anchors[:, a] * anchors[:, b] for a in range(m - 1) for b in range(a + 1, m)],
+            axis=1,
+        )
+        feats.append(prods)
+    return np.column_stack(feats)
 
 
 def warning_head(H: dict[str, np.ndarray], y: dict[str, np.ndarray], quantile: float) -> dict:
@@ -158,6 +172,7 @@ def main() -> None:
         total_time_us=args.total_time_us, delta_center_rad_us=args.delta_center,
         delta_span_rad_us=args.delta_span, omega_base_rad_us=args.omega_base,
         omega_mod_frac=args.omega_mod_frac, shots=args.shots,
+        encoding=args.encoding,
     )
     configs = {
         "rydberg_temporal": base,
@@ -165,6 +180,11 @@ def main() -> None:
         "rydberg_shuffled": replace(base, shuffle_anchors=True),
         "rydberg_constant_omega": replace(base, omega_mode="constant"),
         "rydberg_omega_zero": replace(base, omega_base_rad_us=0.0, omega_mod_frac=0.0),
+        # Landau-Zener ramp encoding: level -> Delta value, rate -> Delta slope
+        # (native diabatic rate-sensing). Omega fixed as pure mixing drive.
+        "rydberg_ramp": replace(base, encoding="ramp", omega_mode="constant"),
+        "rydberg_ramp_memoryless": replace(base, encoding="ramp", omega_mode="constant", memory_mode="memoryless"),
+        "rydberg_ramp_shuffled": replace(base, encoding="ramp", omega_mode="constant", shuffle_anchors=True),
     }
     feasibility = validate_aquila_feasibility(base)
     print("Aquila feasibility:", feasibility["feasible"], feasibility["checks"])
@@ -192,8 +212,9 @@ def main() -> None:
 
         for model in args.variants:
             print(f"-- {model}")
-            if model == "raw_baseline":
-                H = {k: raw_features(seq[k][0], anchor_idx) for k in seq}
+            if model in ("raw_baseline", "raw_products"):
+                products = model == "raw_products"
+                H = {k: raw_features(seq[k][0], anchor_idx, products=products) for k in seq}
                 readout, scaler = fit_qrc_readout(H["train"], y["train"], config=base)
                 reg = {"model": model}
                 for split in ("train", "val", "test"):

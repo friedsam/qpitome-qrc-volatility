@@ -155,3 +155,49 @@ def test_feasibility_validator_flags_violations():
     assert not bad["checks"]["omega_range_ok"]
     assert not bad["checks"]["total_time_ok"]
     assert not bad["checks"]["min_spacing_ok"]
+
+
+def test_ramp_encoding_matches_landau_zener():
+    """Linear Delta sweep through resonance: excitation prob = 1 - exp(-pi*Omega^2/(2*alpha)).
+
+    Our H = (Omega/2) sigma_x - Delta(t) n maps to the standard LZ problem with
+    sweep rate alpha = |dDelta/dt| and gap Omega at the crossing.
+    """
+    from qpitome_qrc.qrc.rydberg_reservoir import _evolve_ramp_segment_batch
+
+    omega = 3.0
+    d_range = 40.0  # sweep -20 -> +20 rad/us through resonance at Delta=0
+    config = _single_atom_config()
+    pre = precompute(config)
+    for t_total in (0.15, 2.0, 8.0):
+        alpha = d_range / t_total
+        expected = 1.0 - np.exp(-np.pi * omega**2 / (2.0 * alpha))
+        states = np.zeros((1, 2), dtype=complex)
+        states[0, 0] = 1.0
+        states = _evolve_ramp_segment_batch(
+            states, np.array([omega]), np.array([-20.0]), np.array([20.0]),
+            t_total, pre, config,
+        )
+        n_exp = float((np.abs(states[0]) ** 2) @ pre.occ_bits[:, 0])
+        assert n_exp == pytest.approx(expected, abs=0.06), (t_total, n_exp, expected)
+
+
+def test_ramp_variants_run_and_differ():
+    rng = np.random.default_rng(3)
+    windows = rng.uniform(-1, 1, size=(4, 8, 2))
+    base = dict(
+        geometry="chain", chain_atoms=4, chain_spacing_um=9.0,
+        lookback_days=8, anchor_count=8, total_time_us=0.8,
+        omega_mode="constant", encoding="ramp",
+    )
+    H_t = build_rydberg_feature_matrix(windows, RydbergQRCConfig(**base))
+    H_m = build_rydberg_feature_matrix(
+        windows, RydbergQRCConfig(**base, memory_mode="memoryless")
+    )
+    H_s = build_rydberg_feature_matrix(
+        windows, RydbergQRCConfig(**base, shuffle_anchors=True)
+    )
+    assert H_t.shape == H_m.shape == H_s.shape
+    assert np.all(np.isfinite(H_t))
+    assert not np.allclose(H_t, H_m, atol=1e-6)
+    assert not np.allclose(H_t, H_s, atol=1e-6)

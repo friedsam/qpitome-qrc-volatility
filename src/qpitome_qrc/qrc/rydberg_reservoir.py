@@ -132,6 +132,18 @@ class RydbergQRCConfig:
     omega_mod_frac: float = 0.5
     omega_mode: OmegaMode = "encode_rate"
 
+    # Drive waveform shape.
+    #   "plateau": piecewise-constant Delta per anchor (level channel only in
+    #              Delta; rate channel carried by Omega if omega_mode allows).
+    #   "ramp":    piecewise-LINEAR Delta(t) through the anchor level values.
+    #              The slope between anchors IS the stress rate, detected
+    #              physically via Landau-Zener diabatic transitions at avoided
+    #              crossings: fast sweeps create excitations that persist as a
+    #              record of past high-rate episodes. With encoding="ramp" the
+    #              recommended omega_mode is "constant" (Omega = pure mixing
+    #              drive; both market channels live in Delta(t)).
+    encoding: Literal["plateau", "ramp"] = "plateau"
+
     # Reservoir controls / ablations
     memory_mode: MemoryMode = "temporal"
     reverse_anchors: bool = False
@@ -309,6 +321,41 @@ def _evolve_segment_batch(
     return states
 
 
+def _evolve_ramp_segment_batch(
+    states: np.ndarray,
+    omega: np.ndarray,
+    delta_start: np.ndarray,
+    delta_end: np.ndarray,
+    t_seg: float,
+    pre: _Precomputed,
+    config: RydbergQRCConfig,
+) -> np.ndarray:
+    """Evolve one segment with LINEAR Delta(t) ramp from delta_start to delta_end.
+
+    Delta is sampled at substep midpoints (second-order accurate for a linear
+    ramp). Landau-Zener physics lives here: the sweep rate
+    (delta_end - delta_start) / t_seg controls diabatic excitation production.
+    """
+    v_scale = float(pre.e_int.max(initial=0.0))
+    d_scale = max(np.abs(delta_start).max(initial=0.0), np.abs(delta_end).max(initial=0.0))
+    scale = max(d_scale, np.abs(omega).max(initial=0.0), v_scale, 1e-9)
+    m = int(np.ceil(scale * t_seg / config.max_phase_per_substep))
+    m = int(np.clip(m, 1, config.max_substeps_per_segment))
+    dt = t_seg / m
+    thetas = omega * dt
+
+    slope = (delta_end - delta_start) / t_seg
+    for step in range(m):
+        t_mid = (step + 0.5) * dt
+        delta_mid = delta_start + slope * t_mid
+        diag = pre.e_int[None, :] - delta_mid[:, None] * pre.n_occ[None, :]
+        half = np.exp(-0.5j * dt * diag)
+        states = states * half
+        states = _apply_global_rx_batch(states, thetas, pre.n_atoms)
+        states = states * half
+    return states
+
+
 def _drive_from_window(
     windows: np.ndarray,
     anchor_indices: np.ndarray,
@@ -405,19 +452,36 @@ def build_rydberg_feature_matrix(
         return st
 
     per_anchor: list[np.ndarray] = []
+    ramp = config.encoding == "ramp"
     if config.memory_mode == "temporal":
         states = fresh_states()
         for k in range(K):
             if verbose:
                 print(f"Rydberg segment {k + 1}/{K} (batch {S})")
-            states = _evolve_segment_batch(states, omegas[:, k], deltas[:, k], t_seg, pre, config)
+            if ramp:
+                d0 = deltas[:, k - 1] if k > 0 else deltas[:, 0]
+                states = _evolve_ramp_segment_batch(
+                    states, omegas[:, k], d0, deltas[:, k], t_seg, pre, config
+                )
+            else:
+                states = _evolve_segment_batch(states, omegas[:, k], deltas[:, k], t_seg, pre, config)
             if config.collect_anchor_features or k == K - 1:
                 per_anchor.append(_measure_features(states, pre, config, shot_rng))
     elif config.memory_mode == "memoryless":
         for k in range(K):
             if verbose:
                 print(f"Rydberg memoryless segment {k + 1}/{K} (batch {S})")
-            states = _evolve_segment_batch(fresh_states(), omegas[:, k], deltas[:, k], t_seg, pre, config)
+            if ramp:
+                # NOTE: a memoryless ramp segment still sees the ADJACENT pair
+                # (anchor k-1, anchor k) through its start/end values, so it can
+                # capture separation-1 cross terms but nothing longer-range.
+                # This is intentional: it sharpens the memory diagnostic.
+                d0 = deltas[:, k - 1] if k > 0 else deltas[:, 0]
+                states = _evolve_ramp_segment_batch(
+                    fresh_states(), omegas[:, k], d0, deltas[:, k], t_seg, pre, config
+                )
+            else:
+                states = _evolve_segment_batch(fresh_states(), omegas[:, k], deltas[:, k], t_seg, pre, config)
             per_anchor.append(_measure_features(states, pre, config, shot_rng))
     else:
         raise ValueError(f"Unknown memory_mode: {config.memory_mode}")
