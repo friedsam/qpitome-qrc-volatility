@@ -138,3 +138,28 @@ The occupation trajectories also separate late in the evolution: the slow chain 
 
 This diagnostic is mechanistic rather than predictive: it validates the physical role of the dual-chain geometry, but it does not by itself establish market-side predictive advantage.
 
+## Ramp encoding check
+
+The reservoir also supports Landau-Zener-style ramp encoding, where each segment evolves under a linear detuning ramp rather than a piecewise-constant plateau. This is a more explicitly hardware-native mechanism for rate sensitivity, because the sweep rate through detuning space can produce diabatic excitation differences.
+
+A frozen-parameter purged walk-forward check was run with the same timing and anchor order as the main plateau result:
+
+- total_time_us = 0.55
+- anchors = 8
+- anchor_policy = even
+- reverse_anchors = true
+- encoding = ramp
+
+Median test metrics for ramp temporal were:
+
+- q90 AUC = 0.806
+- q90 AP = 0.407
+- q90 F1 = 0.349
+- q95 AUC = 0.665
+- q95 AP = 0.197
+- q95 F1 = 0.165
+
+For comparison, the main plateau temporal configuration achieved q90 AP = 0.440 and q95 AP = 0.212. Thus ramp encoding is viable and produces comparable AUC/F1 behavior, but under the frozen tt055/a8/reverse setting it does not improve rare-event AP over plateau encoding.
+
+Ramp encoding is therefore treated as a mechanistic extension and control, while plateau temporal encoding remains the primary market result.
+
