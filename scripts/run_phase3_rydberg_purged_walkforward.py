@@ -56,6 +56,7 @@ def parse_args():
     p.add_argument("--n-fast", type=int, default=4)
     p.add_argument("--spacing-slow-um", type=float, default=9.0)
     p.add_argument("--spacing-fast-um", type=float, default=15.0)
+    p.add_argument("--row-gap-um", type=float, default=14.0)
     p.add_argument("--delta-center", type=float, default=6.0)
     p.add_argument("--delta-span", type=float, default=4.0)
     p.add_argument("--encoding", choices=("plateau", "ramp"), default="plateau")
@@ -167,6 +168,7 @@ def main() -> None:
     base = RydbergQRCConfig(
         n_atoms_slow=args.n_slow, n_atoms_fast=args.n_fast,
         spacing_slow_um=args.spacing_slow_um, spacing_fast_um=args.spacing_fast_um,
+        row_gap_um=args.row_gap_um,
         lookback_days=args.lookback, anchor_count=args.anchors, anchor_policy=args.anchor_policy,
         reverse_anchors=args.reverse_anchors, shuffle_seed=args.shuffle_seed,
         total_time_us=args.total_time_us, delta_center_rad_us=args.delta_center,
