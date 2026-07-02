@@ -58,6 +58,7 @@ def parse_args():
     p.add_argument("--spacing-fast-um", type=float, default=15.0)
     p.add_argument("--delta-center", type=float, default=6.0)
     p.add_argument("--delta-span", type=float, default=4.0)
+    p.add_argument("--encoding", choices=("plateau", "ramp"), default="plateau")
     p.add_argument("--omega-base", type=float, default=6.0)
     p.add_argument("--omega-mod-frac", type=float, default=0.5)
     p.add_argument("--shots", type=int, default=None)
@@ -171,6 +172,7 @@ def main() -> None:
         total_time_us=args.total_time_us, delta_center_rad_us=args.delta_center,
         delta_span_rad_us=args.delta_span, omega_base_rad_us=args.omega_base,
         omega_mod_frac=args.omega_mod_frac, shots=args.shots,
+        encoding=args.encoding,
     )
     configs = {
         "rydberg_temporal": base,
