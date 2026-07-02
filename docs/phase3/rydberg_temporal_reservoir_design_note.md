@@ -65,3 +65,56 @@ the purged walk-forward CV across all crisis episodes.
 3. Shot-noise budget curve (feature quality vs shots) before any Aquila runs.
 4. Hardware: same waveforms, closed-simulator vs open-hardware comparison =
    the dissipation-as-feature test.
+
+---
+
+## Update: temporal-memory diagnostic + Landau-Zener ramp encoding
+
+### Cross-time nonlinear capacity diagnostic (CONCLUSIVE)
+
+`scripts/run_phase3_temporal_memory_diagnostic.py` implements the IPC-style
+probe (Dambre et al. 2012): synthetic i.i.d. anchor inputs, out-of-sample
+capacity for degree-1 recall, same-time nonlinearity P2(u_k), and cross-time
+products u_a*u_b. Memoryless per-anchor features + linear readout form an
+additive model with PROVABLY zero cross-time capacity; measured results
+confirm every prediction (v1, Omega constant so Delta is the only channel):
+
+  variant             cross-time capacity vs separation
+  classical_additive  0 everywhere (analytic zero reference)
+  plateau_memoryless  0 everywhere (confirmed numerically)
+  ramp_memoryless     0.73 at separation 1, ZERO beyond (sees adjacent pair)
+  plateau_temporal    0.77 -> 0.07 decaying fading-memory kernel
+  plateau_shuffled    present but scrambled vs separation (order broken)
+  classical_products  1.0 ceiling
+
+Defensible sentence: the temporal Rydberg reservoir has substantial
+out-of-sample capacity for cross-time nonlinear functions of its inputs,
+which the memoryless control provably and measurably lacks. This also
+explains the mixed market-side memoryless comparison: shuffled retains
+cross-time capacity (misordered), so order-sensitivity is the cleaner
+market ablation — and temporal beats shuffled in every valid fold.
+
+### Landau-Zener ramp encoding
+
+`encoding="ramp"`: Delta(t) piecewise-LINEAR through anchor level values;
+stress rate = sweep slope, sensed natively via diabatic (Landau-Zener)
+transitions. Validated against the analytic LZ formula at three sweep rates
+(test_ramp_encoding_matches_landau_zener). Recommended omega_mode="constant".
+
+Market-side status (stride-subsampled walk-forward, NOT final):
+- At plateau-tuned parameters (delta 6+/-4) the sweep never crosses the
+  transition region -> LZ channel inactive -> ramp underperforms.
+- Re-centered to cross the transition (delta 3+/-6, 1.1 us) the control
+  ordering becomes correct (temporal > memoryless ~= shuffled) but median
+  q95 AP remains below the plateau+Omega-rate variant.
+- Conclusion: ramp needs its own validation-selected parameter sweep
+  (delta window placement relative to the many-body crossing region, total
+  time, Omega); do not compare encodings at shared parameters.
+
+### Walk-forward additions
+
+`run_phase3_rydberg_purged_walkforward.py` now supports variants:
+`rydberg_ramp`, `rydberg_ramp_memoryless`, `rydberg_ramp_shuffled`, and
+`raw_products` (classical anchor-product-augmented baseline: if temporal only
+matches it, reservoir memory is effectively 2nd order and classically
+replicable; exceeding it evidences higher-order many-body memory).
