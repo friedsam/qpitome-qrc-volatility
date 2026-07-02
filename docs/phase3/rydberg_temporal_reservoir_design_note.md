@@ -118,3 +118,23 @@ Market-side status (stride-subsampled walk-forward, NOT final):
 `raw_products` (classical anchor-product-augmented baseline: if temporal only
 matches it, reservoir memory is effectively 2nd order and classically
 replicable; exceeding it evidences higher-order many-body memory).
+
+## Dual-chain geometry diagnostic
+
+A dual-chain diagnostic was added to test whether the proposed geometry actually induces two distinct dynamical regimes. The diagnostic evolves synthetic level/rate probes through the same temporal Rydberg reservoir and measures mean occupation and connected correlations separately for the slow chain, fast chain, and cross-chain pairs.
+
+The result supports the intended geometry interpretation. The slow chain develops much stronger connected correlations than the fast chain:
+
+- mean within-slow |connected correlation| = 0.0210
+- mean within-fast |connected correlation| = 0.0025
+- slow / fast connected-correlation ratio = 8.39
+
+Cross-chain connected correlations are nonzero but weaker:
+
+- mean cross slow-fast |connected correlation| = 0.00184
+- cross / within connected-correlation ratio = 0.156
+
+The occupation trajectories also separate late in the evolution: the slow chain rises and saturates, while the fast chain rises, peaks, and then relaxes downward. This supports the interpretation of the reservoir as a weakly coupled two-timescale system rather than a homogeneous atom array.
+
+This diagnostic is mechanistic rather than predictive: it validates the physical role of the dual-chain geometry, but it does not by itself establish market-side predictive advantage.
+
