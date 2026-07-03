@@ -1,0 +1,39 @@
+{
+  "config": {
+    "clip_quantile_high": 0.95,
+    "clip_quantile_low": 0.05,
+    "data_path": "data/processed/phase2_spy_vix_volatility.csv",
+    "delta_max": 1.1,
+    "delta_min": 0.4,
+    "lookback": 40,
+    "out_prefix": "results/tables/phase3_rydberg_temporal_robustness/scalar-rv_accel_log_5_20__lb-40__delta-0p4-1p1",
+    "response_grid_path": "artifacts/rydberg_tfim_response_zoom_v2.csv",
+    "ridge_alpha": 1000.0,
+    "scalar_col": "rv_accel_log_5_20",
+    "target_col": "future_rv_20d",
+    "train_frac": 0.7,
+    "val_frac": 0.15
+  },
+  "feature_set_sizes": {
+    "raw_last_baseline": 7,
+    "raw_plus_rydberg_temporal": 109,
+    "rydberg_temporal_features": 102
+  },
+  "market_scalar_scaling_train_only": {
+    "half_range": 0.5685172625396198,
+    "median": -0.04041165468848641,
+    "q_high": 0.3777614087741751,
+    "q_low": -0.7592731163050646
+  },
+  "n_rows": 7736,
+  "note": "Temporal feature probe using interpolated Rydberg response-grid features. Still not a true recurrent AHS sequence simulation.",
+  "splits": {
+    "test": 1161,
+    "train": 5415,
+    "val": 1160
+  },
+  "target_thresholds_train": {
+    "q90": 0.27496426208625974,
+    "q95": 0.3263631441731391
+  }
+}
