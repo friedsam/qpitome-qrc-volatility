@@ -36,7 +36,7 @@ from qpitome_qrc.qrc.rydberg_reservoir import (
     select_rydberg_anchor_indices,
 )
 
-AQUILA_ARN = "arn:aws:braket:us-east-1::device/qpu/quera/Aquila"
+QBRAID_AQUILA_DEVICE_ID = "aws:quera:qpu:aquila"
 TARGET = "future_rv_20d"
 CONFIRM_TOKEN = "SUBMIT_2_AQUILA_TASKS"
 
@@ -134,13 +134,7 @@ def build_hardware_waveform(
     config: RydbergQRCConfig,
     hw: AquilaConstraints,
 ) -> tuple[Any, dict[str, Any]]:
-    """Build an Aquila AHS program with finite-slew ramps between plateaus.
-
-    The simulator candidate uses instantaneous plateau changes. Hardware cannot,
-    so each inter-anchor transition is realized as a linear ramp whose duration
-    satisfies the conservative slew constants in AquilaConstraints. The eight
-    plateau hold durations still sum to config.total_time_us.
-    """
+    """Build an Aquila AHS program with finite-slew ramps between plateaus."""
     from braket.ahs.analog_hamiltonian_simulation import AnalogHamiltonianSimulation
     from braket.ahs.atom_arrangement import AtomArrangement
     from braket.ahs.driving_field import DrivingField
@@ -163,7 +157,6 @@ def build_hardware_waveform(
     amp = TimeSeries()
     det = TimeSeries()
     phase = TimeSeries()
-
     timeline: list[dict[str, float | int | str]] = []
     t_us = 0.0
 
@@ -236,11 +229,7 @@ def build_hardware_waveform(
 
 
 def measurement_to_state(measurement: Any) -> str:
-    """Map AHS pre/post site occupancy to e=empty, u=Rydberg, d=ground.
-
-    A loaded atom absent after the sequence is interpreted as a Rydberg result;
-    a loaded atom still present after the sequence is ground-state.
-    """
+    """Map Braket AHS pre/post site occupancy to e=empty, u=Rydberg, d=ground."""
     state = []
     for pre, post in zip(measurement.pre_sequence, measurement.post_sequence, strict=True):
         if not pre:
@@ -252,8 +241,44 @@ def measurement_to_state(measurement: Any) -> str:
     return "".join(state)
 
 
-def summarize_result(result: Any, n_atoms: int) -> dict[str, Any]:
+def summarize_braket_result(result: Any, n_atoms: int) -> dict[str, Any]:
     counts = Counter(measurement_to_state(m) for m in result.measurements)
+    return summarize_state_counts(counts, n_atoms)
+
+
+def _normalize_qbraid_state(raw_state: Any, n_atoms: int) -> str | None:
+    """Normalize common qBraid AHS count-key formats to d/u/e strings."""
+    text = str(raw_state).strip().lower()
+    compact = "".join(ch for ch in text if ch.isalnum())
+
+    if len(compact) == n_atoms and set(compact) <= {"0", "1"}:
+        return "".join("u" if ch == "1" else "d" for ch in compact)
+    if len(compact) == n_atoms and set(compact) <= {"g", "r", "e"}:
+        return "".join({"g": "d", "r": "u", "e": "e"}[ch] for ch in compact)
+    if len(compact) == n_atoms and set(compact) <= {"d", "u", "e"}:
+        return compact
+    return None
+
+
+def summarize_qbraid_counts(raw_counts: Any, n_atoms: int) -> dict[str, Any]:
+    counts_dict = dict(raw_counts)
+    normalized: Counter[str] = Counter()
+    unparsed: dict[str, int] = {}
+    for raw_state, count in counts_dict.items():
+        state = _normalize_qbraid_state(raw_state, n_atoms)
+        if state is None:
+            unparsed[str(raw_state)] = int(count)
+        else:
+            normalized[state] += int(count)
+
+    summary = summarize_state_counts(normalized, n_atoms)
+    summary["raw_measurement_counts"] = {str(k): int(v) for k, v in counts_dict.items()}
+    summary["unparsed_measurement_counts"] = unparsed
+    summary["binary_mapping_note"] = "For qBraid binary AHS count keys, 1 is treated as Rydberg/up and 0 as ground/down."
+    return summary
+
+
+def summarize_state_counts(counts: Counter[str], n_atoms: int) -> dict[str, Any]:
     shots = sum(counts.values())
     valid_counts = {state: count for state, count in counts.items() if "e" not in state}
     valid_shots = sum(valid_counts.values())
@@ -270,7 +295,7 @@ def summarize_result(result: Any, n_atoms: int) -> dict[str, Any]:
         pairs /= valid_shots
 
     return {
-        "shots_returned": shots,
+        "shots_parsed": shots,
         "fully_loaded_shots": valid_shots,
         "fully_loaded_fraction": valid_shots / shots if shots else None,
         "n_unique_states": len(counts),
@@ -349,7 +374,7 @@ def main() -> int:
             "One Aquila task per window measures only the final 36 observables. "
             "The production 288-feature reservoir collects after all 8 anchors and would require 8 truncated tasks per window on hardware."
         ),
-        "aquila_arn": AQUILA_ARN,
+        "qbraid_device_id": QBRAID_AQUILA_DEVICE_ID,
         "shots": args.shots,
         "config": asdict(config),
         "windows": [],
@@ -357,14 +382,14 @@ def main() -> int:
 
     device = None
     if args.device_check or args.hardware:
-        from braket.aws import AwsDevice
+        from qbraid.runtime import QbraidProvider
 
-        device = AwsDevice(AQUILA_ARN)
+        provider = QbraidProvider()
+        device = provider.get_device(QBRAID_AQUILA_DEVICE_ID)
         report["device"] = {
-            "name": getattr(device, "name", None),
-            "status": getattr(device, "status", None),
-            "provider_name": getattr(device, "provider_name", None),
-            "type": str(getattr(device, "type", None)),
+            "status": str(device.status()),
+            "experiment_type": str(device.profile.experiment_type),
+            "program_spec": str(device.profile.program_spec),
         }
 
     for spec in specs:
@@ -384,28 +409,33 @@ def main() -> int:
             "ahs_ir_preview": str(program.to_ir())[:12000],
         }
 
-        if device is not None:
-            discretized = program.discretize(device)
-            item["device_discretization"] = "passed"
-            item["discretized_ir_preview"] = str(discretized.to_ir())[:12000]
-        else:
-            discretized = None
-
         if args.local_sim:
             from braket.devices import LocalSimulator
 
             sim = LocalSimulator("braket_ahs")
             result = sim.run(program, shots=args.shots).result()
-            item["local_ahs_result"] = summarize_result(result, len(atom_positions(config)))
+            item["local_ahs_result"] = summarize_braket_result(result, len(atom_positions(config)))
 
         if args.hardware:
-            assert device is not None and discretized is not None
-            task = device.run(discretized, shots=args.shots)
-            item["hardware_task_metadata"] = task.metadata()
-            result = task.result()
-            item["hardware_result"] = summarize_result(result, len(atom_positions(config)))
+            assert device is not None
+            job = device.run(
+                program,
+                shots=args.shots,
+                tags={"project": "qpitome-phase3", "date": date, "test": "aquila-transfer"},
+            )
+            item["hardware_job_id"] = str(job.id)
+            item["hardware_job_status_initial"] = str(job.status())
+            checkpoint = args.out_dir / "aquila_transfer_report.json"
+            report["windows"].append(item)
+            checkpoint.write_text(json.dumps(report, indent=2, sort_keys=True, default=str), encoding="utf-8")
+            print(f"Submitted {date}: job {job.id}")
 
-        report["windows"].append(item)
+            result = job.result()
+            raw_counts = result.data.measurement_counts
+            item["hardware_job_status_final"] = str(job.status())
+            item["hardware_result"] = summarize_qbraid_counts(raw_counts, len(atom_positions(config)))
+        else:
+            report["windows"].append(item)
 
         checkpoint = args.out_dir / "aquila_transfer_report.json"
         checkpoint.write_text(json.dumps(report, indent=2, sort_keys=True, default=str), encoding="utf-8")
