@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Safe entry point for the canonical Phase 3 master comparison.
 
-This thin entry point loads ``run_master_comparison.py`` and applies two
+This thin entry point loads ``run_master_comparison.py`` and applies three
 runtime corrections identified during static review of the initial master
 implementation:
 
 1. JSON manifest keys from pandas groupby tuples are converted to strings.
 2. Finite-shot Rydberg feature generation uses separate deterministic RNG
    streams for train, validation, and test splits.
+3. The default feature cache is redirected to ignored ``scratch/`` storage so
+   expensive intermediate arrays are not accidentally committed.
 
 Use this file for canonical runs.
 """
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -43,7 +46,13 @@ def json_safe(value: Any) -> Any:
     return value
 
 
+def ensure_safe_cache_default() -> None:
+    if "--cache-dir" not in sys.argv:
+        sys.argv.extend(["--cache-dir", "scratch/canonical_cache"])
+
+
 def main() -> None:
+    ensure_safe_cache_default()
     master = load_master()
 
     original_dumps = master.json.dumps
