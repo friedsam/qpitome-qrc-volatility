@@ -84,7 +84,18 @@ def run_segment(args: argparse.Namespace, model: str) -> bool:
         print(f"SKIP complete segment: {model}")
         return True
 
-    if model == "tfim_phase2_final":
+    if model == "har_ridge":
+        cmd = [
+            sys.executable,
+            "scripts/run_canonical_har.py",
+            "--out-dir", str(paths["dir"]),
+            "--tag", tag,
+        ]
+        if args.only_folds:
+            cmd += ["--only-folds", *[str(x) for x in args.only_folds]]
+        if args.force:
+            cmd.append("--force")
+    elif model == "tfim_phase2_final":
         cmd = [
             sys.executable,
             "scripts/run_canonical_tfim.py",
@@ -164,7 +175,7 @@ def combine_completed(args: argparse.Namespace) -> None:
         "missing_models": missing,
         "protocols": args.protocols,
         "only_folds": args.only_folds,
-        "restart_policy": "each model is an independent segment; complete segments are skipped unless --force",
+        "restart_policy": "each model is an independent segment; complete segments are skipped unless --force; TFIM also resumes by completed fold",
     }
     (args.out_dir / f"run_manifest_{args.tag}.json").write_text(json.dumps(manifest, indent=2))
     print(f"\nCombined {len(completed)} completed segments; missing={missing}")
