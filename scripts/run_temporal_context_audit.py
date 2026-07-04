@@ -132,6 +132,16 @@ def shock_relaxation_days(frame: pd.DataFrame, q: float, max_h: int) -> tuple[fl
 def main():
     a = parse_args(); a.outdir.mkdir(parents=True, exist_ok=True)
     df = pd.read_csv(a.data).sort_values("date").reset_index(drop=True)
+
+    # The canonical processed dataset stores the raw components but not this
+    # QRC-derived feature. Reconstruct it exactly as in the Rydberg pipeline.
+    if "vix_rv_spread" not in df.columns:
+        base_required = {"vix_close", "rv_20d"}
+        missing_base = sorted(base_required - set(df.columns))
+        if missing_base:
+            raise ValueError(f"Cannot derive vix_rv_spread; missing columns: {missing_base}")
+        df["vix_rv_spread"] = np.log(df["vix_close"] / 100.0) - np.log(df["rv_20d"])
+
     required = {"date", *SERIES}
     missing = sorted(required - set(df.columns))
     if missing:
@@ -207,6 +217,9 @@ def main():
         "shock_quantile": a.shock_quantile,
         "shock_max_horizon": a.shock_max_horizon,
         "series": SERIES,
+        "derived_features": {
+            "vix_rv_spread": "log(vix_close / 100) - log(rv_20d)"
+        },
         "interpretation_rule": "Treat strong monotonic drift or sustained era shifts in memory/relaxation metrics as evidence that fixed calendar horizons mix different temporal contexts.",
     }
     (a.outdir / "run_manifest.json").write_text(json.dumps(manifest, indent=2))
