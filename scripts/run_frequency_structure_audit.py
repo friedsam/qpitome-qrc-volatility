@@ -39,7 +39,7 @@ def bpower(f,p,lo,hi):
  if not len(f):return np.nan
  per=1/f;m=(per>=lo)&(per<hi)
  if not m.any():return np.nan
- return float(np.trapz(p[m],f[m])) if m.sum()>1 else float(p[m][0])
+ return float(np.trapezoid(p[m], f[m])) if m.sum() > 1 else float(p[m][0])
 
 def peak(f,p):
  if not len(f):return np.nan,np.nan
