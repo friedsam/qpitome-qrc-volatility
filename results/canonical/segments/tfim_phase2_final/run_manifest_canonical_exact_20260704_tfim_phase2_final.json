@@ -1,0 +1,46 @@
+{
+  "model": "tfim_phase2_final",
+  "historical_source": "phase2-volatility-regression-qrc:notebooks/phase2_qrc_final_encoding_readout_probe.ipynb",
+  "historical_run_name": "linear_clip_top240_alpha1000",
+  "protocol": "exact",
+  "folds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "configuration": {
+    "qubits": 6,
+    "pca_components": 6,
+    "lookback_days": 40,
+    "anchor_count": 10,
+    "anchor_policy": "recent",
+    "observable_mode": "zxzz",
+    "trotter_steps_per_anchor": 3,
+    "virtual_nodes_per_anchor": 3,
+    "topology": "full",
+    "coupling_scale": 0.7,
+    "transverse_field": 0.5,
+    "evolution_time": 0.5,
+    "angle_max": 1.5707963267948966,
+    "ridge_alpha": 1000.0,
+    "target_transform": "log",
+    "seed": 42,
+    "collect_anchor_features": true,
+    "use_disorder": true,
+    "disorder_strength": 0.2
+  },
+  "input_leak": 0.3,
+  "readout": {
+    "train_clip_percentiles": [
+      1.0,
+      99.0
+    ],
+    "feature_selection": "top 240 by absolute train feature-target correlation",
+    "scaler": "StandardScaler fit on selected train features",
+    "ridge_alpha": 1000.0,
+    "target_transform": "log"
+  },
+  "checkpoint_policy": "atomic CSV write after every completed fold; completed folds skipped on restart"
+}
