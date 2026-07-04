@@ -155,8 +155,6 @@ def main():
         piv[f"rmse_improvement_{m}_vs_har"] = piv["har_neighbors"] - piv[m]
 
     assoc_rows = []
-    for (fold, outcome), g in pairs.groupby(["fold"]):
-        pass
     for fold in sorted(pairs.fold.unique()):
         g = pairs[pairs.fold == fold]
         for o in outcomes:
