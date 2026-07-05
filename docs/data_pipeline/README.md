@@ -12,7 +12,7 @@ Historical work is archived on `archive/pre-reset-20260705`. Active work is on `
 
 | Dataset | Role | Public/reproducible | Status |
 |---|---|---:|---|
-| `paper_monthly` | Primary challenge-grounded benchmark | Yes | real raw snapshot collected; preparation and audit completed |
+| `paper_monthly` | Primary challenge-grounded benchmark | Yes | real raw snapshot collected; preparation, audit, EDA, and preliminary feature engineering implemented |
 | `volare` | Rich realized-volatility comparison | Access-dependent | webpage currently unavailable; deferred, not blocking primary work |
 | `legacy_daily` | Historical SPY/VIX comparison only | Yes | immutable import script ready; old CSV not tracked in archive |
 
@@ -64,7 +64,7 @@ Save the files with the exact expected names above. The automated collector exis
 
 ## Reproduce the primary data pipeline
 
-From the repository root and active environment:
+### 1. Prepare
 
 ```bash
 python scripts/data/prepare_paper_dataset.py \
@@ -73,7 +73,7 @@ python scripts/data/prepare_paper_dataset.py \
 
 The preparation script owns all derived outputs, including benchmark slices. Do not create benchmark slices with ad hoc CLI commands.
 
-Then audit the full prepared table:
+### 2. Audit
 
 ```bash
 python scripts/data/audit_dataset.py \
@@ -82,7 +82,37 @@ python scripts/data/audit_dataset.py \
   --dataset-name paper_monthly
 ```
 
-Primary outputs:
+### 3. Explore the exact paper-parity table
+
+```bash
+python scripts/data/explore_dataset.py \
+  --input data/processed/paper_monthly/paper_parity_1950_02_to_2017_12.parquet \
+  --dataset-name paper_monthly_paper_parity \
+  --target log_rv_close \
+  --outdir results/paper_monthly/eda/paper_parity
+```
+
+The EDA removes exact numeric duplicates, target duplicates, and future-target columns from feature rankings. It reports target-state persistence separately from exogenous feature families.
+
+### 4. Build preliminary feature families
+
+```bash
+python scripts/data/engineer_paper_features.py
+```
+
+This creates deterministic, leakage-aware predictors only. It does **not** fit a scaler, PCA, imputer, or supervised feature selector.
+
+Preliminary families:
+
+- `volatility_state`: current log RV plus 3- and 12-month memory;
+- `volatility_dynamics`: 1- and 3-month changes, acceleration, short-minus-long state, prior-window robust surprise;
+- `market_drivers`: market excess, SMB, HML, short-term reversal;
+- `credit_rates`: T-bill, AAA, BAA, and BAA-minus-AAA state plus 1-month changes;
+- `macro_dynamics`: lagged inflation and industrial-production growth plus their 1-month changes.
+
+Frequency-domain features remain deferred until a null-tested construction is defined.
+
+## Primary outputs
 
 ```text
 data/interim/paper_monthly/prepared_core.parquet
@@ -91,9 +121,13 @@ data/interim/paper_monthly/missingness_categories.csv
 data/interim/paper_monthly/preparation_metadata.json
 data/processed/paper_monthly/paper_parity_1950_02_to_2017_12.parquet
 data/processed/paper_monthly/extended_complete_market_months.parquet
+data/processed/paper_monthly/features/preliminary_features.parquet
+data/processed/paper_monthly/features/feature_catalog.csv
+data/processed/paper_monthly/features/feature_manifest.json
 results/paper_monthly/data_audit/manifest.json
 results/paper_monthly/data_audit/schema.csv
 results/paper_monthly/data_audit/quality_report.csv
+results/paper_monthly/eda/paper_parity/exploration_summary.md
 ```
 
 ## Real-data findings from the first run
@@ -135,6 +169,14 @@ Observed source missingness near the current right edge:
 
 No source gap is silently filled or dropped.
 
+First EDA findings on the 815-month paper-parity table:
+
+- monthly log RV has strong decaying memory: lag-1 ACF about 0.695, lag-12 about 0.359;
+- short-, medium-, and long-memory volatility states all relate to next-month volatility;
+- the transparent BAA-minus-AAA spread candidate is the strongest current exogenous relationship among the available public inputs;
+- CPI and industrial-production level relationships are treated as suspect because secular trends can create spurious rank association;
+- extreme observations include both isolated shocks and prolonged high-volatility clusters, motivating separate state and dynamics channels.
+
 ## Completed
 
 - [x] Pre-reset state preserved on archive branch.
@@ -151,9 +193,10 @@ No source gap is silently filled or dropped.
 - [x] Exact 815-month anchor-paper calendar slice verified.
 - [x] Preparation script now emits paper-parity and extended processed outputs directly.
 - [x] Close and adjusted-close target equivalence verified on real data.
+- [x] Redundancy-aware real-data EDA implemented.
+- [x] Preliminary deterministic feature engineering implemented.
 - [x] Both quarterly/annual RV conventions preserved until paper parity is resolved.
 - [x] VOLARE and legacy immutable import scripts smoke-tested.
-- [x] Cutoff-aware exploration script implemented and smoke-tested.
 
 ## Current blockers / unresolved definitions
 
@@ -168,8 +211,10 @@ These remain explicit and must not be guessed:
 
 ## In progress
 
-- [ ] Run cutoff-aware EDA on the real primary data.
+- [ ] Run and inspect the preliminary feature-engineering output on real data.
+- [ ] Audit redundancy/correlation structure of engineered features without promoting features from full-sample correlations.
 - [ ] Resolve the remaining paper-parity definitions from primary/reference sources.
+- [ ] Define the common train/validation/test protocol.
 - [ ] Import and audit a VOLARE export when access returns.
 - [ ] Import and audit the frozen legacy daily CSV if it still exists locally.
 
@@ -181,7 +226,8 @@ No substantial model comparison begins until the primary dataset has:
 - schema report;
 - missingness/quality report;
 - prepared table;
-- exploration summary.
+- exploration summary;
+- reproducible preliminary feature table and catalog.
 
 After that, modeling proceeds in parallel streams:
 
@@ -202,4 +248,6 @@ The reset branch was reduced to a minimal root, then only reviewed data-pipeline
 
 The first real `paper_monthly` snapshot was collected manually after public-source download failures in the automated collector. The full dataset was prepared and audited. The exact 815-month paper calendar slice was verified. Documentation was updated so another researcher can reconstruct the raw snapshot and rerun preparation and audit without relying on chat history.
 
-The existing preparation script was then updated to emit both the exact 815-month paper-parity table and an extended completed-market-month table directly. The earlier ad hoc CLI slice is no longer part of the reproducible workflow.
+The existing preparation script was updated to emit both the exact 815-month paper-parity table and an extended completed-market-month table directly. The earlier ad hoc CLI slice is no longer part of the reproducible workflow.
+
+The EDA script was corrected to remove exact duplicates and features identical to the target from exploratory rankings. Preliminary feature engineering was then added as one documented script organized around volatility state, dynamics, market drivers, credit/rates, and lagged macro dynamics.
