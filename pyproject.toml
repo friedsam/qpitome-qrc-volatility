@@ -1,13 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "qpitome-qrc-volatility"
-version = "0.1.0"
-description = "Quantum reservoir computing for financial volatility prediction"
-requires-python = ">=3.10"
-dependencies = []
+version = "0.2.0"
+description = "Data-first QRC volatility forecasting research pipeline"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pyarrow>=16",
+  "scipy>=1.13",
+  "scikit-learn>=1.5",
+  "pyyaml>=6.0",
+  "matplotlib>=3.9",
+]
+
+[project.optional-dependencies]
+classical = ["arch>=7.0", "torch>=2.3"]
+quantum = ["bloqade>=0.18", "qbraid>=0.9"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
