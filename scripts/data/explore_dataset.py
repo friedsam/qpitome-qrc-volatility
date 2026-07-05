@@ -41,11 +41,7 @@ def feature_family(name: str) -> str:
 
 
 def canonical_duplicate_groups(df: pd.DataFrame, columns: list[str]) -> tuple[list[str], list[dict]]:
-    """Return canonical numeric columns and exact-duplicate mapping.
-
-    Preference is deterministic and favors non-adjclose names so close/adjclose duplicates
-    do not occupy the top of exploratory rankings.
-    """
+    """Return canonical numeric columns and exact-duplicate mapping."""
     ordered = sorted(columns, key=lambda c: ('adjclose' in c, c))
     kept: list[str] = []
     duplicate_rows: list[dict] = []
@@ -62,6 +58,24 @@ def canonical_duplicate_groups(df: pd.DataFrame, columns: list[str]) -> tuple[li
         else:
             duplicate_rows.append({'duplicate_column': col, 'canonical_column': duplicate_of})
     return kept, duplicate_rows
+
+
+def remove_target_duplicates(
+    df: pd.DataFrame,
+    columns: list[str],
+    target_name: str,
+    duplicate_rows: list[dict],
+) -> list[str]:
+    """Remove candidate columns exactly equal to the target itself."""
+    target = pd.to_numeric(df[target_name], errors='coerce')
+    kept: list[str] = []
+    for col in columns:
+        s = pd.to_numeric(df[col], errors='coerce')
+        if s.equals(target):
+            duplicate_rows.append({'duplicate_column': col, 'canonical_column': target_name})
+        else:
+            kept.append(col)
+    return kept
 
 
 def main() -> None:
@@ -123,6 +137,8 @@ def main() -> None:
         if c not in excluded_feature_columns
     ]
     canonical_cols, duplicate_rows = canonical_duplicate_groups(df, numeric_cols)
+    canonical_cols = remove_target_duplicates(df, canonical_cols, args.target, duplicate_rows)
+    duplicate_rows = sorted(duplicate_rows, key=lambda x: (x['canonical_column'], x['duplicate_column']))
     pd.DataFrame(duplicate_rows, columns=['duplicate_column', 'canonical_column']).to_csv(
         args.outdir / 'duplicate_numeric_columns.csv', index=False
     )
@@ -186,7 +202,7 @@ def main() -> None:
         f'- Date range: {summary["date_min"]} to {summary["date_max"]}',
         f'- Target: `{args.target}`; valid n={len(valid_target)}',
         f'- Exploration cutoff: {summary["exploration_end"] or "none - review before using for feature decisions"}',
-        f'- Numeric candidates: {len(numeric_cols)} raw, {len(canonical_cols)} after removing {len(duplicate_rows)} exact duplicates', '',
+        f'- Numeric candidates: {len(numeric_cols)} raw, {len(canonical_cols)} after removing {len(duplicate_rows)} exact duplicates, including target duplicates', '',
         '## Target', '',
         f'- Mean: {valid_target.mean():.6g}',
         f'- Standard deviation: {valid_target.std():.6g}',
@@ -199,7 +215,7 @@ def main() -> None:
         lines.append(f'- Lag {row["lag"]}: ACF={row["pearson_acf"] if row["pearson_acf"] is not None else "NA"} (n={row["n"]})')
 
     lines += ['', '## Preliminary feature relationships by family', '',
-              'These are exploratory Spearman correlations only. Exact numeric duplicates and future-target columns are excluded. Target-state variables are reported separately from exogenous variables because persistence is not evidence that exogenous information is useless.', '']
+              'These are exploratory Spearman correlations only. Exact numeric duplicates, target duplicates, and future-target columns are excluded. Target-state variables are reported separately from exogenous variables because persistence is not evidence that exogenous information is useless.', '']
     if len(family_top):
         for family in ['target_state', 'market_factors', 'rates_credit', 'macro', 'other']:
             block = family_top[family_top['family'] == family]
