@@ -2,6 +2,7 @@
 """Generate a compact, reproducible EDA package for one prepared dataset.
 
 Exploration can be restricted to a predeclared date cutoff so feature decisions are not informed by final test data.
+The report separates target-state persistence from exogenous relationships and removes exact numeric duplicates from rankings.
 """
 from __future__ import annotations
 
@@ -24,6 +25,43 @@ def safe_spearman(x: pd.Series, y: pd.Series) -> tuple[float | None, int]:
     if len(z) < 5 or z.iloc[:, 0].nunique() < 2 or z.iloc[:, 1].nunique() < 2:
         return None, int(len(z))
     return float(z.iloc[:, 0].corr(z.iloc[:, 1], method='spearman')), int(len(z))
+
+
+def feature_family(name: str) -> str:
+    if name.startswith(('rv_', 'log_rv_', 'log_of_rv_', 'n_daily_returns_')):
+        return 'target_state'
+    if name in {'mkt_excess', 'smb', 'hml', 'rf', 'str'}:
+        return 'market_factors'
+    if name in {'tb3ms', 'aaa_yield', 'baa_yield', 'default_spread_baa_minus_aaa__candidate'}:
+        return 'rates_credit'
+    if name in {'cpi_index', 'ip_index', 'inflation_log_change', 'ip_log_growth',
+                'inflation_log_change__avail_lag1', 'ip_log_growth__avail_lag1'}:
+        return 'macro'
+    return 'other'
+
+
+def canonical_duplicate_groups(df: pd.DataFrame, columns: list[str]) -> tuple[list[str], list[dict]]:
+    """Return canonical numeric columns and exact-duplicate mapping.
+
+    Preference is deterministic and favors non-adjclose names so close/adjclose duplicates
+    do not occupy the top of exploratory rankings.
+    """
+    ordered = sorted(columns, key=lambda c: ('adjclose' in c, c))
+    kept: list[str] = []
+    duplicate_rows: list[dict] = []
+    for col in ordered:
+        s = pd.to_numeric(df[col], errors='coerce')
+        duplicate_of = None
+        for prior in kept:
+            p = pd.to_numeric(df[prior], errors='coerce')
+            if s.equals(p):
+                duplicate_of = prior
+                break
+        if duplicate_of is None:
+            kept.append(col)
+        else:
+            duplicate_rows.append({'duplicate_column': col, 'canonical_column': duplicate_of})
+    return kept, duplicate_rows
 
 
 def main() -> None:
@@ -79,24 +117,41 @@ def main() -> None:
         acf_rows.append({'lag': lag, 'pearson_acf': None if len(pair) < 5 else float(pair.iloc[:, 0].corr(pair.iloc[:, 1])), 'n': int(len(pair))})
     pd.DataFrame(acf_rows).to_csv(args.outdir / 'target_acf.csv', index=False)
 
-    corr_rows = []
-    excluded_feature_columns = {
-        c for c in df.columns
-        if c == args.target or c.startswith('target_')
-    }
+    excluded_feature_columns = {c for c in df.columns if c == args.target or c.startswith('target_')}
     numeric_cols = [
         c for c in df.select_dtypes(include=[np.number]).columns
         if c not in excluded_feature_columns
     ]
-    for col in numeric_cols:
+    canonical_cols, duplicate_rows = canonical_duplicate_groups(df, numeric_cols)
+    pd.DataFrame(duplicate_rows, columns=['duplicate_column', 'canonical_column']).to_csv(
+        args.outdir / 'duplicate_numeric_columns.csv', index=False
+    )
+
+    corr_rows = []
+    for col in canonical_cols:
         rho0, n0 = safe_spearman(pd.to_numeric(df[col], errors='coerce'), target)
         rho1, n1 = safe_spearman(pd.to_numeric(df[col], errors='coerce'), target.shift(-1))
-        corr_rows.append({'feature': col, 'rho_same_time': rho0, 'n_same_time': n0, 'rho_to_next_target': rho1, 'n_next_target': n1})
+        corr_rows.append({
+            'feature': col,
+            'family': feature_family(col),
+            'rho_same_time': rho0,
+            'n_same_time': n0,
+            'rho_to_next_target': rho1,
+            'n_next_target': n1,
+        })
     corr = pd.DataFrame(corr_rows)
     if len(corr):
         corr['abs_rho_to_next_target'] = corr['rho_to_next_target'].abs()
         corr = corr.sort_values('abs_rho_to_next_target', ascending=False)
     corr.to_csv(args.outdir / 'feature_correlations.csv', index=False)
+
+    family_top = (
+        corr.sort_values(['family', 'abs_rho_to_next_target'], ascending=[True, False])
+        .groupby('family', as_index=False, group_keys=False)
+        .head(8)
+        if len(corr) else pd.DataFrame()
+    )
+    family_top.to_csv(args.outdir / 'feature_correlations_by_family.csv', index=False)
 
     missing = pd.DataFrame({'column': df.columns, 'missing_count': [int(df[c].isna().sum()) for c in df], 'missing_fraction': [float(df[c].isna().mean()) for c in df]})
     missing = missing.sort_values(['missing_fraction', 'column'], ascending=[False, True])
@@ -116,12 +171,13 @@ def main() -> None:
         'target_std': float(valid_target.std()),
         'target_median': med,
         'target_mad': mad,
-        'numeric_feature_count': int(len(numeric_cols)),
+        'numeric_feature_count_raw': int(len(numeric_cols)),
+        'numeric_feature_count_canonical': int(len(canonical_cols)),
+        'exact_duplicate_numeric_columns': int(len(duplicate_rows)),
         'excluded_future_target_columns': sorted(excluded_feature_columns - {args.target}),
     }
     (args.outdir / 'exploration_manifest.json').write_text(json.dumps(summary, indent=2))
 
-    top = corr.head(12) if len(corr) else pd.DataFrame()
     lines = [
         f'# Exploration summary: {args.dataset_name}', '',
         '## Scope', '',
@@ -129,7 +185,8 @@ def main() -> None:
         f'- Exploration rows: {len(df)} of {full_rows}',
         f'- Date range: {summary["date_min"]} to {summary["date_max"]}',
         f'- Target: `{args.target}`; valid n={len(valid_target)}',
-        f'- Exploration cutoff: {summary["exploration_end"] or "none - review before using for feature decisions"}', '',
+        f'- Exploration cutoff: {summary["exploration_end"] or "none - review before using for feature decisions"}',
+        f'- Numeric candidates: {len(numeric_cols)} raw, {len(canonical_cols)} after removing {len(duplicate_rows)} exact duplicates', '',
         '## Target', '',
         f'- Mean: {valid_target.mean():.6g}',
         f'- Standard deviation: {valid_target.std():.6g}',
@@ -140,13 +197,22 @@ def main() -> None:
     ]
     for row in acf_rows:
         lines.append(f'- Lag {row["lag"]}: ACF={row["pearson_acf"] if row["pearson_acf"] is not None else "NA"} (n={row["n"]})')
-    lines += ['', '## Preliminary feature relationships', '', 'These are exploratory Spearman correlations only. Future-target columns are explicitly excluded. They do not promote features and must be recomputed inside training data for model selection.', '']
-    if len(top):
-        for _, row in top.iterrows():
-            lines.append(f'- `{row.feature}`: rho to next target={row.rho_to_next_target:.3f} (n={int(row.n_next_target)})')
+
+    lines += ['', '## Preliminary feature relationships by family', '',
+              'These are exploratory Spearman correlations only. Exact numeric duplicates and future-target columns are excluded. Target-state variables are reported separately from exogenous variables because persistence is not evidence that exogenous information is useless.', '']
+    if len(family_top):
+        for family in ['target_state', 'market_factors', 'rates_credit', 'macro', 'other']:
+            block = family_top[family_top['family'] == family]
+            if block.empty:
+                continue
+            lines += [f'### {family}', '']
+            for _, row in block.iterrows():
+                lines.append(f'- `{row.feature}`: rho to next target={row.rho_to_next_target:.3f} (n={int(row.n_next_target)})')
+            lines.append('')
     else:
         lines.append('- No numeric candidate features available.')
-    lines += ['', '## Data-quality link', '', 'This exploration does not replace the formal schema/missingness audit. Any unexpected missingness, duplicate dates, or impossible values blocks modeling.']
+
+    lines += ['## Data-quality link', '', 'This exploration does not replace the formal schema/missingness audit. Any unexpected missingness, duplicate dates, or impossible values blocks modeling.']
     (args.outdir / 'exploration_summary.md').write_text('\n'.join(lines) + '\n')
     print(json.dumps(summary, indent=2))
 
