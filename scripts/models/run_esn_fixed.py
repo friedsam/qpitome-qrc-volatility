@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Run a fixed-configuration ESN on the shared one-step rolling protocol.
+"""Run fixed ESN/RCX diagnostics on the shared paper one-step protocol.
 
-Supports all 24 features or a compact seven-feature paper-informed sanity-check proxy.
-Also supports reservoir-only versus skip-connected readouts for controlled ESN autopsy.
+Modes:
+- all24: full preliminary feature table;
+- compact7: paper-informed compact proxy;
+- paper_rcx_proxy: currently resolved paper-style HARX variables with explicit 3-step lag context.
+
+The RCX proxy is not an exact paper replication because DP/EP, exact default spread,
+preprocessing, seed policy, and several implementation details remain unresolved.
 """
 from __future__ import annotations
 
@@ -23,6 +28,19 @@ COMPACT7 = [
     'credit_default_spread_baa_minus_aaa_level',
     'macro_ip_growth_lag1',
     'macro_inflation_growth_lag1',
+]
+PAPER_RCX_PROXY = [
+    'vol_state_1m',
+    'vol_state_3m_mean',
+    'vol_state_12m_mean',
+    'market_mkt_excess',
+    'market_smb',
+    'market_hml',
+    'market_str',
+    'credit_tb3ms_level',
+    'credit_default_spread_baa_minus_aaa_level',
+    'macro_inflation_growth_lag1',
+    'macro_ip_growth_lag1',
 ]
 
 
@@ -71,6 +89,15 @@ def run_sequence(X: np.ndarray, win: np.ndarray, w: np.ndarray, leak: float,
     return states, state
 
 
+def lag_context(frame: pd.DataFrame, cols: list[str], steps: int) -> pd.DataFrame:
+    parts = []
+    for lag in range(steps):
+        shifted = frame[cols].shift(lag).copy()
+        shifted.columns = [f'{c}__lag{lag}' for c in cols]
+        parts.append(shifted)
+    return pd.concat(parts, axis=1)
+
+
 def design_matrix(X: np.ndarray, states: np.ndarray, mode: str) -> np.ndarray:
     if mode == 'states_only':
         return np.column_stack([np.ones(len(states)), states])
@@ -98,7 +125,8 @@ def main() -> None:
     p.add_argument('--features', type=Path, default=Path('data/processed/paper_monthly/features/preliminary_features.parquet'))
     p.add_argument('--catalog', type=Path, default=Path('data/processed/paper_monthly/features/feature_catalog.csv'))
     p.add_argument('--folds', type=Path, default=Path('results/paper_monthly/protocol/paper_rolling_one_step/folds.csv'))
-    p.add_argument('--feature-set', choices=['all24', 'compact7'], default='all24')
+    p.add_argument('--feature-set', choices=['all24', 'compact7', 'paper_rcx_proxy'], default='all24')
+    p.add_argument('--context-steps', type=int, default=1)
     p.add_argument('--readout-mode', choices=['states_only', 'inputs_states'], default='inputs_states')
     p.add_argument('--outdir', type=Path, default=None)
     p.add_argument('--reservoir-size', type=int, default=200)
@@ -110,35 +138,55 @@ def main() -> None:
     p.add_argument('--seed', type=int, default=42)
     args = p.parse_args()
 
+    if args.context_steps < 1:
+        raise ValueError('context-steps must be >= 1')
+
     all24 = pd.read_csv(args.catalog)['feature'].tolist()
-    feature_cols = all24 if args.feature_set == 'all24' else COMPACT7
-    missing = sorted(set(feature_cols) - set(all24))
+    feature_sets = {
+        'all24': all24,
+        'compact7': COMPACT7,
+        'paper_rcx_proxy': PAPER_RCX_PROXY,
+    }
+    base_features = feature_sets[args.feature_set]
+    missing = sorted(set(base_features) - set(all24))
     if missing:
         raise KeyError(f'Feature-set columns missing from catalog: {missing}')
 
-    tag = f'{args.feature_set}_n{args.reservoir_size}_a{args.readout_alpha:g}_{args.readout_mode}'
+    tag = (
+        f'{args.feature_set}_ctx{args.context_steps}_n{args.reservoir_size}_'
+        f'a{args.readout_alpha:g}_{args.readout_mode}'
+    )
     outdir = args.outdir or Path(f'results/paper_monthly/models/esn_fixed/{tag}')
     model_name = f'esn_{tag}'
 
     df = pd.read_parquet(args.features)
     df['date'] = pd.to_datetime(df['date'])
+    context = lag_context(df, base_features, args.context_steps)
+    context_cols = context.columns.tolist()
+    model_df = pd.concat([df[['date', TARGET]], context], axis=1)
+
     folds = pd.read_csv(args.folds, parse_dates=['forecast_date','prediction_origin','train_calendar_start','train_calendar_end'])
-    win, w = make_reservoir(len(feature_cols), args.reservoir_size, args.spectral_radius, args.input_scale, args.seed)
+    win, w = make_reservoir(len(context_cols), args.reservoir_size, args.spectral_radius, args.input_scale, args.seed)
     rows = []
 
     for _, f in folds.iterrows():
         train_mask = (
-            (df['date'] >= f['train_calendar_start']) &
-            (df['date'] <= f['train_calendar_end']) &
-            df[feature_cols].notna().all(axis=1) &
-            df[TARGET].notna()
+            (model_df['date'] >= f['train_calendar_start']) &
+            (model_df['date'] <= f['train_calendar_end']) &
+            model_df[context_cols].notna().all(axis=1) &
+            model_df[TARGET].notna()
         )
-        train = df.loc[train_mask].copy()
-        pred_row = df.loc[df['date'].eq(f['prediction_origin'])].iloc[0]
+        train = model_df.loc[train_mask].copy()
+        pred_rows = model_df.loc[model_df['date'].eq(f['prediction_origin'])]
+        if len(pred_rows) != 1:
+            raise ValueError(f'Prediction origin not found exactly once: {f["prediction_origin"]}')
+        pred_row = pred_rows.iloc[0]
+        if pred_row[context_cols].isna().any():
+            raise ValueError(f'Incomplete context at prediction origin: {f["prediction_origin"]}')
 
         scaler = StandardScaler()
-        Xtr = scaler.fit_transform(train[feature_cols])
-        Xp = scaler.transform(pd.DataFrame([pred_row[feature_cols].to_dict()]))
+        Xtr = scaler.fit_transform(train[context_cols])
+        Xp = scaler.transform(pd.DataFrame([pred_row[context_cols].to_dict()]))
         ytr = train[TARGET].to_numpy(float)
 
         states, final_state = run_sequence(Xtr, win, w, args.leak)
@@ -170,8 +218,9 @@ def main() -> None:
         'protocol': 'paper_rolling_one_step',
         'model': model_name,
         'feature_set': args.feature_set,
-        'features': feature_cols,
-        'feature_count': len(feature_cols),
+        'base_features': base_features,
+        'context_steps': args.context_steps,
+        'effective_input_dimension': len(context_cols),
         'readout_mode': args.readout_mode,
         'reservoir_size': args.reservoir_size,
         'spectral_radius': args.spectral_radius,
@@ -180,9 +229,14 @@ def main() -> None:
         'readout_alpha': args.readout_alpha,
         'washout': args.washout,
         'seed': args.seed,
-        'selection': 'diagnostic configuration chosen before reading its out-of-sample result',
-        'state_rule': 'zero reset at each rolling-window start; prediction origin continues from final training state',
-        'challenge_note': 'This paper-parity ESN autopsy does not define the final challenge task.',
+        'selection': 'single paper-style proxy check; no out-of-sample tuning',
+        'paper_rcx_proxy_limitations': [
+            'DP and EP absent',
+            'default spread is transparent BAA-minus-AAA candidate',
+            'exact paper scaling and activation details are unresolved',
+            'exact paper ridge penalty and seed policy are unresolved',
+        ] if args.feature_set == 'paper_rcx_proxy' else [],
+        'challenge_note': 'This paper-parity check does not define the final challenge task.',
     }
     (outdir / 'run_manifest.json').write_text(json.dumps(manifest, indent=2))
 
