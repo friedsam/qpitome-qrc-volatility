@@ -71,7 +71,7 @@ python scripts/data/prepare_paper_dataset.py \
   --snapshot data/raw/paper_monthly/20260705T170000Z
 ```
 
-The preparation script owns the derived outputs. Do not create benchmark slices with ad hoc CLI commands.
+The preparation script owns all derived outputs, including benchmark slices. Do not create benchmark slices with ad hoc CLI commands.
 
 Then audit the full prepared table:
 
@@ -149,6 +149,7 @@ No source gap is silently filled or dropped.
 - [x] Real paper preparation run completed.
 - [x] Real full-table audit completed.
 - [x] Exact 815-month anchor-paper calendar slice verified.
+- [x] Preparation script now emits paper-parity and extended processed outputs directly.
 - [x] Close and adjusted-close target equivalence verified on real data.
 - [x] Both quarterly/annual RV conventions preserved until paper parity is resolved.
 - [x] VOLARE and legacy immutable import scripts smoke-tested.
@@ -167,7 +168,6 @@ These remain explicit and must not be guessed:
 
 ## In progress
 
-- [ ] Make the preparation script emit the paper-parity and extended processed outputs directly.
 - [ ] Run cutoff-aware EDA on the real primary data.
 - [ ] Resolve the remaining paper-parity definitions from primary/reference sources.
 - [ ] Import and audit a VOLARE export when access returns.
@@ -201,3 +201,5 @@ Reset initiated after identifying task drift, inconsistent ESN selection objecti
 The reset branch was reduced to a minimal root, then only reviewed data-pipeline documents and tested scripts were added back. No historical result directories or parallel experimental scripts were carried into active work.
 
 The first real `paper_monthly` snapshot was collected manually after public-source download failures in the automated collector. The full dataset was prepared and audited. The exact 815-month paper calendar slice was verified. Documentation was updated so another researcher can reconstruct the raw snapshot and rerun preparation and audit without relying on chat history.
+
+The existing preparation script was then updated to emit both the exact 815-month paper-parity table and an extended completed-market-month table directly. The earlier ad hoc CLI slice is no longer part of the reproducible workflow.
