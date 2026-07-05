@@ -8,7 +8,7 @@ Declared temporal adaptation:
 - compact7 inputs are used first because the scientific question is whether the
   reservoir exploits external-state interactions beyond univariate volatility memory.
 
-The runner supports selected-fold probes and checkpointed full walk-forward execution.
+The runner supports representative runtime probes and checkpointed full walk-forward execution.
 """
 from __future__ import annotations
 
@@ -98,19 +98,28 @@ def main() -> None:
     p.add_argument('--features', type=Path, default=Path('data/processed/paper_monthly/features/preliminary_features.parquet'))
     p.add_argument('--folds', type=Path, default=Path('results/paper_monthly/protocol/paper_rolling_one_step/folds.csv'))
     p.add_argument('--outdir', type=Path, default=Path('results/challenge_primary/models/tfim_monthly_control'))
-    p.add_argument('--only-folds', nargs='*', type=int, default=None)
+    p.add_argument('--only-folds', nargs='*', type=int, default=None, help='Explicit zero-based fold IDs from folds.csv')
+    p.add_argument('--probe', action='store_true', help='Run first, middle, and last available folds')
     p.add_argument('--force', action='store_true')
     args = p.parse_args()
+    if args.probe and args.only_folds:
+        raise ValueError('Use either --probe or --only-folds, not both')
 
     df = pd.read_parquet(args.features)
     df['date'] = pd.to_datetime(df['date'])
     folds = pd.read_csv(args.folds, parse_dates=['forecast_date', 'prediction_origin', 'train_calendar_start', 'train_calendar_end'])
-    if args.only_folds:
+
+    if args.probe:
+        available = folds['fold_id'].astype(int).tolist()
+        probe_ids = [available[0], available[len(available) // 2], available[-1]]
+        print(f'Representative probe folds: {probe_ids}')
+        folds = folds.loc[folds['fold_id'].isin(probe_ids)].copy()
+    elif args.only_folds:
         requested = set(args.only_folds)
         folds = folds.loc[folds['fold_id'].isin(requested)].copy()
         missing = requested - set(folds['fold_id'].astype(int))
         if missing:
-            raise ValueError(f'Unknown fold ids: {sorted(missing)}')
+            raise ValueError(f'Unknown zero-based fold ids: {sorted(missing)}')
 
     config = TFIMQRCConfig(
         qubits=6, lookback_steps=LOOKBACK, anchor_count=10, anchor_policy='recent',
@@ -210,7 +219,7 @@ def main() -> None:
             'scaler': 'train-only StandardScaler on selected QRC features',
             'ridge_alpha': RIDGE_ALPHA, 'target': 'log RV directly',
         },
-        'probe_note': 'Use --only-folds for runtime probes before committing to all 245 folds.',
+        'probe_note': '--probe selects first, middle, and last available fold IDs automatically.',
     }
     (args.outdir / 'run_manifest.json').write_text(json.dumps(manifest, indent=2, default=str))
 
