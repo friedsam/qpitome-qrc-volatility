@@ -1,0 +1,28 @@
+datasets:
+  paper_monthly:
+    role: primary
+    public: true
+    raw_dir: data/raw/paper_monthly
+    interim_dir: data/interim/paper_monthly
+    processed_dir: data/processed/paper_monthly
+    results_dir: results/paper_monthly
+    target: monthly_log_realized_volatility
+    frequency: monthly
+  volare:
+    role: comparison
+    public: access-dependent
+    raw_dir: data/raw/volare
+    interim_dir: data/interim/volare
+    processed_dir: data/processed/volare
+    results_dir: results/volare
+    target: to_be_selected_after_schema_audit
+    frequency: daily_or_intraday_derived
+  legacy_daily:
+    role: comparison_only
+    public: true
+    raw_dir: data/raw/legacy_daily
+    interim_dir: data/interim/legacy_daily
+    processed_dir: data/processed/legacy_daily
+    results_dir: results/legacy_daily
+    target: future_rv_20d
+    frequency: daily
