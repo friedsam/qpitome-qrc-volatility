@@ -3,6 +3,7 @@
 
 One active preparation script. It preserves definitional alternatives until audit resolves them;
 it does not silently deduplicate dates, select a price field, or guess unresolved paper fields.
+The script also emits reproducible processed benchmark slices; no ad hoc CLI slicing is required.
 """
 from __future__ import annotations
 
@@ -10,10 +11,16 @@ import argparse
 import json
 import re
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+
+PAPER_START = pd.Timestamp('1950-02-28')
+PAPER_END = pd.Timestamp('2017-12-31')
+PAPER_EXPECTED_ROWS = 815
 
 
 def latest_snapshot(root: Path) -> Path:
@@ -170,15 +177,62 @@ def classify_missingness(column: str) -> str:
     return 'source_or_alignment_missingness_requires_review'
 
 
+def build_processed_slices(monthly: pd.DataFrame, processed_outdir: Path) -> dict:
+    """Create reproducible paper-parity and extended complete-market-month outputs."""
+    paper = monthly.loc[
+        (monthly['date'] >= PAPER_START) & (monthly['date'] <= PAPER_END)
+    ].copy()
+    if len(paper) != PAPER_EXPECTED_ROWS:
+        raise ValueError(
+            f'Paper parity slice has {len(paper)} rows; expected {PAPER_EXPECTED_ROWS} '
+            f'for {PAPER_START.date()} through {PAPER_END.date()}'
+        )
+    if paper['date'].duplicated().any() or not paper['date'].is_monotonic_increasing:
+        raise ValueError('Paper parity slice has invalid date structure')
+
+    # A market month is complete only after its calendar month has ended.
+    current_month_start = pd.Timestamp(datetime.now(timezone.utc).date()).to_period('M').to_timestamp()
+    extended = monthly.loc[monthly['date'] < current_month_start].copy()
+    if extended.empty:
+        raise ValueError('No completed market months found')
+
+    paper_path = write_table(
+        paper,
+        processed_outdir / 'paper_parity_1950_02_to_2017_12.parquet',
+    )
+    extended_path = write_table(
+        extended,
+        processed_outdir / 'extended_complete_market_months.parquet',
+    )
+    return {
+        'paper_parity': {
+            'path': str(paper_path),
+            'rows': int(len(paper)),
+            'date_min': str(paper['date'].min()),
+            'date_max': str(paper['date'].max()),
+            'expected_rows_verified': True,
+        },
+        'extended_complete_market_months': {
+            'path': str(extended_path),
+            'rows': int(len(extended)),
+            'date_min': str(extended['date'].min()),
+            'date_max': str(extended['date'].max()),
+            'rule': 'calendar month must have ended; source gaps remain missing and explicit',
+        },
+    }
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument('--raw-root', type=Path, default=Path('data/raw/paper_monthly'))
     p.add_argument('--snapshot', type=Path, default=None)
     p.add_argument('--outdir', type=Path, default=Path('data/interim/paper_monthly'))
+    p.add_argument('--processed-outdir', type=Path, default=Path('data/processed/paper_monthly'))
     args = p.parse_args()
 
     snap = args.snapshot or latest_snapshot(args.raw_root)
     args.outdir.mkdir(parents=True, exist_ok=True)
+    args.processed_outdir.mkdir(parents=True, exist_ok=True)
 
     daily = parse_yahoo_chart(snap / 'gspc_daily_yahoo.json')
     monthly_close = build_monthly_target(daily, 'close')
@@ -237,12 +291,14 @@ def main() -> None:
     monthly_path = write_table(monthly, args.outdir / 'prepared_core.parquet')
     daily_path = write_table(daily, args.outdir / 'daily_source_prepared.parquet')
     pd.DataFrame(missing_rows).to_csv(args.outdir / 'missingness_categories.csv', index=False)
+    processed_outputs = build_processed_slices(monthly, args.processed_outdir)
 
     metadata = {
         'dataset': 'paper_monthly',
         'raw_snapshot': str(snap),
         'monthly_output': str(monthly_path),
         'daily_output': str(daily_path),
+        'processed_outputs': processed_outputs,
         'target_formula': 'log(sqrt(sum(daily log return^2))) by calendar month',
         'price_fields_preserved': [c for c in ['close', 'adjclose'] if c in daily and daily[c].notna().any()],
         'close_vs_adjusted_comparison': comparison,
