@@ -19,7 +19,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-classical = ["arch>=7.0", "torch>=2.3"]
+classical = [
+  "arch>=7.0",
+  "pandas-market-calendars>=4.4",
+  "torch>=2.3",
+]
 quantum = ["bloqade>=0.18", "qbraid>=0.9"]
 
 [tool.setuptools.packages.find]
