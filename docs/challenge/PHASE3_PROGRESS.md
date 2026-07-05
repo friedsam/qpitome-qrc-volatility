@@ -49,14 +49,19 @@ The completed items currently come from:
 - QLIKE implementation;
 - Mincer-Zarnowitz implementation.
 
+The checklist count will be resynchronized after the master requirements file is updated for the frozen target/protocol and integrated GARCH baseline.
+
 ## Current scientific stage
 
 ```text
 challenge reread        COMPLETE
 paper sanity benchmark  COMPLETE ENOUGH
 ESN sanity/autopsy      COMPLETE ENOUGH
-final target selection  ACTIVE
-QRC architecture        NOT STARTED ON FINAL TASK
+final target selection  COMPLETE
+GARCH baseline          INTEGRATED
+LSTM baseline           PENDING
+TFIM control             RUNNING
+Rydberg architecture    NEXT
 hardware validation     NOT STARTED ON FINAL TASK
 submission packaging    LATER
 ```
