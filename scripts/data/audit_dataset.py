@@ -63,6 +63,7 @@ def main() -> None:
         n_runs, max_run = contiguous_missing_runs(miss)
         numeric = pd.to_numeric(s, errors='coerce') if not pd.api.types.is_datetime64_any_dtype(s) else None
         inf_count = 0 if numeric is None else int(np.isinf(numeric.to_numpy(float, na_value=np.nan)).sum())
+        finite_numeric = None if numeric is None else numeric.where(np.isfinite(numeric))
         schema_rows.append({'column': col, 'dtype': str(s.dtype), 'n_unique': int(s.nunique(dropna=True))})
         quality_rows.append({
             'column': col,
@@ -72,8 +73,8 @@ def main() -> None:
             'missing_runs': n_runs,
             'max_missing_run': max_run,
             'infinite_count': inf_count,
-            'min': None if numeric is None or numeric.notna().sum() == 0 else float(numeric.min()),
-            'max': None if numeric is None or numeric.notna().sum() == 0 else float(numeric.max()),
+            'min': None if finite_numeric is None or finite_numeric.notna().sum() == 0 else float(finite_numeric.min()),
+            'max': None if finite_numeric is None or finite_numeric.notna().sum() == 0 else float(finite_numeric.max()),
         })
 
     duplicate_rows = int(df.duplicated().sum())
