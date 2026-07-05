@@ -12,12 +12,14 @@ Test whether an analog Rydberg quantum reservoir can extract forecasting value t
 
 ## Model stream
 
-1. Cheap classical sanity baseline - diagnostic only, not the target.
-2. ESN - primary classical reservoir baseline.
-3. TFIM - preliminary quantum control/reference.
-4. Rydberg QRC - primary quantum architecture; simulator, finite shots, then Aquila early.
+1. Persistence / AR / HAR / HARX / Ridge - classical diagnostics.
+2. GARCH(1,1)-t - integrated econometric volatility baseline.
+3. ESN - primary classical reservoir baseline.
+4. LSTM - required nonlinear sequence baseline; integration pending.
+5. TFIM - preliminary quantum control/reference.
+6. Rydberg QRC - primary quantum architecture; simulator, finite shots, then Aquila early.
 
-HAR may be retained as a diagnostic reference where informative, but it does not define the target task.
+The frozen monthly development task and current model status are documented under `docs/data_pipeline/` and `docs/model_references/`.
 
 ## Dataset separation
 
