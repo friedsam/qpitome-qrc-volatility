@@ -80,7 +80,14 @@ def main() -> None:
     pd.DataFrame(acf_rows).to_csv(args.outdir / 'target_acf.csv', index=False)
 
     corr_rows = []
-    numeric_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c != args.target]
+    excluded_feature_columns = {
+        c for c in df.columns
+        if c == args.target or c.startswith('target_')
+    }
+    numeric_cols = [
+        c for c in df.select_dtypes(include=[np.number]).columns
+        if c not in excluded_feature_columns
+    ]
     for col in numeric_cols:
         rho0, n0 = safe_spearman(pd.to_numeric(df[col], errors='coerce'), target)
         rho1, n1 = safe_spearman(pd.to_numeric(df[col], errors='coerce'), target.shift(-1))
@@ -110,6 +117,7 @@ def main() -> None:
         'target_median': med,
         'target_mad': mad,
         'numeric_feature_count': int(len(numeric_cols)),
+        'excluded_future_target_columns': sorted(excluded_feature_columns - {args.target}),
     }
     (args.outdir / 'exploration_manifest.json').write_text(json.dumps(summary, indent=2))
 
@@ -132,7 +140,7 @@ def main() -> None:
     ]
     for row in acf_rows:
         lines.append(f'- Lag {row["lag"]}: ACF={row["pearson_acf"] if row["pearson_acf"] is not None else "NA"} (n={row["n"]})')
-    lines += ['', '## Preliminary feature relationships', '', 'These are exploratory Spearman correlations only. They do not promote features and must be recomputed inside training data for model selection.', '']
+    lines += ['', '## Preliminary feature relationships', '', 'These are exploratory Spearman correlations only. Future-target columns are explicitly excluded. They do not promote features and must be recomputed inside training data for model selection.', '']
     if len(top):
         for _, row in top.iterrows():
             lines.append(f'- `{row.feature}`: rho to next target={row.rho_to_next_target:.3f} (n={int(row.n_next_target)})')
