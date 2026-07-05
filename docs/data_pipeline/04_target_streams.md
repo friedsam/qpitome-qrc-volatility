@@ -4,22 +4,22 @@
 
 The anchor paper is a calibration experiment, not the project definition.
 
-The repository must keep two distinct modeling streams:
+The repository keeps two distinct modeling streams:
 
 1. `paper_monthly` — literature-grounded sanity benchmark;
-2. `challenge_primary` — competition task, to be defined from the challenge objective and evaluated for volatility-regime transition performance.
+2. `challenge_primary` — competition task, defined from the challenge objective and evaluated for volatility-regime transition performance.
 
 Results, targets, feature decisions, and conclusions must not be silently transferred between the two streams.
 
 ## Paper sanity benchmark
 
-Current target:
+Target:
 
 ```text
 features available through month t -> log realized volatility in month t+1
 ```
 
-Current one-step protocol:
+Protocol:
 
 - exact 815-month calendar slice, February 1950-December 2017;
 - 245 monthly forecasts, August 1997-December 2017;
@@ -48,29 +48,66 @@ macro_inflation_growth_lag1
 
 This set is not exact QR1 or QR2 because DP/EP and exact paper definitions remain unresolved. It is not the final challenge input set.
 
-Run compact linear sanity check through the existing baseline runner:
+## Paper benchmark conclusion: closed
 
-```bash
-python scripts/models/run_sanity_baselines.py
+Key one-step results:
+
+| Model | RMSE log RV | QLIKE |
+|---|---:|---:|
+| ESN compact7, 50 nodes, alpha 100, seed mean | 0.323634 | 0.277353 |
+| HARX public available | 0.322857 | 0.275950 |
+| Ridge compact 7 | 0.326019 | 0.285782 |
+| Ridge all 24 | 0.326671 | 0.275446 |
+| HAR | 0.339656 | 0.304060 |
+| AR(1) | 0.360590 | 0.352500 |
+| Persistence | 0.377906 | 0.360259 |
+| Original fixed ESN all 24 | 0.420115 | 0.504364 |
+| Original fixed ESN compact 7 | 0.488163 | 0.899482 |
+
+The first arbitrary ESN failed because the reservoir/readout design was too aggressive for the sample size: 200 nodes, 225-dimensional skip-connected readout, and alpha 0.001.
+
+A controlled autopsy showed:
+
+- reducing the reservoir to 50 nodes recovered performance;
+- skip-connected inputs plus states outperformed states-only readout;
+- stronger regularization stabilized the skip-connected readout;
+- the compact seven-feature inputs were not the cause of the original failure.
+
+Frozen sanity configuration:
+
+```text
+compact7
+50 reservoir nodes
+spectral radius 0.9
+input scale 0.5
+leak 0.3
+readout alpha 100
+inputs + reservoir states
+washout 24
 ```
 
-Run compact ESN sanity check through the existing ESN runner:
+Five-seed stability check, seeds 0-4:
 
-```bash
-python scripts/models/run_esn_fixed.py --feature-set compact7
+```text
+RMSE mean  0.323634
+RMSE sd    0.001607
+RMSE range 0.321868-0.325848
+QLIKE mean 0.277353
 ```
 
-The full 24-feature ESN remains available as:
+Conclusion:
 
-```bash
-python scripts/models/run_esn_fixed.py --feature-set all24
-```
+- the ESN implementation is functional;
+- the recovered ESN is stable and reaches the HARX performance tier;
+- it does not establish a meaningful advantage over HARX or compact Ridge;
+- no further paper-target ESN optimization is justified now;
+- the paper sanity branch is closed unless a later challenge result creates a specific reason to reopen it.
 
 ## Challenge-primary stream
 
-The challenge target remains intentionally unresolved at this stage.
+This is now the active scientific stream.
 
-The challenge framing is broader than next-month paper parity and emphasizes volatility-regime shifts and transition forecasting. The final task should therefore be defined from challenge-specific analysis rather than inherited from the paper.
+The challenge target remains intentionally unresolved until challenge-specific target analysis is completed. The challenge framing is broader than next-month paper parity and emphasizes volatility-regime shifts and transition forecasting.
 
 Current design direction:
 
@@ -78,27 +115,7 @@ Current design direction:
 - evaluate overall RMSE/QLIKE and calibration;
 - add explicit transition-focused slices such as calm-to-turbulent and turbulent-to-calm periods;
 - measure whether a model gains around regime transitions rather than only in persistent regimes;
-- define horizon and regime labels before challenge-model optimization.
+- define horizon and regime labels before challenge-model optimization;
+- carry forward paper lessons only as hypotheses: compact inputs, multiscale state, exogenous stress, and capacity control.
 
 No paper-parity result alone is sufficient evidence for the final challenge model.
-
-## Current paper benchmark status
-
-Observed one-step results before the compact sanity check:
-
-| Model | RMSE log RV | QLIKE |
-|---|---:|---:|
-| HARX public available | 0.322857 | 0.275950 |
-| Ridge all 24 | 0.326671 | 0.275446 |
-| HAR | 0.339656 | 0.304060 |
-| AR(1) | 0.360590 | 0.352500 |
-| Persistence | 0.377906 | 0.360259 |
-| Fixed ESN all 24 | 0.420115 | 0.504364 |
-
-Interpretation:
-
-- multiscale volatility memory matters;
-- resolved exogenous inputs add value;
-- compact HARX and full 24-feature Ridge are in the same performance tier;
-- the first arbitrary 200-node ESN configuration failed clearly;
-- the compact seven-feature run is a sanity check on input burden and ESN implementation, not a final ESN search.
