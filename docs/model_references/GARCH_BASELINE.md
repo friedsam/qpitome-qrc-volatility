@@ -13,7 +13,7 @@ GARCH is the standard econometric conditional-variance baseline required by the 
 - innovations: Student-t;
 - input: daily S&P 500 log returns from the same `close` series used to construct the monthly target;
 - information boundary: daily observations through the prediction origin, inclusive;
-- history: rolling 569-month calendar window at daily frequency;
+- history: protocol `train_calendar_start` through the prediction origin, including the origin month used to condition the forecast;
 - refit: every forecast fold;
 - forecast: analytic multi-step daily conditional-variance path for the next calendar month;
 - monthly variance: sum of daily conditional-variance forecasts;
@@ -40,7 +40,7 @@ Interpretation:
 - strongest current baseline on QLIKE;
 - therefore retained as a genuinely complementary comparator rather than a redundant point-forecast baseline.
 
-A separate expanding-history probe produced slightly better RMSE but slightly worse QLIKE. The rolling version is retained for now because its QLIKE is better and the RMSE difference is negligible. This choice is frozen for the development comparison unless a specific later result justifies reopening it.
+A separate expanding-history probe produced slightly better RMSE but slightly worse QLIKE. The current window is retained because its QLIKE is better and the RMSE difference is negligible. This choice is frozen for the development comparison unless a specific later result justifies reopening it.
 
 ## Run
 
