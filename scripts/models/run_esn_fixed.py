@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run a fixed-configuration ESN on the shared one-step rolling protocol.
 
-Supports either all 24 preliminary features or a compact seven-feature paper-informed
-sanity-check proxy. The compact set is not exact QR1/QR2 and does not define the challenge task.
+Supports all 24 features or a compact seven-feature paper-informed sanity-check proxy.
+Also supports reservoir-only versus skip-connected readouts for controlled ESN autopsy.
 """
 from __future__ import annotations
 
@@ -71,6 +71,22 @@ def run_sequence(X: np.ndarray, win: np.ndarray, w: np.ndarray, leak: float,
     return states, state
 
 
+def design_matrix(X: np.ndarray, states: np.ndarray, mode: str) -> np.ndarray:
+    if mode == 'states_only':
+        return np.column_stack([np.ones(len(states)), states])
+    if mode == 'inputs_states':
+        return np.column_stack([np.ones(len(states)), X, states])
+    raise ValueError(f'Unknown readout mode: {mode}')
+
+
+def prediction_vector(x: np.ndarray, state: np.ndarray, mode: str) -> np.ndarray:
+    if mode == 'states_only':
+        return np.concatenate([[1.0], state])
+    if mode == 'inputs_states':
+        return np.concatenate([[1.0], x, state])
+    raise ValueError(f'Unknown readout mode: {mode}')
+
+
 def ridge_readout(Z: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
     reg = np.eye(Z.shape[1]) * alpha
     reg[0, 0] = 0.0
@@ -83,6 +99,7 @@ def main() -> None:
     p.add_argument('--catalog', type=Path, default=Path('data/processed/paper_monthly/features/feature_catalog.csv'))
     p.add_argument('--folds', type=Path, default=Path('results/paper_monthly/protocol/paper_rolling_one_step/folds.csv'))
     p.add_argument('--feature-set', choices=['all24', 'compact7'], default='all24')
+    p.add_argument('--readout-mode', choices=['states_only', 'inputs_states'], default='inputs_states')
     p.add_argument('--outdir', type=Path, default=None)
     p.add_argument('--reservoir-size', type=int, default=200)
     p.add_argument('--spectral-radius', type=float, default=0.9)
@@ -99,8 +116,9 @@ def main() -> None:
     if missing:
         raise KeyError(f'Feature-set columns missing from catalog: {missing}')
 
-    outdir = args.outdir or Path(f'results/paper_monthly/models/esn_fixed_{args.feature_set}')
-    model_name = f'esn_fixed_{args.feature_set}'
+    tag = f'{args.feature_set}_n{args.reservoir_size}_a{args.readout_alpha:g}_{args.readout_mode}'
+    outdir = args.outdir or Path(f'results/paper_monthly/models/esn_fixed/{tag}')
+    model_name = f'esn_{tag}'
 
     df = pd.read_parquet(args.features)
     df['date'] = pd.to_datetime(df['date'])
@@ -126,26 +144,27 @@ def main() -> None:
         states, final_state = run_sequence(Xtr, win, w, args.leak)
         if len(states) <= args.washout:
             raise ValueError('Washout leaves no training rows')
-        Z = np.column_stack([np.ones(len(states)), Xtr, states])
+        Z = design_matrix(Xtr, states, args.readout_mode)
         beta = ridge_readout(Z[args.washout:], ytr[args.washout:], args.readout_alpha)
 
         pred_state, _ = run_sequence(Xp, win, w, args.leak, final_state)
-        Zp = np.concatenate([[1.0], Xp[0], pred_state[0]])
+        zp = prediction_vector(Xp[0], pred_state[0], args.readout_mode)
         rows.append({
             'fold_id': int(f['fold_id']),
             'forecast_date': f['forecast_date'],
             'prediction_origin': f['prediction_origin'],
             'y_true_log_rv': float(pred_row[TARGET]),
-            'y_pred_log_rv': float(Zp @ beta),
+            'y_pred_log_rv': float(zp @ beta),
             'train_rows': int(len(train)),
             'effective_readout_rows': int(len(train) - args.washout),
+            'readout_dimension': int(Z.shape[1]),
         })
 
     pred = pd.DataFrame(rows)
     outdir.mkdir(parents=True, exist_ok=True)
     pred.to_csv(outdir / 'predictions.csv', index=False)
     metrics = score(pred['y_true_log_rv'].to_numpy(), pred['y_pred_log_rv'].to_numpy())
-    pd.DataFrame([{'model':model_name, 'n_forecasts':len(pred), **metrics}]).to_csv(outdir / 'metrics.csv', index=False)
+    pd.DataFrame([{'model': model_name, 'n_forecasts': len(pred), **metrics}]).to_csv(outdir / 'metrics.csv', index=False)
 
     manifest = {
         'protocol': 'paper_rolling_one_step',
@@ -153,7 +172,7 @@ def main() -> None:
         'feature_set': args.feature_set,
         'features': feature_cols,
         'feature_count': len(feature_cols),
-        'feature_set_role': 'paper-informed sanity check only' if args.feature_set == 'compact7' else 'full preliminary feature table',
+        'readout_mode': args.readout_mode,
         'reservoir_size': args.reservoir_size,
         'spectral_radius': args.spectral_radius,
         'input_scale': args.input_scale,
@@ -161,14 +180,13 @@ def main() -> None:
         'readout_alpha': args.readout_alpha,
         'washout': args.washout,
         'seed': args.seed,
-        'selection': 'none; configuration fixed before out-of-sample evaluation',
+        'selection': 'diagnostic configuration chosen before reading its out-of-sample result',
         'state_rule': 'zero reset at each rolling-window start; prediction origin continues from final training state',
-        'readout': 'ridge on intercept + scaled inputs + reservoir state',
-        'challenge_note': 'This paper-parity target and compact feature set do not define the final challenge task.',
+        'challenge_note': 'This paper-parity ESN autopsy does not define the final challenge task.',
     }
     (outdir / 'run_manifest.json').write_text(json.dumps(manifest, indent=2))
 
-    print(pd.DataFrame([{'model':model_name, 'n_forecasts':len(pred), **metrics}]).to_string(index=False))
+    print(pd.DataFrame([{'model': model_name, 'n_forecasts': len(pred), **metrics}]).to_string(index=False))
     print('\n' + json.dumps(manifest, indent=2))
 
 
