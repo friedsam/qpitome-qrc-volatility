@@ -11,6 +11,15 @@ from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.preprocessing import StandardScaler
 
 TARGET = 'target_log_rv_t_plus_1'
+COMPACT7 = [
+    'vol_state_1m',
+    'market_mkt_excess',
+    'market_str',
+    'vol_state_3m_mean',
+    'credit_default_spread_baa_minus_aaa_level',
+    'macro_ip_growth_lag1',
+    'macro_inflation_growth_lag1',
+]
 
 
 def score(y: np.ndarray, p: np.ndarray) -> dict:
@@ -34,6 +43,13 @@ def score(y: np.ndarray, p: np.ndarray) -> dict:
     }
 
 
+def ridge_prediction(train: pd.DataFrame, pred_row: pd.Series, cols: list[str], y: np.ndarray) -> float:
+    scaler = StandardScaler()
+    Xtr = scaler.fit_transform(train[cols])
+    Xp = scaler.transform(pd.DataFrame([pred_row[cols].to_dict()]))
+    return float(Ridge(alpha=1.0).fit(Xtr, y).predict(Xp)[0])
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument('--features', type=Path, default=Path('data/processed/paper_monthly/features/preliminary_features.parquet'))
@@ -45,14 +61,17 @@ def main() -> None:
     df = pd.read_parquet(args.features)
     df['date'] = pd.to_datetime(df['date'])
     folds = pd.read_csv(args.folds, parse_dates=['forecast_date','prediction_origin','train_calendar_start','train_calendar_end'])
-    features = pd.read_csv(args.catalog)['feature'].tolist()
-    rows = []
+    all24 = pd.read_csv(args.catalog)['feature'].tolist()
+    for col in COMPACT7:
+        if col not in all24:
+            raise KeyError(f'Compact feature missing from catalog: {col}')
 
+    rows = []
     for _, f in folds.iterrows():
         train_mask = (
             (df['date'] >= f['train_calendar_start']) &
             (df['date'] <= f['train_calendar_end']) &
-            df[features].notna().all(axis=1) &
+            df[all24].notna().all(axis=1) &
             df[TARGET].notna()
         )
         train = df.loc[train_mask]
@@ -64,15 +83,10 @@ def main() -> None:
             'historical_mean': float(y_train.mean()),
             'persistence': float(pred_row['vol_state_1m']),
         }
-
         ar1 = LinearRegression().fit(train[['vol_state_1m']], y_train)
         preds['linear_ar1'] = float(ar1.predict(pd.DataFrame({'vol_state_1m':[pred_row['vol_state_1m']]}))[0])
-
-        scaler = StandardScaler()
-        Xtr = scaler.fit_transform(train[features])
-        Xp = scaler.transform(pd.DataFrame([pred_row[features].to_dict()]))
-        ridge = Ridge(alpha=1.0).fit(Xtr, y_train)
-        preds['ridge_all24_alpha1'] = float(ridge.predict(Xp)[0])
+        preds['ridge_compact7_alpha1'] = ridge_prediction(train, pred_row, COMPACT7, y_train)
+        preds['ridge_all24_alpha1'] = ridge_prediction(train, pred_row, all24, y_train)
 
         for model, pred in preds.items():
             rows.append({
@@ -96,7 +110,9 @@ def main() -> None:
 
     manifest = {
         'protocol': 'paper_rolling_one_step',
-        'models': ['historical_mean','persistence','linear_ar1','ridge_all24_alpha1'],
+        'models': ['historical_mean','persistence','linear_ar1','ridge_compact7_alpha1','ridge_all24_alpha1'],
+        'compact7_features': COMPACT7,
+        'compact7_role': 'paper-informed sanity-check proxy, not exact paper QR1 or QR2 and not the challenge target definition',
         'selection': 'none; fixed baselines only',
         'ridge_alpha': 1.0,
         'forecast_count_per_model': int(len(folds)),
