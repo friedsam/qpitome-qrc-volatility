@@ -2,9 +2,9 @@
 """Run the canonical GARCH baseline on the frozen monthly target.
 
 The model is GARCH(1,1) with Student-t innovations on daily S&P 500 log returns.
-Each fold uses the shared 569-month rolling calendar window and forecasts the
-full next-month conditional-variance path. Daily forecast variances are summed
-and mapped into the same log-realized-volatility units as the target.
+Each fold uses daily returns from the protocol training-window start through the
+prediction origin, forecasts the full next-month conditional-variance path,
+and maps the aggregate variance into the target's log-RV units.
 """
 from __future__ import annotations
 
@@ -188,7 +188,7 @@ def main() -> None:
         'specification': 'GARCH(1,1), zero mean, Student-t innovations, refit each fold',
         'daily_source': str(args.daily_source),
         'information_boundary': 'train_calendar_start <= daily date <= prediction_origin',
-        'history_window': 'shared rolling 569-month calendar window at daily frequency',
+        'history_window': 'protocol train start through prediction origin; includes the origin month used to condition the forecast',
         'forecast_aggregation': 'sum analytic multi-step daily conditional variances over forecast month',
         'target_mapping': '0.5 * log(monthly conditional variance), in the same units as log realized volatility',
         'trading_day_count': 'NYSE calendar via pandas_market_calendars',
