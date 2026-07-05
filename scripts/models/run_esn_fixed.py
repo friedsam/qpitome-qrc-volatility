@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run a fixed-configuration ESN on the shared one-step rolling protocol.
 
-This is the first reservoir benchmark, not a tuned final ESN. The reservoir configuration
-is fixed before evaluating the 245 out-of-sample targets.
+Supports either all 24 preliminary features or a compact seven-feature paper-informed
+sanity-check proxy. The compact set is not exact QR1/QR2 and does not define the challenge task.
 """
 from __future__ import annotations
 
@@ -15,6 +15,15 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 TARGET = 'target_log_rv_t_plus_1'
+COMPACT7 = [
+    'vol_state_1m',
+    'market_mkt_excess',
+    'market_str',
+    'vol_state_3m_mean',
+    'credit_default_spread_baa_minus_aaa_level',
+    'macro_ip_growth_lag1',
+    'macro_inflation_growth_lag1',
+]
 
 
 def score(y: np.ndarray, p: np.ndarray) -> dict:
@@ -43,10 +52,8 @@ def make_reservoir(n_inputs: int, n_reservoir: int, spectral_radius: float,
     rng = np.random.default_rng(seed)
     win = rng.uniform(-input_scale, input_scale, size=(n_reservoir, n_inputs + 1))
     w = rng.normal(0.0, 1.0, size=(n_reservoir, n_reservoir))
-    mask = rng.random((n_reservoir, n_reservoir)) < 0.10
-    w *= mask
-    eig = np.linalg.eigvals(w)
-    radius = float(np.max(np.abs(eig)))
+    w *= rng.random((n_reservoir, n_reservoir)) < 0.10
+    radius = float(np.max(np.abs(np.linalg.eigvals(w))))
     if radius <= 0:
         raise ValueError('Reservoir spectral radius is zero')
     w *= spectral_radius / radius
@@ -58,8 +65,7 @@ def run_sequence(X: np.ndarray, win: np.ndarray, w: np.ndarray, leak: float,
     state = np.zeros(w.shape[0]) if state0 is None else state0.copy()
     states = np.empty((len(X), w.shape[0]), dtype=float)
     for i, u in enumerate(X):
-        drive = win @ np.concatenate([[1.0], u]) + w @ state
-        candidate = np.tanh(drive)
+        candidate = np.tanh(win @ np.concatenate([[1.0], u]) + w @ state)
         state = (1.0 - leak) * state + leak * candidate
         states[i] = state
     return states, state
@@ -76,7 +82,8 @@ def main() -> None:
     p.add_argument('--features', type=Path, default=Path('data/processed/paper_monthly/features/preliminary_features.parquet'))
     p.add_argument('--catalog', type=Path, default=Path('data/processed/paper_monthly/features/feature_catalog.csv'))
     p.add_argument('--folds', type=Path, default=Path('results/paper_monthly/protocol/paper_rolling_one_step/folds.csv'))
-    p.add_argument('--outdir', type=Path, default=Path('results/paper_monthly/models/esn_fixed'))
+    p.add_argument('--feature-set', choices=['all24', 'compact7'], default='all24')
+    p.add_argument('--outdir', type=Path, default=None)
     p.add_argument('--reservoir-size', type=int, default=200)
     p.add_argument('--spectral-radius', type=float, default=0.9)
     p.add_argument('--input-scale', type=float, default=0.5)
@@ -86,11 +93,18 @@ def main() -> None:
     p.add_argument('--seed', type=int, default=42)
     args = p.parse_args()
 
+    all24 = pd.read_csv(args.catalog)['feature'].tolist()
+    feature_cols = all24 if args.feature_set == 'all24' else COMPACT7
+    missing = sorted(set(feature_cols) - set(all24))
+    if missing:
+        raise KeyError(f'Feature-set columns missing from catalog: {missing}')
+
+    outdir = args.outdir or Path(f'results/paper_monthly/models/esn_fixed_{args.feature_set}')
+    model_name = f'esn_fixed_{args.feature_set}'
+
     df = pd.read_parquet(args.features)
     df['date'] = pd.to_datetime(df['date'])
     folds = pd.read_csv(args.folds, parse_dates=['forecast_date','prediction_origin','train_calendar_start','train_calendar_end'])
-    feature_cols = pd.read_csv(args.catalog)['feature'].tolist()
-
     win, w = make_reservoir(len(feature_cols), args.reservoir_size, args.spectral_radius, args.input_scale, args.seed)
     rows = []
 
@@ -117,28 +131,29 @@ def main() -> None:
 
         pred_state, _ = run_sequence(Xp, win, w, args.leak, final_state)
         Zp = np.concatenate([[1.0], Xp[0], pred_state[0]])
-        y_pred = float(Zp @ beta)
-
         rows.append({
             'fold_id': int(f['fold_id']),
             'forecast_date': f['forecast_date'],
             'prediction_origin': f['prediction_origin'],
             'y_true_log_rv': float(pred_row[TARGET]),
-            'y_pred_log_rv': y_pred,
+            'y_pred_log_rv': float(Zp @ beta),
             'train_rows': int(len(train)),
             'effective_readout_rows': int(len(train) - args.washout),
         })
 
     pred = pd.DataFrame(rows)
-    args.outdir.mkdir(parents=True, exist_ok=True)
-    pred.to_csv(args.outdir / 'predictions.csv', index=False)
+    outdir.mkdir(parents=True, exist_ok=True)
+    pred.to_csv(outdir / 'predictions.csv', index=False)
     metrics = score(pred['y_true_log_rv'].to_numpy(), pred['y_pred_log_rv'].to_numpy())
-    pd.DataFrame([{'model':'esn_fixed', 'n_forecasts':len(pred), **metrics}]).to_csv(args.outdir / 'metrics.csv', index=False)
+    pd.DataFrame([{'model':model_name, 'n_forecasts':len(pred), **metrics}]).to_csv(outdir / 'metrics.csv', index=False)
 
     manifest = {
         'protocol': 'paper_rolling_one_step',
-        'model': 'esn_fixed',
+        'model': model_name,
+        'feature_set': args.feature_set,
+        'features': feature_cols,
         'feature_count': len(feature_cols),
+        'feature_set_role': 'paper-informed sanity check only' if args.feature_set == 'compact7' else 'full preliminary feature table',
         'reservoir_size': args.reservoir_size,
         'spectral_radius': args.spectral_radius,
         'input_scale': args.input_scale,
@@ -149,10 +164,11 @@ def main() -> None:
         'selection': 'none; configuration fixed before out-of-sample evaluation',
         'state_rule': 'zero reset at each rolling-window start; prediction origin continues from final training state',
         'readout': 'ridge on intercept + scaled inputs + reservoir state',
+        'challenge_note': 'This paper-parity target and compact feature set do not define the final challenge task.',
     }
-    (args.outdir / 'run_manifest.json').write_text(json.dumps(manifest, indent=2))
+    (outdir / 'run_manifest.json').write_text(json.dumps(manifest, indent=2))
 
-    print(pd.DataFrame([{'model':'esn_fixed', 'n_forecasts':len(pred), **metrics}]).to_string(index=False))
+    print(pd.DataFrame([{'model':model_name, 'n_forecasts':len(pred), **metrics}]).to_string(index=False))
     print('\n' + json.dumps(manifest, indent=2))
 
 
