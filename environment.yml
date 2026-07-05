@@ -1,0 +1,8 @@
+name: qrc-volatility
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - -e .[classical,quantum]
