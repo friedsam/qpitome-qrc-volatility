@@ -7,14 +7,14 @@ Purpose: verify environment, credentials, device properties, AHS discretization,
 minimal run/retrieval, and result format without touching the volatility model.
 
 Typical use on qBraid Lab:
-    python scripts/qbraid_ahs_readiness_probe.py --check-qbraid --simulate --shots 50
-    python scripts/qbraid_ahs_readiness_probe.py --check-qbraid --device-check
-    python scripts/qbraid_ahs_readiness_probe.py --hardware --shots 50 --out artifacts/ahs_probe_hw.json
+    python scripts/hardware/qbraid_ahs_readiness_probe.py --check-qbraid --simulate --shots 50
+    python scripts/hardware/qbraid_ahs_readiness_probe.py --check-qbraid --device-check
+    python scripts/hardware/qbraid_ahs_readiness_probe.py --hardware --shots 50 --out artifacts/ahs_probe_hw.json
 
 Typical local use:
     pip install amazon-braket-sdk qbraid-cli
     qbraid configure
-    python scripts/qbraid_ahs_readiness_probe.py --check-qbraid --simulate
+    python scripts/hardware/qbraid_ahs_readiness_probe.py --check-qbraid --simulate
 
 Notes:
 - qBraid organization/credit selection is account-side; confirm the active org in

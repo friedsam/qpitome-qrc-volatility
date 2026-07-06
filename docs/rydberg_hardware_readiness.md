@@ -34,19 +34,19 @@ Account-side checks:
 ## Minimal probe
 
 ```bash
-python scripts/qbraid_ahs_readiness_probe.py --check-qbraid --simulate --shots 50
+python scripts/hardware/qbraid_ahs_readiness_probe.py --check-qbraid --simulate --shots 50
 ```
 
 Then device property check, still no quantum task:
 
 ```bash
-python scripts/qbraid_ahs_readiness_probe.py --check-qbraid --device-check
+python scripts/hardware/qbraid_ahs_readiness_probe.py --check-qbraid --device-check
 ```
 
 Only after the above works:
 
 ```bash
-python scripts/qbraid_ahs_readiness_probe.py --hardware --shots 50 --out artifacts/ahs_probe_hw.json
+python scripts/hardware/qbraid_ahs_readiness_probe.py --hardware --shots 50 --out artifacts/ahs_probe_hw.json
 ```
 
 The script refuses more than 100 hardware shots in readiness mode.
