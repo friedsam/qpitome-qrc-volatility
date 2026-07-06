@@ -1,7 +1,7 @@
 """Recurrence-free quantum reservoir feature maps used in Phase 3.
 
 This module extracts the simulator logic that originally lived inside the
-Phase 3 RF-QRC experiment scripts.  The implementation intentionally preserves
+Phase 3 RF-QRC experiment scripts. The implementation intentionally preserves
 legacy numerical behavior so historical results can be reproduced exactly
 before any scientific or performance changes are considered.
 """
@@ -121,12 +121,7 @@ def entangler_pairs(mode: Entangler, n_qubits: int) -> list[tuple[int, int]]:
 
 
 class RFQRCMap:
-    """Deterministic recurrence-free quantum feature map.
-
-    The constructor intentionally accepts the same positional arguments as the
-    original script-local ``RFQRCMap`` so experiment runners can be migrated
-    without changing scientific configuration.
-    """
+    """Deterministic recurrence-free quantum feature map."""
 
     def __init__(
         self,
@@ -172,13 +167,18 @@ class RFQRCMap:
 
         return self.n + self.n * (self.n - 1) // 2
 
-    def _encode(self, state: np.ndarray, u: np.ndarray) -> np.ndarray:
+    def _encode(
+        self,
+        state: np.ndarray,
+        u: np.ndarray,
+        factor: float = 1.0,
+    ) -> np.ndarray:
         if len(u) != self.n:
             raise ValueError(f"Expected {self.n} inputs, got {len(u)}")
         for q, val in enumerate(u):
             state = apply_one(
                 state,
-                ry(float(self.input_scale * val)),
+                ry(float(factor * self.input_scale * val)),
                 q,
                 self.n,
             )
@@ -189,17 +189,27 @@ class RFQRCMap:
             state = apply_cnot(state, i, j, self.n)
         return state
 
-    def _random_layer(self, state: np.ndarray) -> np.ndarray:
+    def _random_layer(self, state: np.ndarray, scale: float = 1.0) -> np.ndarray:
         for q in range(self.n):
-            state = apply_one(state, rz(float(self.rz_angles[q])), q, self.n)
-            state = apply_one(state, ry(float(self.ry_angles[q])), q, self.n)
+            state = apply_one(
+                state,
+                rz(float(scale * self.rz_angles[q])),
+                q,
+                self.n,
+            )
+            state = apply_one(
+                state,
+                ry(float(scale * self.ry_angles[q])),
+                q,
+                self.n,
+            )
         for i in range(self.n):
             for j in range(i + 1, self.n):
                 state = apply_zz_phase(
                     state,
                     i,
                     j,
-                    float(self.zz_angles[i, j]),
+                    float(scale * self.zz_angles[i, j]),
                     self.n,
                 )
         return state
@@ -229,3 +239,76 @@ class RFQRCMap:
         if values.shape[1] != self.n:
             raise ValueError(f"Expected {self.n} columns, got {values.shape[1]}")
         return np.vstack([self.one(u) for u in values])
+
+
+class TimeMultiplexedRFQRCMap(RFQRCMap):
+    """RF-QRC ring with repeated fixed random layers and virtual-node readout."""
+
+    def __init__(
+        self,
+        n_qubits: int,
+        input_scale: float,
+        random_scale: float,
+        seed: int,
+    ) -> None:
+        self.n = n_qubits
+        self.second_encoding = True
+        self.entangler = "ring"
+        self.input_scale = input_scale
+        self.config = RFQRCConfig(
+            n_qubits=n_qubits,
+            second_encoding=True,
+            entangler="ring",
+            input_scale=input_scale,
+            seed=seed,
+        )
+        rng = np.random.default_rng(seed)
+        self.rz_angles = rng.normal(0.0, random_scale, size=n_qubits)
+        self.ry_angles = rng.normal(0.0, random_scale, size=n_qubits)
+        self.zz_angles = np.triu(
+            rng.normal(0.0, random_scale, size=(n_qubits, n_qubits)),
+            1,
+        )
+
+    def one(
+        self,
+        u: np.ndarray,
+        max_virtual_nodes: int,
+        layer_scale: float,
+    ) -> np.ndarray:
+        """Return concatenated Z/ZZ features after each virtual node."""
+
+        if max_virtual_nodes < 1:
+            raise ValueError("max_virtual_nodes must be positive")
+        values = np.asarray(u, dtype=float)
+        state = np.zeros(2**self.n, dtype=complex)
+        state[0] = 1.0
+        state = self._encode(state, values, factor=1.0)
+        state = self._entangle(state)
+        state = self._encode(state, values, factor=1.0)
+
+        features = []
+        for _ in range(max_virtual_nodes):
+            state = self._random_layer(state, scale=layer_scale)
+            features.append(z_zz_features(state, self.n))
+        return np.concatenate(features)
+
+    def transform(
+        self,
+        U: np.ndarray,
+        max_virtual_nodes: int,
+        layer_scale: float,
+    ) -> np.ndarray:
+        """Transform every input row into concatenated virtual-node features."""
+
+        values = np.asarray(U, dtype=float)
+        if values.ndim != 2:
+            raise ValueError("U must be a two-dimensional array")
+        if values.shape[1] != self.n:
+            raise ValueError(f"Expected {self.n} columns, got {values.shape[1]}")
+        return np.vstack(
+            [
+                self.one(u, max_virtual_nodes, layer_scale)
+                for u in values
+            ]
+        )
