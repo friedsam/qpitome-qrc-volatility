@@ -14,35 +14,19 @@ from qpitome_qrc.evaluation.walkforward import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-LEGACY_SCRIPTS = {
-    "esn": REPO_ROOT / "scripts" / "run_phase3_esn_ridge_walkforward.py",
-    "baseline": REPO_ROOT / "scripts" / "run_phase3_purged_baseline_comparison.py",
-    "rydberg": REPO_ROOT / "scripts" / "run_phase3_rydberg_purged_walkforward.py",
-    "master": REPO_ROOT / "scripts" / "run_master_comparison.py",
-}
+LEGACY_REFERENCE = Path(__file__).with_name("legacy_walkforward_reference.py")
 
 
-def load_module(name: str):
-    path = LEGACY_SCRIPTS[name]
-    spec = importlib.util.spec_from_file_location(f"legacy_walkforward_{name}", path)
+def load_legacy_module():
+    spec = importlib.util.spec_from_file_location(
+        "legacy_walkforward",
+        LEGACY_REFERENCE,
+    )
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load legacy script: {path}")
+        raise RuntimeError(f"Could not load legacy reference: {LEGACY_REFERENCE}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def core_fold_view(folds):
-    return [
-        {
-            "fold": f["fold"],
-            "train": f["train"],
-            "val": f["val"],
-            "test": f["test"],
-        }
-        for f in folds
-    ]
 
 
 @pytest.mark.parametrize(
@@ -53,38 +37,33 @@ def core_fold_view(folds):
         (5000, 3, 1800, 400, 20),
     ],
 )
-def test_fold_geometry_matches_all_legacy_implementations(
+def test_fold_geometry_matches_frozen_legacy_oracle(
     n_rows: int,
     n_folds: int,
     min_train: int,
     val_size: int,
     purge: int,
 ) -> None:
-    expected = make_purged_walkforward_folds(
+    legacy = load_legacy_module()
+    expected = legacy.make_folds(
         n_rows,
         n_folds=n_folds,
         min_train=min_train,
         val_size=val_size,
         purge=purge,
     )
-
-    for name in LEGACY_SCRIPTS:
-        legacy = load_module(name)
-        if name == "esn":
-            actual = legacy.make_folds(n_rows, n_folds, min_train, val_size, purge)
-        else:
-            actual = legacy.make_folds(
-                n_rows,
-                n_folds=n_folds,
-                min_train=min_train,
-                val_size=val_size,
-                purge=purge,
-            )
-        assert core_fold_view(actual) == core_fold_view(expected), name
+    actual = make_purged_walkforward_folds(
+        n_rows,
+        n_folds=n_folds,
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+    )
+    assert actual == expected
 
 
-def test_master_alignment_matches_extracted_protocol() -> None:
-    legacy = load_module("master")
+def test_alignment_matches_frozen_legacy_oracle() -> None:
+    legacy = load_legacy_module()
     df = pd.DataFrame(
         {
             "date": pd.date_range("2000-01-01", periods=7658, freq="D"),
