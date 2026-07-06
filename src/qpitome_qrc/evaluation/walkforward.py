@@ -100,6 +100,84 @@ def make_purged_walkforward_folds(
     return folds
 
 
+
+@dataclass(frozen=True)
+class PurgedRollingWindowConfig:
+    """Geometry of fixed-width rolling tests with expanding training history."""
+
+    min_train: int = 2500
+    val_size: int = 504
+    purge: int = 60
+    test_size: int = 252
+    step: int = 252
+
+    def __post_init__(self) -> None:
+        if self.min_train < 1:
+            raise ValueError("min_train must be positive")
+        if self.val_size < 1:
+            raise ValueError("val_size must be positive")
+        if self.purge < 0:
+            raise ValueError("purge must be non-negative")
+        if self.test_size < 1:
+            raise ValueError("test_size must be positive")
+        if self.step < 1:
+            raise ValueError("step must be positive")
+
+
+def make_purged_rolling_windows(
+    n_rows: int,
+    *,
+    min_train: int,
+    val_size: int,
+    purge: int,
+    test_size: int,
+    step: int,
+) -> list[dict[str, int | tuple[int, int]]]:
+    """Build fixed-width rolling test windows with expanding training history.
+
+    Each window has the form::
+
+        train | validation | purge | test
+
+    Test windows have fixed width and advance by ``step`` rows. Only complete
+    test windows are returned; an incomplete trailing window is discarded.
+    """
+
+    config = PurgedRollingWindowConfig(
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+        test_size=test_size,
+        step=step,
+    )
+
+    first_test_start = config.min_train + config.val_size + config.purge
+    windows: list[dict[str, int | tuple[int, int]]] = []
+
+    test_start = first_test_start
+    window_id = 1
+
+    while test_start + config.test_size <= n_rows:
+        val_end = test_start - config.purge
+        val_start = val_end - config.val_size
+
+        windows.append(
+            {
+                "window": window_id,
+                "train": (0, val_start),
+                "val": (val_start, val_end),
+                "purge": (val_end, test_start),
+                "test": (test_start, test_start + config.test_size),
+            }
+        )
+
+        test_start += config.step
+        window_id += 1
+
+    return windows
+
+
+
 def slice_fold_frames(
     df: pd.DataFrame,
     fold: Mapping[str, int | tuple[int, int]],

@@ -25,6 +25,7 @@ from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.data.features import FEATURE_COLUMNS
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
+from qpitome_qrc.evaluation.walkforward import make_purged_rolling_windows
 
 ESN_SOURCE = Path(__file__).with_name("run_phase3_esn_ridge_walkforward.py")
 TARGET = "future_rv_20d"
@@ -53,16 +54,24 @@ def parse_args():
 
 
 def make_windows(n, min_train, val_size, purge, test_size, step):
-    first_test = min_train + val_size + purge
-    rows = []
-    start = first_test
-    wid = 1
-    while start + test_size <= n:
-        val_end = start - purge
-        val_start = val_end - val_size
-        rows.append({"window": wid, "train": (0, val_start), "val": (val_start, val_end), "test": (start, start + test_size)})
-        start += step; wid += 1
-    return rows
+    """Backward-compatible wrapper around the shared rolling protocol."""
+    windows = make_purged_rolling_windows(
+        n,
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+        test_size=test_size,
+        step=step,
+    )
+    return [
+        {
+            "window": w["window"],
+            "train": w["train"],
+            "val": w["val"],
+            "test": w["test"],
+        }
+        for w in windows
+    ]
 
 
 def rmse(y, pred):
