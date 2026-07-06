@@ -15,14 +15,13 @@ from qpitome_qrc.baselines.reservoir_readouts import (
 from qpitome_qrc.qrc.rf_qrc_reservoir import RFQRCMap
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-LEGACY_SCRIPT = REPO_ROOT / "scripts" / "run_phase3_one_qrc_two_head_readout.py"
+LEGACY_REFERENCE = Path(__file__).with_name("legacy_two_head_reference.py")
 
 
 def load_legacy_module():
-    spec = importlib.util.spec_from_file_location("legacy_two_head", LEGACY_SCRIPT)
+    spec = importlib.util.spec_from_file_location("legacy_two_head", LEGACY_REFERENCE)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load legacy script: {LEGACY_SCRIPT}")
+        raise RuntimeError(f"Could not load legacy reference: {LEGACY_REFERENCE}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -93,12 +92,11 @@ def test_event_logistic_head_matches_legacy() -> None:
     features, target, split = synthetic_readout_data()
     event_threshold = float(np.quantile(target[split == "train"], 0.90))
 
-    _, expected_prob, expected_threshold = legacy.classifier_head(
+    expected_prob, expected_threshold = legacy.classifier_head(
         features,
         target,
         split,
         threshold=event_threshold,
-        event_name="q90",
         C=1.0,
     )
     result = fit_event_logistic_head(
