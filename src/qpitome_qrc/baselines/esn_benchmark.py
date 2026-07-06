@@ -274,7 +274,7 @@ def aggregate_esn_seeds(summary: pd.DataFrame, metric: str = "val_pr_auc") -> pd
 def save_esn_benchmark_outputs(
     summary: pd.DataFrame,
     aggregate: pd.DataFrame,
-    output_dir: str | Path = "results/tables/esn_benchmark",
+    output_dir: str | Path = "results/baselines/esn/esn_benchmark",
 ) -> Path:
     """Save ESN benchmark summary tables."""
     output_dir = Path(output_dir)
