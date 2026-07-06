@@ -213,7 +213,6 @@ def fit_event_logistic_head(
     scaled = scaler.transform(features)
     model = LogisticRegression(
         C=C,
-        penalty="l2",
         class_weight="balanced",
         solver="lbfgs",
         max_iter=2000,
