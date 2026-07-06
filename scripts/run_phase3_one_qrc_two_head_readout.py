@@ -1,13 +1,8 @@
 """Phase 3 one-QRC two-head RF-QRC readout experiment.
 
-This keeps one RF-QRC ring feature map and trains two readout heads on the same
-raw quantum features:
-
-1. Ridge regression head for continuous future volatility.
-2. Logistic crisis/warning classifier heads for q80/q90/q95 event labels.
-
-It tests whether the RF-QRC crisis signal is lost because the regression loss is
-misaligned with rare-event detection, not because a second reservoir is needed.
+One shared RF-QRC ring feature map feeds:
+1. a ridge regression head for continuous future volatility;
+2. logistic warning heads for q80/q90/q95 events.
 """
 
 from __future__ import annotations
@@ -20,17 +15,21 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
-from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
     average_precision_score,
     f1_score,
     mean_squared_error,
-    precision_recall_curve,
     precision_score,
     recall_score,
     roc_auc_score,
 )
 from sklearn.preprocessing import StandardScaler
+
+from qpitome_qrc.baselines.reservoir_readouts import (
+    fit_event_logistic_head,
+    fit_volatility_ridge_head,
+)
+from qpitome_qrc.qrc.rf_qrc_reservoir import RFQRCMap
 
 SEED = 42
 TARGET_COL = "future_rv_20d"
@@ -133,92 +132,6 @@ def leaky_filter(U: np.ndarray, leak: float) -> np.ndarray:
     return out
 
 
-def ry(theta: float) -> np.ndarray:
-    c, s = math.cos(theta / 2.0), math.sin(theta / 2.0)
-    return np.array([[c, -s], [s, c]], dtype=complex)
-
-
-def rz(theta: float) -> np.ndarray:
-    return np.array([[np.exp(-0.5j * theta), 0.0], [0.0, np.exp(0.5j * theta)]], dtype=complex)
-
-
-def apply_one(state: np.ndarray, gate: np.ndarray, q: int, n: int) -> np.ndarray:
-    tensor = state.reshape([2] * n)
-    tensor = np.moveaxis(tensor, q, 0)
-    tensor = np.tensordot(gate, tensor, axes=([1], [0]))
-    tensor = np.moveaxis(tensor, 0, q)
-    return tensor.reshape(-1)
-
-
-def apply_cnot(state: np.ndarray, control: int, target: int, n: int) -> np.ndarray:
-    out = np.empty_like(state)
-    for idx, amp in enumerate(state):
-        dest = idx ^ (1 << target) if ((idx >> control) & 1) else idx
-        out[dest] = amp
-    return out
-
-
-def apply_zz_phase(state: np.ndarray, i: int, j: int, theta: float, n: int) -> np.ndarray:
-    out = state.copy()
-    for idx in range(len(out)):
-        zi = 1.0 if ((idx >> i) & 1) == 0 else -1.0
-        zj = 1.0 if ((idx >> j) & 1) == 0 else -1.0
-        out[idx] *= np.exp(-1j * theta * zi * zj)
-    return out
-
-
-def z_zz_features(state: np.ndarray, n: int) -> np.ndarray:
-    probs = np.abs(state) ** 2
-    zvals = np.empty((len(state), n), dtype=float)
-    for idx in range(len(state)):
-        for q in range(n):
-            zvals[idx, q] = 1.0 if ((idx >> q) & 1) == 0 else -1.0
-    z = probs @ zvals
-    zz = [probs @ (zvals[:, i] * zvals[:, j]) for i in range(n) for j in range(i + 1, n)]
-    return np.concatenate([z, np.asarray(zz)])
-
-
-class RFQRCRingMap:
-    def __init__(self, n_qubits: int, input_scale: float, random_scale: float, seed: int):
-        self.n = n_qubits
-        self.input_scale = input_scale
-        rng = np.random.default_rng(seed)
-        self.rz_angles = rng.normal(0.0, random_scale, size=n_qubits)
-        self.ry_angles = rng.normal(0.0, random_scale, size=n_qubits)
-        self.zz_angles = np.triu(rng.normal(0.0, random_scale, size=(n_qubits, n_qubits)), 1)
-
-    def _encode(self, state: np.ndarray, u: np.ndarray, factor: float = 1.0) -> np.ndarray:
-        for q, val in enumerate(u):
-            state = apply_one(state, ry(float(factor * self.input_scale * val)), q, self.n)
-        return state
-
-    def _ring_entangle(self, state: np.ndarray) -> np.ndarray:
-        for i in range(self.n):
-            state = apply_cnot(state, i, (i + 1) % self.n, self.n)
-        return state
-
-    def _random_layer(self, state: np.ndarray) -> np.ndarray:
-        for q in range(self.n):
-            state = apply_one(state, rz(float(self.rz_angles[q])), q, self.n)
-            state = apply_one(state, ry(float(self.ry_angles[q])), q, self.n)
-        for i in range(self.n):
-            for j in range(i + 1, self.n):
-                state = apply_zz_phase(state, i, j, float(self.zz_angles[i, j]), self.n)
-        return state
-
-    def one(self, u: np.ndarray) -> np.ndarray:
-        state = np.zeros(2**self.n, dtype=complex)
-        state[0] = 1.0
-        state = self._encode(state, u, factor=1.0)
-        state = self._ring_entangle(state)
-        state = self._encode(state, u, factor=1.0)
-        state = self._random_layer(state)
-        return z_zz_features(state, self.n)
-
-    def transform(self, U: np.ndarray) -> np.ndarray:
-        return np.vstack([self.one(u) for u in U])
-
-
 def corr(a: np.ndarray, b: np.ndarray) -> float:
     if np.std(a) < 1e-12 or np.std(b) < 1e-12:
         return float("nan")
@@ -238,15 +151,12 @@ def effective_rank(A: np.ndarray) -> float:
     return float(np.exp(-np.sum(p * np.log(p + 1e-12))))
 
 
-def regression_head(F: np.ndarray, y: np.ndarray, split: np.ndarray, alpha: float) -> np.ndarray:
-    train = split == "train"
-    scaler = StandardScaler().fit(F[train])
-    Fs = scaler.transform(F)
-    model = Ridge(alpha=alpha).fit(Fs[train], np.log(np.maximum(y[train], 1e-8)))
-    return np.maximum(np.exp(model.predict(Fs)), 1e-8)
-
-
-def evaluate_regression(y: np.ndarray, pred: np.ndarray, split: np.ndarray, thresholds: dict[str, float]) -> pd.DataFrame:
+def evaluate_regression(
+    y: np.ndarray,
+    pred: np.ndarray,
+    split: np.ndarray,
+    thresholds: dict[str, float],
+) -> pd.DataFrame:
     rows = []
     for sp in ["train", "val", "test"]:
         m = split == sp
@@ -275,40 +185,16 @@ def evaluate_regression(y: np.ndarray, pred: np.ndarray, split: np.ndarray, thre
     return pd.DataFrame(rows)
 
 
-def best_threshold_from_val(y_val: np.ndarray, p_val: np.ndarray) -> tuple[float, float]:
-    prec, rec, thr = precision_recall_curve(y_val, p_val)
-    if len(thr) == 0:
-        return 0.5, 0.0
-    f1 = 2 * prec[:-1] * rec[:-1] / np.maximum(prec[:-1] + rec[:-1], 1e-12)
-    idx = int(np.nanargmax(f1))
-    return float(thr[idx]), float(f1[idx])
-
-
-def classifier_head(
-    F: np.ndarray,
+def evaluate_classifier(
     y: np.ndarray,
+    prob: np.ndarray,
     split: np.ndarray,
     threshold: float,
     event_name: str,
-    C: float,
-) -> tuple[pd.DataFrame, np.ndarray, float]:
-    train = split == "train"
-    val = split == "val"
+    decision_threshold: float,
+    val_best_f1: float,
+) -> pd.DataFrame:
     event = y >= threshold
-    scaler = StandardScaler().fit(F[train])
-    Fs = scaler.transform(F)
-    clf = LogisticRegression(
-        C=C,
-        penalty="l2",
-        class_weight="balanced",
-        solver="lbfgs",
-        max_iter=2000,
-        random_state=SEED,
-    )
-    clf.fit(Fs[train], event[train])
-    prob = clf.predict_proba(Fs)[:, 1]
-    decision_threshold, val_best_f1 = best_threshold_from_val(event[val], prob[val])
-
     rows = []
     for sp in ["train", "val", "test"]:
         m = split == sp
@@ -334,7 +220,7 @@ def classifier_head(
         except ValueError:
             row["roc_auc"] = float("nan")
         rows.append(row)
-    return pd.DataFrame(rows), prob, decision_threshold
+    return pd.DataFrame(rows)
 
 
 def parse_args(argv: Iterable[str] | None = None):
@@ -348,13 +234,14 @@ def parse_args(argv: Iterable[str] | None = None):
     p.add_argument("--ridge-alpha", type=float, default=3000.0)
     p.add_argument("--logistic-C", type=float, default=1.0)
     p.add_argument("--seed", type=int, default=SEED)
+    p.add_argument("--results-dir", type=Path, default=None)
     return p.parse_args(argv)
 
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = parse_args(argv)
     root = project_root_from_cwd()
-    results_dir = root / "results" / "tables"
+    results_dir = args.results_dir or (root / "results" / "tables")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     data_path = find_dataset(root, args.data_path)
@@ -365,7 +252,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     U = make_level_rate_inputs(X, split, args.n_qubits)
     U = leaky_filter(U, args.leak)
 
-    fmap = RFQRCRingMap(args.n_qubits, args.input_scale, args.random_scale, args.seed)
+    fmap = RFQRCMap(
+        args.n_qubits,
+        True,
+        "ring",
+        args.input_scale,
+        args.seed,
+        random_scale=args.random_scale,
+    )
     F = fmap.transform(U)
     train = split == "train"
     thresholds = {
@@ -374,7 +268,8 @@ def main(argv: Iterable[str] | None = None) -> int:
         "q95": float(np.quantile(y[train], 0.95)),
     }
 
-    reg_pred = regression_head(F, y, split, args.ridge_alpha)
+    reg_result = fit_volatility_ridge_head(F, y, split, args.ridge_alpha)
+    reg_pred = reg_result.predictions
     reg_metrics = evaluate_regression(y, reg_pred, split, thresholds)
     reg_metrics.insert(0, "feature_map", "rf_qrc_ring_level_rate")
     reg_metrics.insert(1, "ridge_alpha", args.ridge_alpha)
@@ -384,13 +279,29 @@ def main(argv: Iterable[str] | None = None) -> int:
     probs = {}
     thresholds_used = {}
     for event_name, thr in thresholds.items():
-        clf_metrics, prob, decision_threshold = classifier_head(F, y, split, thr, event_name, args.logistic_C)
+        result = fit_event_logistic_head(
+            F,
+            y,
+            split,
+            event_threshold=thr,
+            C=args.logistic_C,
+            random_state=args.seed,
+        )
+        clf_metrics = evaluate_classifier(
+            y,
+            result.probabilities,
+            split,
+            threshold=thr,
+            event_name=event_name,
+            decision_threshold=result.decision_threshold,
+            val_best_f1=result.val_best_f1,
+        )
         clf_metrics.insert(0, "feature_map", "rf_qrc_ring_level_rate")
         clf_metrics.insert(1, "logistic_C", args.logistic_C)
         clf_metrics["effective_rank_train"] = effective_rank(F[train])
         clf_frames.append(clf_metrics)
-        probs[event_name] = prob
-        thresholds_used[event_name] = decision_threshold
+        probs[event_name] = result.probabilities
+        thresholds_used[event_name] = result.decision_threshold
 
     clf_metrics = pd.concat(clf_frames, ignore_index=True)
     preds = pd.DataFrame({
