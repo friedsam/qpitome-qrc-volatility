@@ -181,7 +181,7 @@ Do not test live QPU execution in this branch. Phase 3 hardware work should use 
 The next cleanup target is to convert the strongest Phase 2 QRC workflow into a single explicit script, for example:
 
 ```text
-scripts/run_phase2_feedback_tfim_qrc_reference.py
+archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py
 ```
 
 That script should:

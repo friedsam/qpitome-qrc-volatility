@@ -37,7 +37,7 @@ Run from the repository root.
 
 ```bash
 python scripts/prepare_phase2_spy_vix_dataset.py
-python scripts/run_phase2_feedback_tfim_qrc_reference.py
+python archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py
 python scripts/run_phase3_rf_qrc_tail_probe.py --input-mode level_rate --leak 0.3 --ridge-alpha 3000
 python scripts/export_esn_predictions.py
 ```

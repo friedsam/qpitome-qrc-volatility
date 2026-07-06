@@ -30,7 +30,7 @@ Expected result at the time of this runbook:
 Use the quick check to verify that the canonical QRC script path works without running the full Phase 2 dataset.
 
 ```bash
-python scripts/run_phase2_feedback_tfim_qrc_reference.py --quick-check --no-write
+python archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py --quick-check --no-write
 ```
 
 Expected behavior:
@@ -48,7 +48,7 @@ The quick-check metrics are not scientific evidence. They only validate the exec
 Use this only when the processed Phase 2 dataset is present and the full digital-QRC reference needs to be regenerated.
 
 ```bash
-python scripts/run_phase2_feedback_tfim_qrc_reference.py
+python archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py
 ```
 
 Expected input:
@@ -77,7 +77,7 @@ docs/phase3/qrc_usage_procedure.md
 Reference script:
 
 ```text
-scripts/run_phase2_feedback_tfim_qrc_reference.py
+archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py
 ```
 
 Core implementation:

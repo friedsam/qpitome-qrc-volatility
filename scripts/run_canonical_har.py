@@ -154,7 +154,7 @@ def main() -> None:
     atomic_csv(aggregate, aggregate_path)
     manifest_path.write_text(json.dumps({
         "model": "har_ridge",
-        "historical_source": "scripts/run_phase2_classical_baselines.py",
+        "historical_source": "archive/phase2/scripts/run_phase2_classical_baselines.py",
         "historical_model_name": "har_ridge_alpha_1",
         "features": HAR_FEATURES,
         "target_transform": "none",
