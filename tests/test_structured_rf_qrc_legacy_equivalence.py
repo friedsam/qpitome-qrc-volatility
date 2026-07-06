@@ -14,14 +14,13 @@ from qpitome_qrc.qrc.rf_qrc_structured import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-LEGACY_SCRIPT = REPO_ROOT / "scripts" / "run_phase3_structured_level_rate_rf_qrc.py"
+LEGACY_REFERENCE = Path(__file__).with_name("legacy_structured_rf_qrc_reference.py")
 
 
 def load_legacy_module():
-    spec = importlib.util.spec_from_file_location("legacy_structured_rf_qrc", LEGACY_SCRIPT)
+    spec = importlib.util.spec_from_file_location("legacy_structured_rf_qrc", LEGACY_REFERENCE)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load legacy script: {LEGACY_SCRIPT}")
+        raise RuntimeError(f"Could not load legacy reference: {LEGACY_REFERENCE}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
