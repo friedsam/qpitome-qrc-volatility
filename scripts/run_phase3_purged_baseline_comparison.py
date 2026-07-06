@@ -29,6 +29,10 @@ from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.data.features import DEFAULT_FEATURE_COLUMNS, drop_nonfinite_model_rows, scale_splits_train_only
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
+from qpitome_qrc.evaluation.walkforward import (
+    make_purged_walkforward_folds,
+    slice_fold_frames,
+)
 from qpitome_qrc.qrc.tfim_reservoir import (
     TFIMQRCConfig,
     fit_qrc_readout,
@@ -71,19 +75,14 @@ def parse_args():
 
 
 def make_folds(n: int, *, n_folds: int, min_train: int, val_size: int, purge: int) -> list[dict]:
-    first_test_start = min_train + val_size + purge
-    test_size = (n - first_test_start) // n_folds
-    if test_size < 100:
-        raise ValueError(f"test_size too small: {test_size}")
-    folds = []
-    for i in range(n_folds):
-        test_start = first_test_start + i * test_size
-        test_end = n if i == n_folds - 1 else test_start + test_size
-        val_end = test_start - purge
-        val_start = val_end - val_size
-        train_end = val_start
-        folds.append(dict(fold=i + 1, train=(0, train_end), val=(val_start, val_end), purge=(val_end, test_start), test=(test_start, test_end)))
-    return folds
+    """Backward-compatible wrapper around the shared Phase 3 protocol."""
+    return make_purged_walkforward_folds(
+        n,
+        n_folds=n_folds,
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+    )
 
 
 def date_range(df, sl):
@@ -92,7 +91,7 @@ def date_range(df, sl):
 
 
 def make_clean_splits(df, fold):
-    frames = {name: df.iloc[fold[name][0]:fold[name][1]].copy().reset_index(drop=True) for name in SPLIT_NAMES}
+    frames = slice_fold_frames(df, fold)
     return {k: drop_nonfinite_model_rows(v, feature_columns=list(DEFAULT_FEATURE_COLUMNS), target_columns=[TARGET]) for k, v in frames.items()}
 
 
