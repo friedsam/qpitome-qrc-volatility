@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import argparse,json
+import sys
 from pathlib import Path
 import numpy as np,pandas as pd
 from scipy import signal
+
+REGIME_DIR = Path(__file__).resolve().parents[1] / "regime"
+sys.path.insert(0, str(REGIME_DIR))
+
 from run_regime_discovery_audit import PERIODS,candidate_specs,fit_candidate,load_data
 
 CONT=["rv_20d","rv_ratio_5_20","rv_ratio_20_60","vix_close","vix_rv_spread","spy_drawdown_20d"]
