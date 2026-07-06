@@ -293,7 +293,7 @@ def parse_args(argv: Iterable[str] | None = None):
 def main(argv: Iterable[str] | None = None) -> int:
     args = parse_args(argv)
     root = project_root_from_cwd()
-    outdir = args.results_dir or (root / "results" / "tables")
+    outdir = args.results_dir or (root / "results" / "qrc" / "rf_qrc")
     outdir.mkdir(parents=True, exist_ok=True)
     data_path = find_dataset(root, args.data_path)
     print(f"Project root: {root}")

@@ -173,12 +173,12 @@ Expected result tables:
 
 - `results/tables/phase2_qrc_final_encoding_readout_predictions.csv`
 - `results/tables/phase2_qrc_final_encoding_readout_prediction_export_metrics.csv`
-- `results/tables/phase3_rf_qrc_tail_probe_predictions_level_rate.csv`
-- `results/tables/phase3_rf_qrc_tail_probe_metrics_level_rate.csv`
-- `results/tables/phase3_rf_qrc_tail_probe_test_summary_level_rate.csv`
-- `results/tables/phase3_rf_qrc_ring_leak_alpha_sweep_predictions.csv`
-- `results/tables/phase3_rf_qrc_ring_leak_alpha_sweep_metrics.csv`
-- `results/tables/phase3_rf_qrc_ring_leak_alpha_sweep_metrics_FIXED_QLIKE.csv`, if recomputed
+- `phase3_rf_qrc_tail_probe_predictions_level_rate.csv` (archived off-repo in `generated_table_exports_202607.tar.gz`)
+- `results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_metrics_level_rate.csv`
+- `results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_test_summary_level_rate.csv`
+- `phase3_rf_qrc_ring_leak_alpha_sweep_predictions.csv` (archived off-repo in `generated_table_exports_202607.tar.gz`)
+- `results/qrc/rf_qrc/phase3_rf_qrc_ring_leak_alpha_sweep_metrics.csv`
+- `results/qrc/rf_qrc/phase3_rf_qrc_ring_leak_alpha_sweep_metrics_FIXED_QLIKE.csv`, if recomputed
 
 Expected figures from the clean notebooks:
 

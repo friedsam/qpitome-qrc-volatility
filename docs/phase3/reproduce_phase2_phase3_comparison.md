@@ -7,7 +7,7 @@ This guide defines the exact files needed to compare the Phase 2 quantum reservo
 Generate these row-level prediction files:
 
 - `results/tables/phase2_feedback_tfim_qrc_reference_predictions.csv`
-- `results/tables/phase3_rf_qrc_tail_probe_predictions_level_rate.csv`
+- `results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_predictions_level_rate.csv`
 - `results/tables/phase2_esn_predictions.csv`
 
 These files support the paper-style comparison:
@@ -48,7 +48,7 @@ Check that the files exist:
 
 ```bash
 ls -lh results/tables/phase2_feedback_tfim_qrc_reference_predictions.csv
-ls -lh results/tables/phase3_rf_qrc_tail_probe_predictions_level_rate.csv
+ls -lh results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_predictions_level_rate.csv
 ls -lh results/tables/phase2_esn_predictions.csv
 ```
 
