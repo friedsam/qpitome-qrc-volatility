@@ -24,6 +24,10 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
+from qpitome_qrc.evaluation.walkforward import (
+    make_purged_walkforward_folds,
+    slice_fold_frames,
+)
 from qpitome_qrc.qrc.rydberg_reservoir import (
     RydbergQRCConfig,
     fit_rydberg_qrc_regressor,
@@ -73,23 +77,15 @@ def parse_args():
 
 
 def make_folds(n: int, *, n_folds: int, min_train: int, val_size: int, purge: int) -> list[dict]:
-    first_test_start = min_train + val_size + purge
-    if first_test_start >= n:
-        raise ValueError("Not enough rows for requested min_train/val_size/purge")
-    test_size = (n - first_test_start) // n_folds
-    if test_size < 100:
-        raise ValueError(f"test_size too small: {test_size}")
-    folds = []
-    for i in range(n_folds):
-        test_start = first_test_start + i * test_size
-        test_end = n if i == n_folds - 1 else test_start + test_size
-        val_end = test_start - purge
-        val_start = val_end - val_size
-        train_end = val_start
-        if train_end < min_train:
-            raise ValueError("Invalid fold construction")
-        folds.append(dict(fold=i + 1, train=(0, train_end), val=(val_start, val_end), purge=(val_end, test_start), test=(test_start, test_end)))
-    return folds
+    """Backward-compatible wrapper around the shared Phase 3 protocol."""
+
+    return make_purged_walkforward_folds(
+        n,
+        n_folds=n_folds,
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+    )
 
 
 def date_range(df: pd.DataFrame, sl: tuple[int, int]) -> tuple[str, str]:
@@ -112,11 +108,6 @@ def raw_features(X: np.ndarray, anchor_idx: np.ndarray, *, products: bool = Fals
         stats.append(np.column_stack([w[:, -1], w.mean(1), w.std(1), w.min(1), w.max(1)]))
     feats = [anchors] + stats
     if products:
-        # Product-augmented classical baseline: explicit pairwise products of
-        # all anchor values (both channels). If the temporal reservoir only
-        # MATCHES this, its memory is effectively second-order and classically
-        # replicable; if it EXCEEDS it, higher-order many-body memory is doing
-        # work on the task.
         m = anchors.shape[1]
         prods = np.stack(
             [anchors[:, a] * anchors[:, b] for a in range(m - 1) for b in range(a + 1, m)],
@@ -182,8 +173,6 @@ def main() -> None:
         "rydberg_shuffled": replace(base, shuffle_anchors=True),
         "rydberg_constant_omega": replace(base, omega_mode="constant"),
         "rydberg_omega_zero": replace(base, omega_base_rad_us=0.0, omega_mod_frac=0.0),
-        # Landau-Zener ramp encoding: level -> Delta value, rate -> Delta slope
-        # (native diabatic rate-sensing). Omega fixed as pure mixing drive.
         "rydberg_ramp": replace(base, encoding="ramp", omega_mode="constant"),
         "rydberg_ramp_memoryless": replace(base, encoding="ramp", omega_mode="constant", memory_mode="memoryless"),
         "rydberg_ramp_shuffled": replace(base, encoding="ramp", omega_mode="constant", shuffle_anchors=True),
@@ -198,10 +187,7 @@ def main() -> None:
 
     for f in folds:
         fold_id = f["fold"]
-        split_frames = {
-            name: df.iloc[f[name][0]:f[name][1]].copy().reset_index(drop=True)
-            for name in SPLIT_NAMES
-        }
+        split_frames = slice_fold_frames(df, f)
         seq = make_level_rate_sequence_splits(split_frames, level_col=args.level_col, rate_col=args.rate_col, target_column=TARGET, lookback_days=args.lookback)
         if args.stride > 1:
             seq = {k: (X[::args.stride], y[::args.stride], d[::args.stride].reset_index(drop=True)) for k, (X, y, d) in seq.items()}
