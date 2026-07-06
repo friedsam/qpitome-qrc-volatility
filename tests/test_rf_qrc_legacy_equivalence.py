@@ -1,7 +1,7 @@
 """Regression tests for the Phase 3 RF-QRC extraction.
 
 The tests compare the production source module against a frozen copy of the
-original script-local implementation.  The reference file is deliberately not
+original script-local implementation. The reference file is deliberately not
 used by production code, so runner refactors cannot weaken the oracle.
 """
 
@@ -97,6 +97,25 @@ def test_feature_map_matches_legacy(
     np.testing.assert_allclose(
         new_map.transform(inputs),
         old_map.transform(inputs),
+        rtol=1e-13,
+        atol=1e-13,
+    )
+
+
+@pytest.mark.parametrize("virtual_nodes", [1, 2, 5])
+def test_time_multiplexed_map_matches_legacy(legacy, virtual_nodes: int) -> None:
+    rng = np.random.default_rng(321)
+    inputs = rng.normal(size=(5, 6))
+
+    old_map = legacy.TimeMultiplexedRFQRCMap(6, np.pi / 3, 0.35, 42)
+    new_map = extracted.TimeMultiplexedRFQRCMap(6, np.pi / 3, 0.35, 42)
+
+    np.testing.assert_allclose(new_map.rz_angles, old_map.rz_angles, rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(new_map.ry_angles, old_map.ry_angles, rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(new_map.zz_angles, old_map.zz_angles, rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(
+        new_map.transform(inputs, max_virtual_nodes=virtual_nodes, layer_scale=0.8),
+        old_map.transform(inputs, max_virtual_nodes=virtual_nodes, layer_scale=0.8),
         rtol=1e-13,
         atol=1e-13,
     )
