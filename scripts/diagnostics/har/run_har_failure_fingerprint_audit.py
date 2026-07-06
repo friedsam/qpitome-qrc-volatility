@@ -33,7 +33,7 @@ from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_s
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-MASTER_PATH = Path(__file__).with_name("run_master_comparison.py")
+MASTER_PATH = Path(__file__).resolve().parents[2] / "canonical" / "run_master_comparison.py"
 TARGET = "future_rv_20d"
 HAR = ["rv_5d", "rv_10d", "rv_20d", "rv_60d", "vix_close"]
 EXT = [

@@ -31,7 +31,7 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-MASTER_PATH = Path(__file__).with_name("run_master_comparison.py")
+MASTER_PATH = Path(__file__).resolve().parents[2] / "canonical" / "run_master_comparison.py"
 FINGERPRINT_PATH = Path(__file__).with_name("run_har_failure_fingerprint_audit.py")
 TARGET = "future_rv_20d"
 HAR = ["rv_5d", "rv_10d", "rv_20d", "rv_60d", "vix_close"]
