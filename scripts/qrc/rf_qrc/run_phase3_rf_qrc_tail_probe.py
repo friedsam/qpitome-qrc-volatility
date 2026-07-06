@@ -53,7 +53,7 @@ def find_dataset(project_root: Path, explicit: str | None) -> Path:
         if p.exists():
             return p
     raise FileNotFoundError(
-        "No Phase 2 modeling dataset found. Run scripts/prepare_phase2_spy_vix_dataset.py "
+        "No Phase 2 modeling dataset found. Run scripts/data/prepare_phase2_spy_vix_dataset.py "
         "or pass --data-path with a CSV containing future_rv_20d."
     )
 

@@ -12,14 +12,14 @@ def load_phase2_volatility_data(
     """Load the Phase 2 SPY/VIX volatility forecasting dataset.
 
     Expected file is produced by:
-        python scripts/prepare_phase2_spy_vix_dataset.py
+        python scripts/data/prepare_phase2_spy_vix_dataset.py
     """
     path = Path(path)
 
     if not path.exists():
         raise FileNotFoundError(
             f"Processed Phase 2 dataset not found: {path}. "
-            "Run `python scripts/prepare_phase2_spy_vix_dataset.py` first."
+            "Run `python scripts/data/prepare_phase2_spy_vix_dataset.py` first."
         )
 
     df = pd.read_csv(path, parse_dates=["date"])
