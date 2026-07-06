@@ -26,12 +26,15 @@ class RFQRCConfig:
     entangler: Entangler = "all_pairs"
     input_scale: float = math.pi / 3
     seed: int = 42
+    random_scale: float = 0.35
 
     def __post_init__(self) -> None:
         if self.n_qubits < 1:
             raise ValueError("n_qubits must be positive")
         if self.entangler not in {"none", "all_pairs", "ring"}:
             raise ValueError(f"Unsupported entangler: {self.entangler!r}")
+        if self.random_scale < 0:
+            raise ValueError("random_scale must be non-negative")
 
 
 def ry(theta: float) -> np.ndarray:
@@ -130,6 +133,7 @@ class RFQRCMap:
         entangler: Entangler,
         input_scale: float,
         seed: int,
+        random_scale: float = 0.35,
     ) -> None:
         self.config = RFQRCConfig(
             n_qubits=n_qubits,
@@ -137,17 +141,19 @@ class RFQRCMap:
             entangler=entangler,
             input_scale=input_scale,
             seed=seed,
+            random_scale=random_scale,
         )
         self.n = n_qubits
         self.second_encoding = second_encoding
         self.entangler = entangler
         self.input_scale = input_scale
+        self.random_scale = random_scale
 
         rng = np.random.default_rng(seed)
-        self.rz_angles = rng.normal(0.0, 0.35, size=n_qubits)
-        self.ry_angles = rng.normal(0.0, 0.35, size=n_qubits)
+        self.rz_angles = rng.normal(0.0, random_scale, size=n_qubits)
+        self.ry_angles = rng.normal(0.0, random_scale, size=n_qubits)
         self.zz_angles = np.triu(
-            rng.normal(0.0, 0.35, size=(n_qubits, n_qubits)),
+            rng.normal(0.0, random_scale, size=(n_qubits, n_qubits)),
             1,
         )
 
@@ -159,6 +165,7 @@ class RFQRCMap:
             config.entangler,
             config.input_scale,
             config.seed,
+            config.random_scale,
         )
 
     @property
@@ -251,23 +258,13 @@ class TimeMultiplexedRFQRCMap(RFQRCMap):
         random_scale: float,
         seed: int,
     ) -> None:
-        self.n = n_qubits
-        self.second_encoding = True
-        self.entangler = "ring"
-        self.input_scale = input_scale
-        self.config = RFQRCConfig(
+        super().__init__(
             n_qubits=n_qubits,
             second_encoding=True,
             entangler="ring",
             input_scale=input_scale,
             seed=seed,
-        )
-        rng = np.random.default_rng(seed)
-        self.rz_angles = rng.normal(0.0, random_scale, size=n_qubits)
-        self.ry_angles = rng.normal(0.0, random_scale, size=n_qubits)
-        self.zz_angles = np.triu(
-            rng.normal(0.0, random_scale, size=(n_qubits, n_qubits)),
-            1,
+            random_scale=random_scale,
         )
 
     def one(
