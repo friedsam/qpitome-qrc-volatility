@@ -241,7 +241,7 @@ def main() -> int:
     p.add_argument("--clip-quantile-low", type=float, default=0.05)
     p.add_argument("--clip-quantile-high", type=float, default=0.95)
     p.add_argument("--ridge-alpha", type=float, default=1000.0)
-    p.add_argument("--out-prefix", type=Path, default=Path("results/tables/phase3_rydberg_temporal_probe"))
+    p.add_argument("--out-prefix", type=Path, default=Path("results/qrc/rydberg/phase3_rydberg_temporal_probe"))
     args = p.parse_args()
 
     cfg = Config(
