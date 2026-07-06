@@ -15,14 +15,13 @@ from qpitome_qrc.qrc.rf_qrc_observables import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-LEGACY_SCRIPT = REPO_ROOT / "scripts" / "run_phase3_qubit_scaling_diagnostic.py"
+LEGACY_REFERENCE = Path(__file__).with_name("legacy_qubit_scaling_reference.py")
 
 
 def load_legacy_module():
-    spec = importlib.util.spec_from_file_location("legacy_qubit_scaling", LEGACY_SCRIPT)
+    spec = importlib.util.spec_from_file_location("legacy_qubit_scaling", LEGACY_REFERENCE)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load legacy script: {LEGACY_SCRIPT}")
+        raise RuntimeError(f"Could not load legacy reference: {LEGACY_REFERENCE}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
