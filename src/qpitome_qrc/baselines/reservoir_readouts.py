@@ -5,8 +5,8 @@ from typing import Any, Literal
 
 import numpy as np
 from sklearn.base import BaseEstimator
-from sklearn.linear_model import LogisticRegression, RidgeClassifier
-from sklearn.metrics import f1_score
+from sklearn.linear_model import LogisticRegression, Ridge, RidgeClassifier
+from sklearn.metrics import f1_score, precision_recall_curve
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -49,8 +49,6 @@ def build_readout(config: ReadoutConfig) -> BaseEstimator:
             **params,
         )
     elif config.kind == "mlp":
-        # sklearn MLPClassifier does not support class_weight directly.
-        # Use small networks and validation metrics to control overfitting.
         model = MLPClassifier(
             hidden_layer_sizes=params.pop("hidden_layer_sizes", (32,)),
             activation=params.pop("activation", "relu"),
@@ -133,4 +131,104 @@ def fit_readout(
         test_metrics=test_metrics,
         val_scores=val_scores,
         test_scores=test_scores,
+    )
+
+
+@dataclass
+class VolatilityRidgeHeadResult:
+    """Fitted continuous-volatility ridge head and predictions for all rows."""
+
+    scaler: StandardScaler
+    model: Ridge
+    predictions: np.ndarray
+
+
+def fit_volatility_ridge_head(
+    features: np.ndarray,
+    target: np.ndarray,
+    split: np.ndarray,
+    alpha: float,
+) -> VolatilityRidgeHeadResult:
+    """Fit the exact log-target ridge head used by the Phase 3 two-head study."""
+
+    train = np.asarray(split) == "train"
+    scaler = StandardScaler().fit(features[train])
+    scaled = scaler.transform(features)
+    model = Ridge(alpha=alpha).fit(
+        scaled[train],
+        np.log(np.maximum(np.asarray(target, dtype=float)[train], 1e-8)),
+    )
+    predictions = np.maximum(np.exp(model.predict(scaled)), 1e-8)
+    return VolatilityRidgeHeadResult(scaler=scaler, model=model, predictions=predictions)
+
+
+def best_pr_f1_threshold(
+    y_true: np.ndarray,
+    probabilities: np.ndarray,
+) -> tuple[float, float]:
+    """Choose the probability threshold maximizing F1 on a validation split.
+
+    This reproduces the precision-recall-curve threshold rule used by the
+    historical one-QRC/two-head experiment.
+    """
+
+    precision, recall, thresholds = precision_recall_curve(y_true, probabilities)
+    if len(thresholds) == 0:
+        return 0.5, 0.0
+    f1 = 2 * precision[:-1] * recall[:-1] / np.maximum(
+        precision[:-1] + recall[:-1],
+        1e-12,
+    )
+    idx = int(np.nanargmax(f1))
+    return float(thresholds[idx]), float(f1[idx])
+
+
+@dataclass
+class EventLogisticHeadResult:
+    """Fitted rare-event logistic head and validation-selected threshold."""
+
+    scaler: StandardScaler
+    model: LogisticRegression
+    probabilities: np.ndarray
+    decision_threshold: float
+    val_best_f1: float
+
+
+def fit_event_logistic_head(
+    features: np.ndarray,
+    target: np.ndarray,
+    split: np.ndarray,
+    event_threshold: float,
+    C: float,
+    random_state: int = 42,
+) -> EventLogisticHeadResult:
+    """Fit the exact balanced logistic head used by the Phase 3 two-head study."""
+
+    split_values = np.asarray(split)
+    train = split_values == "train"
+    val = split_values == "val"
+    event = np.asarray(target, dtype=float) >= event_threshold
+
+    scaler = StandardScaler().fit(features[train])
+    scaled = scaler.transform(features)
+    model = LogisticRegression(
+        C=C,
+        penalty="l2",
+        class_weight="balanced",
+        solver="lbfgs",
+        max_iter=2000,
+        random_state=random_state,
+    )
+    model.fit(scaled[train], event[train])
+    probabilities = model.predict_proba(scaled)[:, 1]
+    decision_threshold, val_best_f1 = best_pr_f1_threshold(
+        event[val],
+        probabilities[val],
+    )
+    return EventLogisticHeadResult(
+        scaler=scaler,
+        model=model,
+        probabilities=probabilities,
+        decision_threshold=decision_threshold,
+        val_best_f1=val_best_f1,
     )
