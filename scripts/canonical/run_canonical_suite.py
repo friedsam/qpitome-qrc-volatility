@@ -87,7 +87,7 @@ def run_segment(args: argparse.Namespace, model: str) -> bool:
     if model == "har_ridge":
         cmd = [
             sys.executable,
-            "scripts/run_canonical_har.py",
+            "scripts/canonical/run_canonical_har.py",
             "--out-dir", str(paths["dir"]),
             "--tag", tag,
         ]
@@ -98,7 +98,7 @@ def run_segment(args: argparse.Namespace, model: str) -> bool:
     elif model == "tfim_phase2_final":
         cmd = [
             sys.executable,
-            "scripts/run_canonical_tfim.py",
+            "scripts/canonical/run_canonical_tfim.py",
             "--out-dir", str(paths["dir"]),
             "--tag", tag,
         ]
@@ -109,7 +109,7 @@ def run_segment(args: argparse.Namespace, model: str) -> bool:
     else:
         cmd = [
             sys.executable,
-            "scripts/run_canonical_comparison.py",
+            "scripts/canonical/run_canonical_comparison.py",
             "--models", model,
             "--out-dir", str(paths["dir"]),
             "--tag", tag,
