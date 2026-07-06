@@ -19,24 +19,25 @@ from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.data.features import FEATURE_COLUMNS
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
+from qpitome_qrc.evaluation.walkforward import (
+    make_purged_walkforward_folds,
+    slice_fold_frames,
+)
 
 TARGET = "future_rv_20d"
 SPLIT_NAMES = ("train", "val", "test")
 
 
 def make_folds(n, n_folds, min_train, val_size, purge):
-    first_test_start = min_train + val_size + purge
-    test_size = (n - first_test_start) // n_folds
-    if first_test_start >= n or test_size < 100:
-        raise ValueError("Invalid fold construction")
-    folds = []
-    for i in range(n_folds):
-        test_start = first_test_start + i * test_size
-        test_end = n if i == n_folds - 1 else test_start + test_size
-        val_end = test_start - purge
-        val_start = val_end - val_size
-        folds.append({"fold": i + 1, "train": (0, val_start), "val": (val_start, val_end), "test": (test_start, test_end)})
-    return folds
+    """Backward-compatible wrapper around the shared Phase 3 protocol."""
+
+    return make_purged_walkforward_folds(
+        n,
+        n_folds=n_folds,
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+    )
 
 
 def make_sequence_arrays(frame, feature_columns, lookback):
@@ -153,7 +154,7 @@ def main():
     rows, selected_rows = [], []
 
     for f in folds:
-        split_frames = {name: df.iloc[f[name][0] : f[name][1]].copy().reset_index(drop=True) for name in SPLIT_NAMES}
+        split_frames = slice_fold_frames(df, f)
         scaler = StandardScaler()
         pca = PCA(n_components=args.pca_components, random_state=42)
         pca.fit(scaler.fit_transform(split_frames["train"][FEATURE_COLUMNS]))
