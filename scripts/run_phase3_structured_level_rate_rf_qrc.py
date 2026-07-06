@@ -1,13 +1,7 @@
 """Phase 3 structured level-rate RF-QRC experiment.
 
-Option B test:
-    keep level and rate inputs on separate qubit blocks, and apply entanglement
-    primarily across the blocks so the RF-QRC feature map computes level x rate
-    couplings instead of indiscriminate ring correlations.
-
-This is simulator-only and small: 6 qubits, statevector features, ridge readout.
-Outputs are written to root-level results/tables and results/figures by the
-notebook runner.
+This runner preserves the original experiment protocol while delegating the
+structured quantum feature map to ``qpitome_qrc.qrc.rf_qrc_structured``.
 """
 
 from __future__ import annotations
@@ -23,6 +17,8 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 from sklearn.metrics import f1_score, mean_squared_error, precision_score, recall_score
 from sklearn.preprocessing import StandardScaler
+
+from qpitome_qrc.qrc.rf_qrc_structured import StructuredLevelRateRFQRCMap
 
 SEED = 42
 TARGET_COL = "future_rv_20d"
@@ -130,140 +126,6 @@ def leaky_filter(U: np.ndarray, leak: float) -> np.ndarray:
     return out
 
 
-def ry(theta: float) -> np.ndarray:
-    c, s = math.cos(theta / 2.0), math.sin(theta / 2.0)
-    return np.array([[c, -s], [s, c]], dtype=complex)
-
-
-def rz(theta: float) -> np.ndarray:
-    return np.array([[np.exp(-0.5j * theta), 0.0], [0.0, np.exp(0.5j * theta)]], dtype=complex)
-
-
-def apply_one(state: np.ndarray, gate: np.ndarray, q: int, n: int) -> np.ndarray:
-    tensor = state.reshape([2] * n)
-    tensor = np.moveaxis(tensor, q, 0)
-    tensor = np.tensordot(gate, tensor, axes=([1], [0]))
-    tensor = np.moveaxis(tensor, 0, q)
-    return tensor.reshape(-1)
-
-
-def apply_cnot(state: np.ndarray, control: int, target: int, n: int) -> np.ndarray:
-    out = np.empty_like(state)
-    for idx, amp in enumerate(state):
-        dest = idx ^ (1 << target) if ((idx >> control) & 1) else idx
-        out[dest] = amp
-    return out
-
-
-def apply_zz_phase(state: np.ndarray, i: int, j: int, theta: float, n: int) -> np.ndarray:
-    out = state.copy()
-    for idx in range(len(out)):
-        zi = 1.0 if ((idx >> i) & 1) == 0 else -1.0
-        zj = 1.0 if ((idx >> j) & 1) == 0 else -1.0
-        out[idx] *= np.exp(-1j * theta * zi * zj)
-    return out
-
-
-def z_zz_features(state: np.ndarray, n: int) -> np.ndarray:
-    probs = np.abs(state) ** 2
-    zvals = np.empty((len(state), n), dtype=float)
-    for idx in range(len(state)):
-        for q in range(n):
-            zvals[idx, q] = 1.0 if ((idx >> q) & 1) == 0 else -1.0
-    z = probs @ zvals
-    zz = [probs @ (zvals[:, i] * zvals[:, j]) for i in range(n) for j in range(i + 1, n)]
-    return np.concatenate([z, np.asarray(zz)])
-
-
-def entangler_pairs(mode: str, n: int) -> list[tuple[int, int]]:
-    k = n // 2
-    level = list(range(k))
-    rate = list(range(k, n))
-
-    if mode == "ring":
-        return [(i, (i + 1) % n) for i in range(n)]
-    if mode == "cross_matched":
-        return [(level[i], rate[i]) for i in range(k)]
-    if mode == "cross_all":
-        return [(i, j) for i in level for j in rate]
-    if mode == "block_plus_cross":
-        within_level = [(level[i], level[i + 1]) for i in range(k - 1)]
-        within_rate = [(rate[i], rate[i + 1]) for i in range(k - 1)]
-        cross = [(i, j) for i in level for j in rate]
-        return within_level + within_rate + cross
-    if mode == "none":
-        return []
-    raise ValueError(f"Unknown entangler mode: {mode}")
-
-
-class StructuredLevelRateRFQRCMap:
-    def __init__(
-        self,
-        n_qubits: int,
-        entangler: str,
-        input_scale: float,
-        level_scale: float,
-        rate_scale: float,
-        random_scale: float,
-        cross_zz_boost: float,
-        weak_within_boost: float,
-        seed: int,
-    ):
-        if n_qubits % 2 != 0:
-            raise ValueError("n_qubits must be even.")
-        self.n = n_qubits
-        self.k = n_qubits // 2
-        self.entangler = entangler
-        self.input_scale = input_scale
-        self.level_scale = level_scale
-        self.rate_scale = rate_scale
-        self.random_scale = random_scale
-        self.cross_zz_boost = cross_zz_boost
-        self.weak_within_boost = weak_within_boost
-
-        rng = np.random.default_rng(seed)
-        self.rz_angles = rng.normal(0.0, random_scale, size=n_qubits)
-        self.ry_angles = rng.normal(0.0, random_scale, size=n_qubits)
-        self.zz_angles = np.triu(rng.normal(0.0, random_scale, size=(n_qubits, n_qubits)), 1)
-
-    def _encode(self, state: np.ndarray, u: np.ndarray, second: bool = False) -> np.ndarray:
-        second_factor = 0.65 if second else 1.0
-        for q, val in enumerate(u):
-            channel_scale = self.level_scale if q < self.k else self.rate_scale
-            theta = self.input_scale * channel_scale * second_factor * float(val)
-            state = apply_one(state, ry(theta), q, self.n)
-        return state
-
-    def _entangle(self, state: np.ndarray) -> np.ndarray:
-        for i, j in entangler_pairs(self.entangler, self.n):
-            state = apply_cnot(state, i, j, self.n)
-        return state
-
-    def _random_layer(self, state: np.ndarray) -> np.ndarray:
-        for q in range(self.n):
-            state = apply_one(state, rz(float(self.rz_angles[q])), q, self.n)
-            state = apply_one(state, ry(float(self.ry_angles[q])), q, self.n)
-
-        for i in range(self.n):
-            for j in range(i + 1, self.n):
-                is_cross = (i < self.k <= j) or (j < self.k <= i)
-                boost = self.cross_zz_boost if is_cross else self.weak_within_boost
-                state = apply_zz_phase(state, i, j, float(boost * self.zz_angles[i, j]), self.n)
-        return state
-
-    def one(self, u: np.ndarray) -> np.ndarray:
-        state = np.zeros(2**self.n, dtype=complex)
-        state[0] = 1.0
-        state = self._encode(state, u, second=False)
-        state = self._entangle(state)
-        state = self._encode(state, u, second=True)
-        state = self._random_layer(state)
-        return z_zz_features(state, self.n)
-
-    def transform(self, U: np.ndarray) -> np.ndarray:
-        return np.vstack([self.one(u) for u in U])
-
-
 def corr(a: np.ndarray, b: np.ndarray) -> float:
     if np.std(a) < 1e-12 or np.std(b) < 1e-12:
         return float("nan")
@@ -366,13 +228,14 @@ def parse_args(argv: Iterable[str] | None = None):
         default=["ring", "cross_matched", "cross_all", "block_plus_cross"],
         choices=["none", "ring", "cross_matched", "cross_all", "block_plus_cross"],
     )
+    p.add_argument("--results-dir", type=Path, default=None)
     return p.parse_args(argv)
 
 
 def main(argv: Iterable[str] | None = None) -> int:
     args = parse_args(argv)
     root = project_root_from_cwd()
-    results_dir = root / "results" / "tables"
+    results_dir = args.results_dir or (root / "results" / "tables")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     data_path = find_dataset(root, args.data_path)
