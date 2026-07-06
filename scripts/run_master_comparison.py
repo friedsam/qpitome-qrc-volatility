@@ -62,6 +62,12 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.data.features import FEATURE_COLUMNS
+from qpitome_qrc.baselines.numpy_esn import (
+    esn_states as _esn_states,
+    historical_numpy_esn_grid as _historical_numpy_esn_grid,
+    make_esn_weights as _make_esn_weights,
+    spectral_scale as _spectral_scale,
+)
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
 from qpitome_qrc.evaluation.walkforward import (
     align_fold_frames,
@@ -239,49 +245,61 @@ def fit_log_ridge(features: dict[str, np.ndarray], y: dict[str, np.ndarray], alp
 
 
 def spectral_scale(W: np.ndarray, radius: float) -> np.ndarray:
-    rho = float(np.max(np.abs(np.linalg.eigvals(W))))
-    return W * (radius / max(rho, 1e-12))
+    """Backward-compatible wrapper around the shared NumPy ESN implementation."""
+    return _spectral_scale(W, radius)
 
 
-def make_esn_weights(n_inputs: int, n_reservoir: int, spectral_radius: float, input_scale: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
-    rng = np.random.default_rng(seed)
-    W_in = rng.normal(0.0, input_scale, size=(n_reservoir, n_inputs))
-    W = rng.normal(0.0, 1.0, size=(n_reservoir, n_reservoir))
-    W *= rng.random(W.shape) < 0.10
-    return W_in, spectral_scale(W, spectral_radius)
+def make_esn_weights(
+    n_inputs: int,
+    n_reservoir: int,
+    spectral_radius: float,
+    input_scale: float,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Backward-compatible wrapper around the shared NumPy ESN implementation."""
+    return _make_esn_weights(
+        n_inputs,
+        n_reservoir,
+        spectral_radius,
+        input_scale,
+        seed,
+    )
 
 
-def esn_states(X: np.ndarray, W_in: np.ndarray, W: np.ndarray, leak: float) -> np.ndarray:
-    rows = []
-    for window in X:
-        h = np.zeros(W.shape[0])
-        for u_t in window:
-            h_new = np.tanh(W_in @ u_t + W @ h)
-            h = (1.0 - leak) * h + leak * h_new
-        rows.append(np.concatenate([h, window[-1]]))
-    return np.asarray(rows)
+def esn_states(
+    X: np.ndarray,
+    W_in: np.ndarray,
+    W: np.ndarray,
+    leak: float,
+) -> np.ndarray:
+    """Backward-compatible wrapper around the shared NumPy ESN implementation."""
+    return _esn_states(X, W_in, W, leak)
 
 
-def make_sequence_arrays(frame: pd.DataFrame, feature_columns: list[str], lookback: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def make_sequence_arrays(
+    frame: pd.DataFrame,
+    feature_columns: list[str],
+    lookback: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     values = frame[feature_columns].to_numpy(float)
     target = frame[TARGET].to_numpy(float)
     dates = frame["date"].to_numpy()
     X, y, d = [], [], []
+
     for end in range(lookback - 1, len(frame)):
         X.append(values[end - lookback + 1 : end + 1])
         y.append(target[end])
         d.append(dates[end])
+
     return np.asarray(X), np.asarray(y), np.asarray(d)
 
 
 def esn_grid(seeds: list[int]) -> list[dict]:
-    base = [
-        {"n": 300, "sr": 0.70, "inp": 0.30, "leak": 0.30, "alpha": 300.0},
-        {"n": 300, "sr": 0.90, "inp": 0.30, "leak": 0.30, "alpha": 1000.0},
-        {"n": 500, "sr": 0.70, "inp": 0.20, "leak": 0.50, "alpha": 1000.0},
-        {"n": 500, "sr": 0.90, "inp": 0.20, "leak": 0.50, "alpha": 3000.0},
+    """Backward-compatible wrapper preserving the historical master config shape."""
+    return [
+        {key: value for key, value in config.items() if key != "config_id"}
+        for config in _historical_numpy_esn_grid(seeds)
     ]
-    return [{**cfg, "seed": seed} for cfg in base for seed in seeds]
 
 
 def cache_key(payload: dict) -> str:
