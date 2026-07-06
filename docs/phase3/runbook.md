@@ -48,7 +48,8 @@ The quick-check metrics are not scientific evidence. They only validate the exec
 Use this only when the processed Phase 2 dataset is present and the full digital-QRC reference needs to be regenerated.
 
 ```bash
-python archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py
+python archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py \
+  --output-dir results/reproduction/phase2_phase3_comparison
 ```
 
 Expected input:
@@ -60,8 +61,8 @@ data/processed/phase2_spy_vix_volatility.csv
 Expected outputs:
 
 ```text
-results/tables/phase2_feedback_tfim_qrc_reference_metrics.csv
-results/tables/phase2_feedback_tfim_qrc_reference_predictions.csv
+results/reproduction/phase2_phase3_comparison/phase2_feedback_tfim_qrc_reference_metrics.csv
+results/reproduction/phase2_phase3_comparison/phase2_feedback_tfim_qrc_reference_predictions.csv
 ```
 
 The full run is slower than the quick check and should not be part of routine unit testing.

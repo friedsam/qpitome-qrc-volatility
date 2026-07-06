@@ -192,6 +192,6 @@ That script should:
 4. build QRC features;
 5. fit the readout on training only;
 6. export predictions and metric summaries;
-7. write all outputs to deterministic paths under `results/tables/`.
+7. write outputs to deterministic topic-specific paths under `results/`.
 
 Once that exists, Phase 3 can compare Rydberg/analog reservoirs against a clean digital-QRC reference rather than against notebook state.

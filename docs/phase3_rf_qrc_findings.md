@@ -171,8 +171,8 @@ q95 crisis-like regime F1 remains above roughly 0.35
 
 Expected result tables:
 
-- `results/tables/phase2_qrc_final_encoding_readout_predictions.csv`
-- `results/tables/phase2_qrc_final_encoding_readout_prediction_export_metrics.csv`
+- `archive/phase2/results/phase2_qrc_final_encoding_readout_predictions.csv`
+- `archive/phase2/results/phase2_qrc_final_encoding_readout_prediction_export_metrics.csv`
 - `phase3_rf_qrc_tail_probe_predictions_level_rate.csv` (archived off-repo in `generated_table_exports_202607.tar.gz`)
 - `results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_metrics_level_rate.csv`
 - `results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_test_summary_level_rate.csv`
@@ -219,7 +219,7 @@ mkdir -p notebooks/archive
 # move messy exploratory notebooks into notebooks/archive/ only if they contain useful history
 # otherwise delete them before committing
 
-git add docs/phase3_rf_qrc_findings.md scripts results/tables results/figures notebooks
+git add docs/phase3_rf_qrc_findings.md scripts results archive/phase2/results results/figures notebooks
 git status
 git commit -m "Document Phase 3 RF-QRC crisis-detection findings"
 ```

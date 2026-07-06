@@ -4,32 +4,38 @@ This guide defines the exact files needed to compare the Phase 2 quantum reservo
 
 ## Goal
 
-Generate these row-level prediction files:
+This workflow currently regenerates these row-level prediction files:
 
-- `results/tables/phase2_feedback_tfim_qrc_reference_predictions.csv`
+- `results/reproduction/phase2_phase3_comparison/phase2_feedback_tfim_qrc_reference_predictions.csv`
 - `results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_predictions_level_rate.csv`
-- `results/tables/phase2_esn_predictions.csv`
 
-These files support the paper-style comparison:
+These regenerated files support comparison of:
 
 - actual `future_rv_20d`
 - Phase 2 best QRC
 - Phase 3 RF-QRC second-encode ring
-- ESN reference
 - train-calibrated q80, q90, q95 thresholds
 
-## One-time restore of ESN export script
+The historical ESN export remains available under `archive/phase2/results/`,
+but regeneration is pending explicit output-directory support.
 
-The ESN prediction export script was archived/removed during Phase 2 cleanup. Restore it from the pre-cleanup commit:
+## Phase 2 ESN export script
 
-```bash
-git checkout 99b5bab -- scripts/export_esn_predictions.py
+The historical ESN prediction export script is retained at:
+
+```text
+archive/phase2/scripts/export_esn_predictions.py
 ```
 
-This restores `scripts/export_esn_predictions.py`, which writes:
+The reproduction workflow should write regenerated comparison outputs under:
 
-- `results/tables/phase2_esn_predictions.csv`
-- `results/tables/phase2_esn_prediction_export_metrics.csv`
+```text
+results/reproduction/phase2_phase3_comparison/
+```
+
+The archived script currently retains its historical `results/tables/` default
+and therefore must not be run unchanged as part of this guide until its output
+directory is made explicit.
 
 ## Run order
 
@@ -37,9 +43,19 @@ Run from the repository root.
 
 ```bash
 python scripts/data/prepare_phase2_spy_vix_dataset.py
-python archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py
-python scripts/qrc/rf_qrc/run_phase3_rf_qrc_tail_probe.py --input-mode level_rate --leak 0.3 --ridge-alpha 3000
-python scripts/export_esn_predictions.py
+
+mkdir -p results/reproduction/phase2_phase3_comparison
+
+python archive/phase2/scripts/run_phase2_feedback_tfim_qrc_reference.py \
+  --output-dir results/reproduction/phase2_phase3_comparison
+
+python scripts/qrc/rf_qrc/run_phase3_rf_qrc_tail_probe.py \
+  --input-mode level_rate \
+  --leak 0.3 \
+  --ridge-alpha 3000 \
+  --results-dir results/reproduction/phase2_phase3_comparison
+
+# Phase 2 ESN export remains pending explicit output-directory support.
 ```
 
 ## Expected output files
@@ -47,9 +63,8 @@ python scripts/export_esn_predictions.py
 Check that the files exist:
 
 ```bash
-ls -lh results/tables/phase2_feedback_tfim_qrc_reference_predictions.csv
+ls -lh results/reproduction/phase2_phase3_comparison/phase2_feedback_tfim_qrc_reference_predictions.csv
 ls -lh results/qrc/rf_qrc/phase3_rf_qrc_tail_probe_predictions_level_rate.csv
-ls -lh results/tables/phase2_esn_predictions.csv
 ```
 
 Expected columns:
@@ -75,7 +90,9 @@ rf_qrc_second_encode_level_rate_pred
 rf_qrc_second_encode_ring_level_rate_pred
 ```
 
-`phase2_esn_predictions.csv`
+Historical ESN export schema:
+
+`archive/phase2/results/phase2_esn_predictions.csv`
 
 ```text
 date
