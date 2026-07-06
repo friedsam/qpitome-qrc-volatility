@@ -1,4 +1,4 @@
-"""Frozen RF-QRC reference copied from the original Phase 3 tail-probe script.
+"""Frozen RF-QRC references copied from original Phase 3 experiment scripts.
 
 Do not refactor this file. It exists only as a numerical oracle for regression
 and migration tests while the production implementation is cleaned up.
@@ -104,3 +104,47 @@ class RFQRCMap:
 
     def transform(self, U: np.ndarray) -> np.ndarray:
         return np.vstack([self.one(u) for u in U])
+
+
+class TimeMultiplexedRFQRCMap:
+    def __init__(self, n_qubits: int, input_scale: float, random_scale: float, seed: int):
+        self.n = n_qubits
+        self.input_scale = input_scale
+        rng = np.random.default_rng(seed)
+        self.rz_angles = rng.normal(0.0, random_scale, size=n_qubits)
+        self.ry_angles = rng.normal(0.0, random_scale, size=n_qubits)
+        self.zz_angles = np.triu(rng.normal(0.0, random_scale, size=(n_qubits, n_qubits)), 1)
+
+    def _encode(self, state: np.ndarray, u: np.ndarray, factor: float = 1.0) -> np.ndarray:
+        for q, val in enumerate(u):
+            state = apply_one(state, ry(float(factor * self.input_scale * val)), q, self.n)
+        return state
+
+    def _ring_entangle(self, state: np.ndarray) -> np.ndarray:
+        for i in range(self.n):
+            state = apply_cnot(state, i, (i + 1) % self.n, self.n)
+        return state
+
+    def _random_layer(self, state: np.ndarray, scale: float = 1.0) -> np.ndarray:
+        for q in range(self.n):
+            state = apply_one(state, rz(float(scale * self.rz_angles[q])), q, self.n)
+            state = apply_one(state, ry(float(scale * self.ry_angles[q])), q, self.n)
+        for i in range(self.n):
+            for j in range(i + 1, self.n):
+                state = apply_zz_phase(state, i, j, float(scale * self.zz_angles[i, j]), self.n)
+        return state
+
+    def one(self, u: np.ndarray, max_virtual_nodes: int, layer_scale: float) -> np.ndarray:
+        state = np.zeros(2**self.n, dtype=complex)
+        state[0] = 1.0
+        state = self._encode(state, u, factor=1.0)
+        state = self._ring_entangle(state)
+        state = self._encode(state, u, factor=1.0)
+        feats = []
+        for _ in range(max_virtual_nodes):
+            state = self._random_layer(state, scale=layer_scale)
+            feats.append(z_zz_features(state, self.n))
+        return np.concatenate(feats)
+
+    def transform(self, U: np.ndarray, max_virtual_nodes: int, layer_scale: float) -> np.ndarray:
+        return np.vstack([self.one(u, max_virtual_nodes, layer_scale) for u in U])
