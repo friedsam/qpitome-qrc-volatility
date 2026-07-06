@@ -1,8 +1,8 @@
 """Regression tests for the Phase 3 RF-QRC extraction.
 
-The legacy experiment script remains untouched while these tests compare its
-embedded implementation directly against the reusable source module.  This is
-the safety net for subsequent runner cleanup.
+The tests compare the production source module against a frozen copy of the
+original script-local implementation.  The reference file is deliberately not
+used by production code, so runner refactors cannot weaken the oracle.
 """
 
 from __future__ import annotations
@@ -16,14 +16,13 @@ import pytest
 from qpitome_qrc.qrc import rf_qrc_reservoir as extracted
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-LEGACY_SCRIPT = REPO_ROOT / "scripts" / "run_phase3_rf_qrc_tail_probe.py"
+LEGACY_REFERENCE = Path(__file__).with_name("legacy_rf_qrc_reference.py")
 
 
 def load_legacy_module():
-    spec = importlib.util.spec_from_file_location("legacy_rf_qrc_tail_probe", LEGACY_SCRIPT)
+    spec = importlib.util.spec_from_file_location("legacy_rf_qrc_reference", LEGACY_REFERENCE)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load legacy script: {LEGACY_SCRIPT}")
+        raise RuntimeError(f"Could not load legacy reference: {LEGACY_REFERENCE}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
