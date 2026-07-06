@@ -5,8 +5,14 @@ description = "Quantum reservoir computing for financial volatility prediction"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["setuptools>=68"]
