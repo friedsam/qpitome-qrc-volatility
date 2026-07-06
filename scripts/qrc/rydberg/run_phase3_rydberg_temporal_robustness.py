@@ -7,7 +7,7 @@ lookback, market scalar, and detuning window, then reports whether the temporal
 Rydberg feature map consistently improves test metrics over the raw temporal
 baseline.
 
-It calls scripts/run_phase3_rydberg_temporal_probe.py for each configuration and
+It calls scripts/qrc/rydberg/run_phase3_rydberg_temporal_probe.py for each configuration and
 aggregates the resulting metrics.
 """
 
@@ -153,7 +153,7 @@ def main() -> int:
     p.add_argument("--windows", default="0.25:1.00,0.40:1.10,0.55:1.25")
     p.add_argument("--target-col", default="future_rv_20d")
     p.add_argument("--out-dir", type=Path, default=Path("results/tables/phase3_rydberg_temporal_robustness"))
-    p.add_argument("--runner", type=Path, default=Path("scripts/run_phase3_rydberg_temporal_probe.py"))
+    p.add_argument("--runner", type=Path, default=Path("scripts/qrc/rydberg/run_phase3_rydberg_temporal_probe.py"))
     args = p.parse_args()
 
     cfg = SweepConfig(

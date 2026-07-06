@@ -9,7 +9,7 @@ about Rydberg reservoirs).
 ## What it is
 
 `src/qpitome_qrc/qrc/rydberg_reservoir.py` +
-`scripts/run_phase3_rydberg_temporal_reservoir.py` +
+`scripts/qrc/rydberg/run_phase3_rydberg_temporal_reservoir.py` +
 `tests/test_rydberg_reservoir.py`
 
 Exact-statevector simulation of the Aquila-class AHS Hamiltonian
