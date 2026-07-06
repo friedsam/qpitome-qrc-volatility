@@ -40,6 +40,10 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from qpitome_qrc.evaluation.walkforward import (
+    make_purged_walkforward_folds,
+    slice_fold_frames,
+)
 from qpitome_qrc.qrc.rydberg_reservoir import (
     RydbergQRCConfig,
     build_rydberg_feature_matrix,
@@ -79,16 +83,14 @@ def parse_args():
 
 
 def make_folds(n, *, n_folds, min_train, val_size, purge):
-    first_test_start = min_train + val_size + purge
-    test_size = (n - first_test_start) // n_folds
-    folds = []
-    for i in range(n_folds):
-        test_start = first_test_start + i * test_size
-        test_end = n if i == n_folds - 1 else test_start + test_size
-        val_end = test_start - purge
-        val_start = val_end - val_size
-        folds.append(dict(fold=i + 1, train=(0, val_start), val=(val_start, val_end), test=(test_start, test_end)))
-    return folds
+    """Backward-compatible wrapper around the shared Phase 3 protocol."""
+    return make_purged_walkforward_folds(
+        n,
+        n_folds=n_folds,
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+    )
 
 
 def raw_features(X: np.ndarray, anchor_idx: np.ndarray) -> np.ndarray:
@@ -167,7 +169,7 @@ def main() -> None:
         fold_id = f["fold"]
         if args.only_folds and fold_id not in args.only_folds:
             continue
-        frames = {k: df.iloc[f[k][0]:f[k][1]].reset_index(drop=True) for k in SPLIT_NAMES}
+        frames = slice_fold_frames(df, f)
         seq = make_level_rate_sequence_splits(frames, level_col=args.level_col, rate_col=args.rate_col,
                                               target_column=TARGET, lookback_days=args.lookback)
         seq_fast = make_level_rate_sequence_splits(frames, level_col=args.level_col, rate_col=args.rate_col,
