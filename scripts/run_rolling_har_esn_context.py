@@ -11,31 +11,30 @@ memory/context metrics from the temporal-context audit?
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+from sklearn.metrics import average_precision_score
 from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from qpitome_qrc.data.features import FEATURE_COLUMNS
+from qpitome_qrc.baselines.numpy_esn import (
+    esn_states,
+    fit_log_ridge_scores,
+    historical_numpy_esn_grid,
+    make_esn_weights,
+)
+from qpitome_qrc.data.features import FEATURE_COLUMNS, make_sequence_arrays
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
 from qpitome_qrc.evaluation.walkforward import make_purged_rolling_windows
 
-ESN_SOURCE = Path(__file__).with_name("run_phase3_esn_ridge_walkforward.py")
 TARGET = "future_rv_20d"
 HAR_FEATURES = ["rv_5d", "rv_10d", "rv_20d", "rv_60d", "vix_close"]
-
-
-def load_esn_source():
-    spec = importlib.util.spec_from_file_location("exact_esn_source", ESN_SOURCE)
-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-    return module
 
 
 def parse_args():
@@ -85,7 +84,6 @@ def qlike(y, pred):
 
 def main():
     a = parse_args(); a.outdir.mkdir(parents=True, exist_ok=True)
-    esn = load_esn_source()
     df = pd.read_csv(a.data).sort_values("date").reset_index(drop=True)
     df["date"] = pd.to_datetime(df["date"])
     context = pd.read_csv(a.context)
@@ -96,7 +94,7 @@ def main():
     if missing: raise ValueError(f"Missing columns: {missing}")
 
     windows = make_windows(len(df), a.min_train, a.val_size, a.purge, a.test_size, a.step)
-    grid = esn.make_grid([42])
+    grid = historical_numpy_esn_grid([42])
     rows = []
 
     for w in windows:
@@ -114,17 +112,33 @@ def main():
         seq = {}
         for name in ("train", "val", "test"):
             z = pca.transform(scaler.transform(split[name][FEATURE_COLUMNS]))
-            frame = pd.DataFrame(z, columns=pca_cols); frame[TARGET] = split[name][TARGET].to_numpy()
-            seq[name] = esn.make_sequence_arrays(frame, pca_cols, a.lookback)
+            frame = pd.DataFrame(z, columns=pca_cols)
+            frame["date"] = split[name]["date"].to_numpy()
+            frame[TARGET] = split[name][TARGET].to_numpy()
+            seq[name] = make_sequence_arrays(
+                frame,
+                feature_columns=pca_cols,
+                target_column=TARGET,
+                lookback=a.lookback,
+            )[:2]
         X = {s: seq[s][0] for s in seq}; y = {s: seq[s][1] for s in seq}
-        _, lab90 = esn.label_blocks(y, 0.90)
+        q90_threshold = float(np.quantile(y["train"], 0.90))
+        lab90 = {
+            split_name: (values >= q90_threshold).astype(int)
+            for split_name, values in y.items()
+        }
 
         candidates = []
         for cfg in grid:
-            W_in, W = esn.make_esn_weights(X["train"].shape[2], cfg["n"], cfg["sr"], cfg["inp"], cfg["seed"])
-            H = {s: esn.esn_states(X[s], W_in, W, cfg["leak"]) for s in X}
-            scores = esn.fit_ridge_scores(H, y, cfg["alpha"])
-            val_ap = esn.binary_metrics(lab90["val"], scores["val"])["ap"]
+            W_in, W = make_esn_weights(X["train"].shape[2], cfg["n"], cfg["sr"], cfg["inp"], cfg["seed"])
+            H = {s: esn_states(X[s], W_in, W, cfg["leak"]) for s in X}
+            scores = fit_log_ridge_scores(H, y, cfg["alpha"])
+            if lab90["val"].sum() == 0 or lab90["val"].sum() == len(lab90["val"]):
+                val_ap = np.nan
+            else:
+                val_ap = float(
+                    average_precision_score(lab90["val"], scores["val"])
+                )
             candidates.append((val_ap, cfg, scores))
         finite = [c for c in candidates if np.isfinite(c[0])]
         chosen = max(finite, key=lambda t: t[0]) if finite else candidates[0]

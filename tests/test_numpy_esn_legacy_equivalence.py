@@ -137,3 +137,50 @@ def test_full_reservoir_to_readout_path_matches_frozen_oracle():
     for split in ("train", "val", "test"):
         np.testing.assert_array_equal(new_H[split], old_H[split])
         np.testing.assert_array_equal(new_scores[split], old_scores[split])
+
+
+def test_historical_grid_matches_frozen_phase3_configs():
+    from qpitome_qrc.baselines.numpy_esn import historical_numpy_esn_grid
+
+    actual = historical_numpy_esn_grid([42])
+
+    expected = [
+        {
+            "n": 300,
+            "sr": 0.70,
+            "inp": 0.30,
+            "leak": 0.30,
+            "alpha": 300.0,
+            "seed": 42,
+            "config_id": "esn_n300_sr0.7_inp0.3_leak0.3_alpha300.0_seed42",
+        },
+        {
+            "n": 300,
+            "sr": 0.90,
+            "inp": 0.30,
+            "leak": 0.30,
+            "alpha": 1000.0,
+            "seed": 42,
+            "config_id": "esn_n300_sr0.9_inp0.3_leak0.3_alpha1000.0_seed42",
+        },
+        {
+            "n": 500,
+            "sr": 0.70,
+            "inp": 0.20,
+            "leak": 0.50,
+            "alpha": 1000.0,
+            "seed": 42,
+            "config_id": "esn_n500_sr0.7_inp0.2_leak0.5_alpha1000.0_seed42",
+        },
+        {
+            "n": 500,
+            "sr": 0.90,
+            "inp": 0.20,
+            "leak": 0.50,
+            "alpha": 3000.0,
+            "seed": 42,
+            "config_id": "esn_n500_sr0.9_inp0.2_leak0.5_alpha3000.0_seed42",
+        },
+    ]
+
+    assert actual == expected

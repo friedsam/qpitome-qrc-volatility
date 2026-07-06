@@ -91,3 +91,29 @@ def fit_log_ridge_scores(
         split: model.predict(scaler.transform(features[split]))
         for split in SPLIT_NAMES
     }
+
+
+def historical_numpy_esn_grid(seeds: list[int]) -> list[dict]:
+    """Return the four frozen NumPy ESN configurations used in Phase 2/3.
+
+    This is a historical reference grid, not the search space for future
+    Phase 3 tuning.
+    """
+    base = [
+        {"n": 300, "sr": 0.70, "inp": 0.30, "leak": 0.30, "alpha": 300.0},
+        {"n": 300, "sr": 0.90, "inp": 0.30, "leak": 0.30, "alpha": 1000.0},
+        {"n": 500, "sr": 0.70, "inp": 0.20, "leak": 0.50, "alpha": 1000.0},
+        {"n": 500, "sr": 0.90, "inp": 0.20, "leak": 0.50, "alpha": 3000.0},
+    ]
+
+    grid = []
+    for config in base:
+        for seed in seeds:
+            row = dict(config, seed=seed)
+            row["config_id"] = (
+                f"esn_n{row['n']}_sr{row['sr']}_inp{row['inp']}_"
+                f"leak{row['leak']}_alpha{row['alpha']}_seed{seed}"
+            )
+            grid.append(row)
+
+    return grid

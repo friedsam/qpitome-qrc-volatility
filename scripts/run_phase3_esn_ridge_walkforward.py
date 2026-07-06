@@ -19,6 +19,7 @@ from sklearn.preprocessing import StandardScaler
 from qpitome_qrc.baselines.numpy_esn import (
     esn_states as _esn_states,
     fit_log_ridge_scores as _fit_log_ridge_scores,
+    historical_numpy_esn_grid as _historical_numpy_esn_grid,
     make_esn_weights as _make_esn_weights,
     spectral_scale as _spectral_scale,
 )
@@ -111,19 +112,8 @@ def track_a_metrics(y_true, log_scores):
 
 
 def make_grid(seeds):
-    base = [
-        {"n": 300, "sr": 0.70, "inp": 0.30, "leak": 0.30, "alpha": 300.0},
-        {"n": 300, "sr": 0.90, "inp": 0.30, "leak": 0.30, "alpha": 1000.0},
-        {"n": 500, "sr": 0.70, "inp": 0.20, "leak": 0.50, "alpha": 1000.0},
-        {"n": 500, "sr": 0.90, "inp": 0.20, "leak": 0.50, "alpha": 3000.0},
-    ]
-    grid = []
-    for cfg in base:
-        for seed in seeds:
-            row = dict(cfg, seed=seed)
-            row["config_id"] = f"esn_n{row['n']}_sr{row['sr']}_inp{row['inp']}_leak{row['leak']}_alpha{row['alpha']}_seed{seed}"
-            grid.append(row)
-    return grid
+    """Backward-compatible wrapper for the frozen historical ESN grid."""
+    return _historical_numpy_esn_grid(seeds)
 
 
 def parse_args():
