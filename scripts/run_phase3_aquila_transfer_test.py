@@ -26,6 +26,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from qpitome_qrc.evaluation.walkforward import (
+    make_purged_walkforward_folds,
+    slice_fold_frames,
+)
 from qpitome_qrc.qrc.rydberg_reservoir import (
     AquilaConstraints,
     RydbergQRCConfig,
@@ -42,27 +46,14 @@ CONFIRM_TOKEN = "SUBMIT_2_AQUILA_TASKS"
 
 
 def make_folds(n: int, *, n_folds: int, min_train: int, val_size: int, purge: int) -> list[dict]:
-    first_test_start = min_train + val_size + purge
-    test_size = (n - first_test_start) // n_folds
-    if first_test_start >= n or test_size < 100:
-        raise ValueError("Invalid walk-forward geometry for dataset length")
-
-    folds = []
-    for i in range(n_folds):
-        test_start = first_test_start + i * test_size
-        test_end = n if i == n_folds - 1 else test_start + test_size
-        val_end = test_start - purge
-        val_start = val_end - val_size
-        folds.append(
-            {
-                "fold": i + 1,
-                "train": (0, val_start),
-                "val": (val_start, val_end),
-                "purge": (val_end, test_start),
-                "test": (test_start, test_end),
-            }
-        )
-    return folds
+    """Backward-compatible wrapper around the shared Phase 3 protocol."""
+    return make_purged_walkforward_folds(
+        n,
+        n_folds=n_folds,
+        min_train=min_train,
+        val_size=val_size,
+        purge=purge,
+    )
 
 
 def config_from_spec(spec: dict[str, Any]) -> RydbergQRCConfig:
@@ -101,10 +92,7 @@ def reconstruct_selected_windows(
     df["date"] = pd.to_datetime(df["date"])
 
     fold = make_folds(len(df), n_folds=5, min_train=2500, val_size=504, purge=60)[-1]
-    split_frames = {
-        name: df.iloc[fold[name][0] : fold[name][1]].copy().reset_index(drop=True)
-        for name in ("train", "val", "test")
-    }
+    split_frames = slice_fold_frames(df, fold)
     seq = make_level_rate_sequence_splits(
         split_frames,
         level_col=level_col,
