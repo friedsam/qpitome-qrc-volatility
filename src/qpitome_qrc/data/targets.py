@@ -29,8 +29,9 @@ def add_rv_innovation_target(
     """Add ``log(future_rv / current_rv)`` as a signed transition target.
 
     Positive values indicate increasing volatility over the forecast horizon;
-    negative values indicate decreasing volatility. The input frame is copied
-    by default so callers cannot silently mutate canonical datasets.
+    negative values indicate decreasing volatility. Existing missing values are
+    preserved so each runner can apply its established split-local cleaning
+    policy. Finite non-positive volatility values are rejected.
     """
 
     required = [future_column, reference_column]
@@ -42,14 +43,17 @@ def add_rv_innovation_target(
     future = result[future_column].to_numpy(dtype=float)
     reference = result[reference_column].to_numpy(dtype=float)
 
-    if np.any(~np.isfinite(future)) or np.any(~np.isfinite(reference)):
-        raise ValueError("Innovation target inputs must be finite before target construction.")
-    if np.any(future <= 0.0) or np.any(reference <= 0.0):
-        raise ValueError("Innovation target inputs must be strictly positive.")
+    finite_future = np.isfinite(future)
+    finite_reference = np.isfinite(reference)
+    if np.any(future[finite_future] <= 0.0) or np.any(reference[finite_reference] <= 0.0):
+        raise ValueError("Finite innovation target inputs must be strictly positive.")
 
-    result[target_column] = np.log(
-        np.maximum(future, eps) / np.maximum(reference, eps)
+    valid = finite_future & finite_reference
+    innovation = np.full(len(result), np.nan, dtype=float)
+    innovation[valid] = np.log(
+        np.maximum(future[valid], eps) / np.maximum(reference[valid], eps)
     )
+    result[target_column] = innovation
     return result
 
 
