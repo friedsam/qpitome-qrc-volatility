@@ -93,7 +93,7 @@ def drop_nonfinite_model_rows(
     validate_columns(df, feature_columns=feature_columns, target_columns=target_columns)
 
     out = df.copy()
-    cols = feature_columns + target_columns
+    cols = list(dict.fromkeys(feature_columns + target_columns))
     out[cols] = out[cols].replace([np.inf, -np.inf], np.nan)
     return out.dropna(subset=cols).reset_index(drop=True)
 
