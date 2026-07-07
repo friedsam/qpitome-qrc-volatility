@@ -4,8 +4,8 @@
 GARCH is a sequential econometric comparator rather than a fixed-window
 reservoir. For each requested test origin, the runner fits GARCH(1,1)-t using
 return history available through that origin and forecasts the next 20 daily
-conditional variances. Their sum is converted to the same realized-volatility
-units as ``future_rv_20d``.
+conditional variances. Their annualized aggregate is converted to the same
+realized-volatility units as ``future_rv_20d``.
 
 Model mechanics live in ``qpitome_qrc.baselines.garch``. This runner owns only
 canonical data access, fold geometry, artifact writing, and reporting.
@@ -32,6 +32,7 @@ from qpitome_qrc.evaluation.walkforward import make_purged_walkforward_folds
 
 TARGET = "future_rv_20d"
 RETURN_COLUMN = "spy_log_return"
+ANNUALIZATION_PERIOD = 252.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -133,6 +134,7 @@ def main() -> int:
                 variance_path_to_realized_volatility(
                     forecast.variance_path,
                     return_scale=config.return_scale,
+                    annualization_period=ANNUALIZATION_PERIOD,
                 )
                 if forecast.converged
                 else float("nan")
@@ -208,7 +210,9 @@ def main() -> int:
         "data": str(args.data),
         "return_column": args.return_column,
         "target": args.target,
+        "target_definition": "sqrt(252 / 20 * sum(next 20 daily spy_log_return squared))",
         "horizon": args.horizon,
+        "annualization_period": ANNUALIZATION_PERIOD,
         "history": args.history,
         "garch_config": config_to_dict(config),
         "forecast_policy": (
@@ -226,7 +230,6 @@ def main() -> int:
         "known_limitations": [
             "Sequential refitting is not the same training policy as fixed-readout reservoir models.",
             "No GJR/EGARCH leverage extension or hyperparameter search is performed.",
-            "The 20-step variance aggregation assumes the canonical target is sqrt(sum(future daily return squared)).",
         ],
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
