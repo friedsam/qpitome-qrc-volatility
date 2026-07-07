@@ -179,7 +179,7 @@ def main() -> int:
             targets[split] = y.astype(float)
             dates[split] = d
             if args.task == "innovation":
-                aligned = scaled[split].iloc[args.lookback - 1 :]
+                aligned = clean[split].iloc[args.lookback - 1 :]
                 references[split] = aligned[RV_REFERENCE_COLUMN].to_numpy(dtype=float)
                 future_levels[split] = aligned[RV_LEVEL_TARGET].to_numpy(dtype=float)
 
