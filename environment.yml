@@ -12,9 +12,14 @@ dependencies:
   - jupyter
   - ipykernel
   - pyyaml
+  - pyarrow
+  - pytest
   - pip:
+      - arch
+      - torch
       - qbraid
       - qiskit
       - qiskit-aer
       - reservoirpy
-  
+      - pyrcn
+      - yfinance
