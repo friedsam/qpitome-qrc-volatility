@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 """Canonical Phase 3 GARCH baseline under the shared purged walk-forward protocol.
 
-GARCH is a sequential econometric comparator rather than a fixed-window
-reservoir. For each requested test origin, the runner fits GARCH(1,1)-t using
-return history available through that origin and forecasts the next 20 daily
-conditional variances. Their annualized aggregate is converted to the same
-realized-volatility units as ``future_rv_20d``.
-
-Model mechanics live in ``qpitome_qrc.baselines.garch``. This runner owns only
-canonical data access, fold geometry, artifact writing, and reporting.
+``level`` preserves the historical future-RV benchmark. ``innovation`` keeps the
+same GARCH forecast mechanics and scores the implied signed transition
+``log(predicted_future_rv / current_rv_20d)``.
 """
 
 from __future__ import annotations
@@ -27,10 +22,16 @@ from qpitome_qrc.baselines.garch import (
     fit_garch_variance_path,
     variance_path_to_realized_volatility,
 )
+from qpitome_qrc.data.targets import (
+    RV_INNOVATION_TARGET,
+    RV_LEVEL_TARGET,
+    RV_REFERENCE_COLUMN,
+    add_rv_innovation_target,
+)
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
+from qpitome_qrc.evaluation.transition import evaluate_transition_forecast
 from qpitome_qrc.evaluation.walkforward import make_purged_walkforward_folds
 
-TARGET = "future_rv_20d"
 RETURN_COLUMN = "spy_log_return"
 ANNUALIZATION_PERIOD = 252.0
 
@@ -44,8 +45,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--out-dir", type=Path, default=Path("scratch/garch_walkforward"))
     parser.add_argument("--tag", default="garch_phase3")
+    parser.add_argument("--task", choices=("level", "innovation"), default="level")
     parser.add_argument("--return-column", default=RETURN_COLUMN)
-    parser.add_argument("--target", default=TARGET)
     parser.add_argument("--horizon", type=int, default=20)
     parser.add_argument(
         "--history",
@@ -61,7 +62,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def finite_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float | int]:
+def finite_level_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float | int]:
     mask = np.isfinite(y_true) & np.isfinite(y_pred)
     if int(mask.sum()) < 3:
         return {
@@ -82,12 +83,17 @@ def main() -> int:
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     frame = pd.read_csv(args.data).sort_values("date").reset_index(drop=True)
-    required = ["date", args.return_column, args.target]
+    if args.task == "innovation":
+        frame = add_rv_innovation_target(frame)
+
+    required = ["date", args.return_column, RV_LEVEL_TARGET]
+    if args.task == "innovation":
+        required += [RV_REFERENCE_COLUMN, RV_INNOVATION_TARGET]
     missing = [column for column in required if column not in frame.columns]
     if missing:
         raise ValueError(f"Missing columns: {missing}")
 
-    model_frame = frame[required].replace([np.inf, -np.inf], np.nan)
+    model_frame = frame[list(dict.fromkeys(required))].replace([np.inf, -np.inf], np.nan)
     if model_frame.isna().any().any():
         counts = model_frame.isna().sum()
         bad = {column: int(count) for column, count in counts.items() if count}
@@ -121,8 +127,10 @@ def main() -> int:
     for fold in folds:
         fold_id = int(fold["fold"])
         test_start, test_end = fold["test"]
-        fold_predictions: list[float] = []
-        fold_targets: list[float] = []
+        fold_level_predictions: list[float] = []
+        fold_level_targets: list[float] = []
+        fold_innovation_predictions: list[float] = []
+        fold_innovation_targets: list[float] = []
         n_failed = 0
 
         for row_index in range(test_start, test_end):
@@ -136,7 +144,7 @@ def main() -> int:
                 horizon=args.horizon,
                 config=config,
             )
-            y_pred = (
+            predicted_future_rv = (
                 variance_path_to_realized_volatility(
                     forecast.variance_path,
                     return_scale=config.return_scale,
@@ -145,42 +153,89 @@ def main() -> int:
                 if forecast.converged
                 else float("nan")
             )
-            if not np.isfinite(y_pred):
+            if not np.isfinite(predicted_future_rv):
                 n_failed += 1
 
-            y_true = float(frame.iloc[row_index][args.target])
-            prediction_rows.append(
+            future_rv_true = float(frame.iloc[row_index][RV_LEVEL_TARGET])
+            row = {
+                "fold": fold_id,
+                "split": "test",
+                "row_index": row_index,
+                "date": frame.iloc[row_index]["date"],
+                "model": "garch_1_1_t",
+                "task": args.task,
+                "future_rv_true": future_rv_true,
+                "predicted_future_rv": predicted_future_rv,
+                "converged": bool(forecast.converged),
+                "convergence_flag": forecast.convergence_flag,
+                "fit_note": forecast.note,
+                "history_start": history_start,
+                "history_rows": int(len(returns)),
+            }
+
+            fold_level_predictions.append(predicted_future_rv)
+            fold_level_targets.append(future_rv_true)
+
+            if args.task == "innovation":
+                reference_rv = float(frame.iloc[row_index][RV_REFERENCE_COLUMN])
+                innovation_true = float(frame.iloc[row_index][RV_INNOVATION_TARGET])
+                innovation_pred = (
+                    float(np.log(predicted_future_rv / reference_rv))
+                    if np.isfinite(predicted_future_rv) and predicted_future_rv > 0.0
+                    else float("nan")
+                )
+                row.update(
+                    {
+                        "reference_rv": reference_rv,
+                        "innovation_true": innovation_true,
+                        "innovation_pred": innovation_pred,
+                    }
+                )
+                fold_innovation_targets.append(innovation_true)
+                fold_innovation_predictions.append(innovation_pred)
+
+            prediction_rows.append(row)
+
+        level_true = np.asarray(fold_level_targets, dtype=float)
+        level_pred = np.asarray(fold_level_predictions, dtype=float)
+
+        if args.task == "level":
+            fold_metric = finite_level_metrics(level_true, level_pred)
+            metric_rows.append(
                 {
                     "fold": fold_id,
                     "split": "test",
-                    "row_index": row_index,
-                    "date": frame.iloc[row_index]["date"],
                     "model": "garch_1_1_t",
-                    "y_true": y_true,
-                    "y_pred": y_pred,
-                    "converged": bool(forecast.converged),
-                    "convergence_flag": forecast.convergence_flag,
-                    "fit_note": forecast.note,
-                    "history_start": history_start,
-                    "history_rows": int(len(returns)),
+                    "task": args.task,
+                    "n_failed": n_failed,
+                    **fold_metric,
                 }
             )
-            fold_predictions.append(y_pred)
-            fold_targets.append(y_true)
+        else:
+            innovation_true = np.asarray(fold_innovation_targets, dtype=float)
+            innovation_pred = np.asarray(fold_innovation_predictions, dtype=float)
+            mask = np.isfinite(innovation_true) & np.isfinite(innovation_pred)
+            transition_metrics = evaluate_transition_forecast(
+                innovation_true[mask], innovation_pred[mask]
+            )
+            reconstructed_metrics = finite_level_metrics(level_true, level_pred)
+            n_predictions = reconstructed_metrics.pop("n_predictions")
+            metric_rows.append(
+                {
+                    "fold": fold_id,
+                    "split": "test",
+                    "model": "garch_1_1_t",
+                    "task": args.task,
+                    "n_failed": n_failed,
+                    "n_predictions": n_predictions,
+                    **transition_metrics,
+                    **{
+                        f"reconstructed_{key}": value
+                        for key, value in reconstructed_metrics.items()
+                    },
+                }
+            )
 
-        fold_metric = finite_metrics(
-            np.asarray(fold_targets, dtype=float),
-            np.asarray(fold_predictions, dtype=float),
-        )
-        metric_rows.append(
-            {
-                "fold": fold_id,
-                "split": "test",
-                "model": "garch_1_1_t",
-                "n_failed": n_failed,
-                **fold_metric,
-            }
-        )
         fold_manifests.append(
             {
                 "fold": fold_id,
@@ -188,7 +243,7 @@ def main() -> int:
                     split: list(fold[split])
                     for split in ("train", "val", "purge", "test")
                 },
-                "test_predictions": int(len(fold_targets)),
+                "test_predictions": int(len(fold_level_targets)),
                 "failed_predictions": n_failed,
             }
         )
@@ -207,16 +262,15 @@ def main() -> int:
         "tag": args.tag,
         "model": "garch_1_1_t",
         "model_family": "GARCH",
-        "source_prototype": "reset-branch monthly GARCH implementation",
-        "adaptation": (
-            "Retains GARCH(1,1)-t mechanics, convergence checks, and analytic "
-            "multi-step variance forecasts; removes monthly target, NYSE-month "
-            "aggregation, and 245-fold reset protocol."
-        ),
+        "task": args.task,
         "data": str(args.data),
         "return_column": args.return_column,
-        "target": args.target,
-        "target_definition": "sqrt(252 / 20 * sum(next 20 daily spy_log_return squared))",
+        "target": RV_LEVEL_TARGET if args.task == "level" else RV_INNOVATION_TARGET,
+        "target_definition": (
+            "sqrt(252 / 20 * sum(next 20 daily spy_log_return squared))"
+            if args.task == "level"
+            else "log(future_rv_20d / rv_20d)"
+        ),
         "horizon": args.horizon,
         "annualization_period": ANNUALIZATION_PERIOD,
         "history": args.history,
