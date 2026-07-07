@@ -3,13 +3,13 @@
 ## Role
 
 GARCH is the econometric Track A comparator. It is not a reservoir model and it
-must not inherit the reset branch's monthly paper protocol.
+does not inherit the reset branch's monthly paper protocol.
 
 The Phase 3 implementation is split into:
 
 - `src/qpitome_qrc/baselines/garch.py`: reusable model mechanics;
-- `scripts/baselines/run_garch.py`: canonical walk-forward experiment runner;
-- `tests/baselines/test_garch.py`: unit tests for unit conversion and validation.
+- `scripts/baselines/garch/run_phase3_garch_walkforward.py`: Phase 3 runner;
+- `tests/baselines/test_garch.py`: unit tests for validation and unit conversion.
 
 ## Model
 
@@ -20,7 +20,7 @@ Default specification:
 - Student-t innovations;
 - returns scaled by 100 during fitting for numerical stability;
 - analytic multi-step conditional-variance forecast;
-- 20-step aggregate volatility forecast by default.
+- 20-step aggregate volatility forecast.
 
 The model module returns the full conditional-variance path. The runner converts
 that path to the target convention
@@ -29,6 +29,20 @@ that path to the target convention
 
 by undoing the return scaling, summing forecast variances, and taking the square
 root.
+
+## Phase 3 protocol
+
+Default inputs match the canonical branch:
+
+- data: `data/processed/phase2_spy_vix_volatility.csv`;
+- return column: `spy_log_return`;
+- target: `future_rv_20d`;
+- fold geometry: 5 folds, minimum train 2500, validation 504, purge 60.
+
+For each test origin, GARCH is refit using return history available through that
+origin and then produces a 20-step variance path. This is a sequential
+rolling-origin econometric baseline. It is deliberately disclosed as a different
+training policy from fixed-readout reservoir models.
 
 ## Reset-branch code retained and rejected
 
@@ -47,8 +61,8 @@ Rejected:
 - reset-branch output layout;
 - duplicated scoring code.
 
-The Phase 3 runner uses `qpitome_qrc.evaluation.walkforward` and
-`qpitome_qrc.evaluation.metrics` instead.
+The runner uses `qpitome_qrc.evaluation.walkforward` and
+`qpitome_qrc.evaluation.metrics`.
 
 ## Run
 
@@ -58,30 +72,31 @@ Install optional dependencies:
 python -m pip install -e ".[baselines,test]"
 ```
 
-Run against an explicit canonical benchmark table:
+Smoke one fold before any full run:
 
 ```bash
-python scripts/baselines/run_garch.py \
-  --data <canonical-table.parquet> \
-  --return-column log_return \
-  --target future_rv_20d
+python scripts/baselines/garch/run_phase3_garch_walkforward.py \
+  --only-folds 1 \
+  --tag smoke_fold1
 ```
 
-The runner refuses missing return or target rows. Missing-data policy belongs in
-the dataset-preparation layer, not inside the model.
+Outputs stay in `scratch/garch_walkforward/` until the implementation is
+validated and intentionally promoted into the canonical comparison.
 
 ## Outputs
 
-`results/baselines/garch/` contains:
+The runner writes tagged artifacts:
 
-- `predictions.csv`;
-- `metrics_by_fold.csv`;
-- `run_manifest.json`.
+- `garch_metrics_<tag>.csv`;
+- `garch_predictions_<tag>.csv`;
+- `garch_manifest_<tag>.json`.
 
 ## Current caveats
 
-The runner currently refits at each test origin using the latest available
-history. This is an explicit sequential rolling-origin baseline, not the same
-training policy as a fixed readout reservoir. Comparative claims must therefore
-state that policy clearly. A fixed-parameter filtered GARCH variant can be added
-later if needed for a stricter training-policy match.
+- Sequential refitting is not the same training policy as a fixed reservoir
+  readout. Comparative claims must state this explicitly.
+- No GJR/EGARCH leverage extension or hyperparameter search is performed.
+- The 20-step aggregation assumes the canonical target is
+  `sqrt(sum(future daily return**2))`; this mapping must be checked against the
+  dataset-construction code during validation, not inferred from the column name
+  alone.
