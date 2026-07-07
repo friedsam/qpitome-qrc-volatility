@@ -23,6 +23,19 @@ def test_variance_path_to_realized_volatility_preserves_units() -> None:
     assert actual == pytest.approx(expected)
 
 
+def test_variance_path_matches_canonical_annualization() -> None:
+    path_pct2 = np.full(20, 4.0)
+    expected = np.sqrt(252.0 / 20.0 * np.sum(path_pct2 / 100.0**2))
+
+    actual = variance_path_to_realized_volatility(
+        path_pct2,
+        return_scale=100.0,
+        annualization_period=252.0,
+    )
+
+    assert actual == pytest.approx(expected)
+
+
 def test_variance_path_nan_propagates() -> None:
     actual = variance_path_to_realized_volatility(
         np.array([1.0, np.nan]),
