@@ -105,7 +105,13 @@ def main() -> int:
     )
     if args.only_folds:
         selected = set(args.only_folds)
-        folds = [fold for fold in folds if fold["fold"] in selected]
+        available = {int(fold["fold"]) for fold in folds}
+        folds = [fold for fold in folds if int(fold["fold"]) in selected]
+        if not folds:
+            raise ValueError(
+                f"Requested folds {sorted(selected)} do not match available fold IDs "
+                f"{sorted(available)}"
+            )
 
     config = GARCHConfig()
     prediction_rows: list[dict] = []
