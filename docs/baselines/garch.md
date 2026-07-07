@@ -22,13 +22,13 @@ Default specification:
 - analytic multi-step conditional-variance forecast;
 - 20-step aggregate volatility forecast.
 
-The model module returns the full conditional-variance path. The runner converts
-that path to the target convention
+The canonical dataset defines
 
-`future_rv = sqrt(sum(future_return**2))`
+`future_rv_20d = sqrt(252 / 20 * sum(next 20 daily spy_log_return**2))`.
 
-by undoing the return scaling, summing forecast variances, and taking the square
-root.
+The model module returns the 20-step conditional-variance path. The runner
+undoes the return scaling, sums those variances, applies the exact `252 / 20`
+annualization factor, and takes the square root.
 
 ## Phase 3 protocol
 
@@ -96,7 +96,3 @@ The runner writes tagged artifacts:
 - Sequential refitting is not the same training policy as a fixed reservoir
   readout. Comparative claims must state this explicitly.
 - No GJR/EGARCH leverage extension or hyperparameter search is performed.
-- The 20-step aggregation assumes the canonical target is
-  `sqrt(sum(future daily return**2))`; this mapping must be checked against the
-  dataset-construction code during validation, not inferred from the column name
-  alone.
