@@ -38,13 +38,20 @@ from qpitome_qrc.data.features import (
     make_sequence_arrays,
     scale_splits_train_only,
 )
+from qpitome_qrc.data.targets import (
+    RV_INNOVATION_TARGET,
+    RV_LEVEL_TARGET,
+    RV_REFERENCE_COLUMN,
+    add_rv_innovation_target,
+    reconstruct_future_rv,
+)
 from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
+from qpitome_qrc.evaluation.transition import evaluate_transition_forecast
 from qpitome_qrc.evaluation.walkforward import (
     make_purged_walkforward_folds,
     slice_fold_frames,
 )
 
-TARGET = "future_rv_20d"
 SPLITS = ("train", "val", "test")
 
 
@@ -57,6 +64,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--out-dir", type=Path, default=Path("scratch/lstm_walkforward"))
     parser.add_argument("--tag", default="lstm_phase3")
+    parser.add_argument("--task", choices=("level", "innovation"), default="level")
     parser.add_argument("--lookback", type=int, default=40)
     parser.add_argument("--pca-components", type=int, default=6)
     parser.add_argument("--hidden-size", type=int, default=32)
@@ -74,19 +82,20 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def track_a_metrics(y_true: np.ndarray, log_scores: np.ndarray) -> dict[str, float]:
-    """Evaluate positive RV forecasts recovered from log-space LSTM scores."""
-
-    metrics = evaluate_volatility_forecast(y_true, np.exp(log_scores))
-    return asdict(metrics)
-
-
 def main() -> int:
     args = parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     frame = pd.read_csv(args.data).sort_values("date").reset_index(drop=True)
-    required = ["date", TARGET] + list(FEATURE_COLUMNS)
+    if args.task == "innovation":
+        frame = add_rv_innovation_target(frame)
+        target = RV_INNOVATION_TARGET
+    else:
+        target = RV_LEVEL_TARGET
+
+    required = ["date", target] + list(FEATURE_COLUMNS)
+    if args.task == "innovation":
+        required += [RV_LEVEL_TARGET, RV_REFERENCE_COLUMN]
     missing = [column for column in required if column not in frame.columns]
     if missing:
         raise ValueError(f"Missing columns: {missing}")
@@ -130,7 +139,11 @@ def main() -> int:
             split: drop_nonfinite_model_rows(
                 split_frame,
                 feature_columns=list(FEATURE_COLUMNS),
-                target_columns=[TARGET],
+                target_columns=(
+                    [target]
+                    if args.task == "level"
+                    else [target, RV_LEVEL_TARGET, RV_REFERENCE_COLUMN]
+                ),
             )
             for split, split_frame in split_frames.items()
         }
@@ -147,30 +160,38 @@ def main() -> int:
         sequences: dict[str, np.ndarray] = {}
         targets: dict[str, np.ndarray] = {}
         dates: dict[str, pd.Series] = {}
+        references: dict[str, np.ndarray] = {}
+        future_levels: dict[str, np.ndarray] = {}
         for split in SPLITS:
             components = pca.transform(
                 scaled[split][FEATURE_COLUMNS].to_numpy(dtype=float)
             )
             sequence_frame = pd.DataFrame(components, columns=pca_columns)
             sequence_frame["date"] = scaled[split]["date"].to_numpy()
-            sequence_frame[TARGET] = scaled[split][TARGET].to_numpy(dtype=float)
+            sequence_frame[target] = scaled[split][target].to_numpy(dtype=float)
             X, y, d = make_sequence_arrays(
                 sequence_frame,
                 feature_columns=pca_columns,
-                target_column=TARGET,
+                target_column=target,
                 lookback=args.lookback,
             )
             sequences[split] = X.astype(np.float32)
             targets[split] = y.astype(float)
             dates[split] = d
+            if args.task == "innovation":
+                aligned = scaled[split].iloc[args.lookback - 1 :]
+                references[split] = aligned[RV_REFERENCE_COLUMN].to_numpy(dtype=float)
+                future_levels[split] = aligned[RV_LEVEL_TARGET].to_numpy(dtype=float)
 
-        train_log_target = np.log(np.clip(targets["train"], 1e-12, None))
-        fit = fit_lstm(sequences["train"], train_log_target, config=config)
+        train_target = targets["train"]
+        if args.task == "level":
+            train_target = np.log(np.clip(train_target, 1e-12, None))
+        fit = fit_lstm(sequences["train"], train_target, config=config)
         diagnostic_rows.append(
             {
                 "fold": fold_id,
                 "train_sequences": fit.n_sequences,
-                "final_train_log_mse": fit.final_train_mse,
+                "final_train_mse": fit.final_train_mse,
                 "pca_explained_variance_sum": float(pca.explained_variance_ratio_.sum()),
             }
         )
@@ -191,23 +212,42 @@ def main() -> int:
         fold_manifests.append(fold_manifest)
 
         for split in ("val", "test"):
-            log_scores = predict_lstm(fit.model, sequences[split])
-            forecasts = np.exp(log_scores)
-            metrics = track_a_metrics(targets[split], log_scores)
+            scores = predict_lstm(fit.model, sequences[split])
+
+            if args.task == "level":
+                forecasts = np.exp(scores)
+                metrics = asdict(
+                    evaluate_volatility_forecast(targets[split], forecasts)
+                )
+            else:
+                forecasts = reconstruct_future_rv(references[split], scores)
+                metrics = {
+                    **evaluate_transition_forecast(targets[split], scores),
+                    **{
+                        f"reconstructed_{key}": value
+                        for key, value in asdict(
+                            evaluate_volatility_forecast(
+                                future_levels[split], forecasts
+                            )
+                        ).items()
+                    },
+                }
+
             metric_rows.append(
                 {
                     "fold": fold_id,
                     "split": split,
                     "model": "lstm",
+                    "task": args.task,
                     "n_predictions": int(len(targets[split])),
                     **metrics,
                 }
             )
 
-            for date, y_true, log_score, forecast in zip(
+            for date, y_true, score, forecast in zip(
                 dates[split],
                 targets[split],
-                log_scores,
+                scores,
                 forecasts,
                 strict=True,
             ):
@@ -217,8 +257,9 @@ def main() -> int:
                         "split": split,
                         "date": date,
                         "model": "lstm",
+                        "task": args.task,
                         "y_true": float(y_true),
-                        "log_score": float(log_score),
+                        "score": float(score),
                         "y_pred": float(forecast),
                     }
                 )
@@ -246,9 +287,14 @@ def main() -> int:
             "feature catalog, and 245-fold protocol with canonical Phase 3 inputs."
         ),
         "data": str(args.data),
-        "target": TARGET,
-        "target_transform": "log",
-        "forecast_transform": "exp",
+        "task": args.task,
+        "target": target,
+        "target_transform": "log" if args.task == "level" else "none",
+        "forecast_transform": (
+            "exp"
+            if args.task == "level"
+            else "rv_20d * exp(predicted_innovation)"
+        ),
         "feature_columns": list(FEATURE_COLUMNS),
         "preprocessing": {
             "nonfinite_policy": "drop explicitly within each split",
