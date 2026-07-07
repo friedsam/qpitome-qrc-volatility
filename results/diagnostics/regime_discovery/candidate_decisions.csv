@@ -1,0 +1,10 @@
+candidate,min_occupancy,min_self_transition_probability,n_significant_oos_gain_loss_tests,n_oos_periods_with_significance,max_directed_transition_episode_count,passes_conservative_screen,rejection_reasons,min_period_state_occupancy,all_states_present_all_periods
+state__risk4_k2,0.1723472668810289,0.8738805970149254,3,2,132,True,,0.07313195548489666,True
+state__risk4_k3,0.1259163987138263,0.8031326781326781,3,2,475,True,,0.04292527821939587,True
+state__risk4_k4,0.0295819935691318,0.7954790096878364,3,2,401,False,tiny_state,0.000794912559618442,True
+state__risk4_k5,0.0114469453376205,0.7850946372239748,2,2,348,False,tiny_state;state_absent_in_major_period,0.0,False
+state__state8_k2,0.1861093247588424,0.8023496890117484,2,2,194,True,,0.0985691573926868,True
+state__state8_k3,0.0397427652733119,0.7831715210355987,4,2,292,False,tiny_state,0.00794912559618442,True
+state__state8_k4,0.0366559485530546,0.5536,4,2,506,False,tiny_state,0.007154213036565978,True
+state__state8_k5,0.0322829581993569,0.241446725317693,3,2,416,False,tiny_state;weak_persistence,0.005564387917329093,True
+state__vol_level_x_acceleration_grid,0.0971061093247588,0.5843989769820972,2,2,167,True,,0.058823529411764705,True

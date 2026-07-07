@@ -1,0 +1,22 @@
+{
+  "model": "har_ridge",
+  "historical_source": "scripts/run_phase2_classical_baselines.py",
+  "historical_model_name": "har_ridge_alpha_1",
+  "features": [
+    "rv_5d",
+    "rv_10d",
+    "rv_20d",
+    "rv_60d",
+    "vix_close"
+  ],
+  "target_transform": "none",
+  "prediction_floor": 1e-08,
+  "folds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "checkpoint_policy": "atomic CSV write after every completed fold"
+}

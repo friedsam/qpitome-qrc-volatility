@@ -1,0 +1,26 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "16px"}} }%%
+flowchart LR
+    A[Public market data\nSPY/OHLCV + VIX] --> B[Chronological preprocessing\nfeatures + PCA-6]
+    B --> C[40-day window\n10 leaky temporal anchors]
+    C --> D[6-qubit TFIM-QRC\nfull topology + virtual nodes]
+    D --> E[Observable features\nZ / X / ZZ]
+    E --> F[Ridge readout\nlog future_rv_20d]
+    F --> G[Volatility forecast\nRMSE / QLIKE / MZ]
+    G --> H[Regime-warning layer\nq80 watch / q90 warning / q95 crisis]
+
+    I[Classical baselines\nPersistence / HAR / ESN] --> G
+    J[Phase 3 hardware plan\nQuEra primary · IonQ comparator · IBM benchmark] -.-> D
+
+    classDef data fill:#f5f5f5,stroke:#555,stroke-width:1px;
+    classDef quantum fill:#e8f0ff,stroke:#2454a6,stroke-width:1.5px;
+    classDef readout fill:#fff4dc,stroke:#9a6b00,stroke-width:1.5px;
+    classDef metrics fill:#eaf7ea,stroke:#2e7d32,stroke-width:1.5px;
+    classDef baseline fill:#f8eaff,stroke:#7b1fa2,stroke-width:1px;
+    classDef hardware fill:#ffecec,stroke:#b71c1c,stroke-width:1.2px;
+
+    class A,B,C data;
+    class D,E quantum;
+    class F readout;
+    class G,H metrics;
+    class I baseline;
+    class J hardware;

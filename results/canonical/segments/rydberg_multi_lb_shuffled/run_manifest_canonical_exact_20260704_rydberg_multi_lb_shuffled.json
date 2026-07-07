@@ -1,0 +1,62 @@
+{
+  "tag": "canonical_exact_20260704_rydberg_multi_lb_shuffled",
+  "data": "data/processed/phase2_spy_vix_volatility.csv",
+  "models": [
+    "rydberg_multi_lb_shuffled"
+  ],
+  "protocols": [
+    "exact"
+  ],
+  "folds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "fold_policy": "all folds for regression; classification metrics NaN when test labels degenerate",
+  "f1_policy": "validation-optimal threshold; training-score quantile fallback when validation labels degenerate",
+  "q90_valid_fold_count_by_model": {
+    "('rydberg_multi_lb_shuffled', 'exact')": 5
+  },
+  "q95_valid_fold_count_by_model": {
+    "('rydberg_multi_lb_shuffled', 'exact')": 4
+  },
+  "args": {
+    "data": "data/processed/phase2_spy_vix_volatility.csv",
+    "out_dir": "results/canonical/segments/rydberg_multi_lb_shuffled",
+    "cache_dir": "scratch/canonical_cache",
+    "tag": "canonical_exact_20260704_rydberg_multi_lb_shuffled",
+    "models": [
+      "rydberg_multi_lb_shuffled"
+    ],
+    "only_folds": null,
+    "n_folds": 5,
+    "min_train": 2500,
+    "val_size": 504,
+    "purge": 60,
+    "lookback": 40,
+    "lookback_fast": 10,
+    "level_col": "vix_rv_spread",
+    "rate_col": "rv_accel_log_5_20",
+    "raw_ridge_alpha": 10.0,
+    "har_alpha": 1.0,
+    "esn_seeds": "42",
+    "pca_components": 6,
+    "anchors": 8,
+    "total_time_us": 0.55,
+    "n_slow": 4,
+    "n_fast": 4,
+    "spacing_slow_um": 9.0,
+    "spacing_fast_um": 15.0,
+    "row_gap_um": 12.0,
+    "rydberg_ridge_alpha": 10.0,
+    "train_stride": 1,
+    "protocols": [
+      "exact"
+    ],
+    "shots": 1000,
+    "shot_seeds": "7",
+    "force_recompute": false
+  }
+}

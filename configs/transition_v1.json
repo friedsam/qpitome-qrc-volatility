@@ -1,0 +1,12 @@
+{
+  "dataset": "data/processed/phase2_spy_vix_volatility.csv",
+  "target": "rv_innovation_20d",
+  "target_definition": "log(future_rv_20d / rv_20d)",
+  "folds": 5,
+  "min_train": 2500,
+  "val_size": 504,
+  "purge": 60,
+  "lookback": 40,
+  "pca_components": 6,
+  "primary_metrics": ["innovation_rmse", "innovation_r2"]
+}
