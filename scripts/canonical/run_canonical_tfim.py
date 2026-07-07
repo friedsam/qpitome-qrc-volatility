@@ -1,25 +1,9 @@
 #!/usr/bin/env python3
 """Canonical purged walk-forward evaluation of the exact frozen Phase 2 final TFIM-QRC.
 
-Source-faithful model lineage:
-- full FEATURE_COLUMNS -> train-only StandardScaler -> PCA6
-- 40-day windows
-- leaky-integrated input, leak=0.3
-- clipped-linear angle encoding (repository default)
-- 10 recent anchors
-- 6-qubit full-topology TFIM-QRC
-- 3 Trotter steps per anchor
-- 3 virtual nodes per anchor
-- ZXZZ observables collected across anchors (459 raw features)
-- fixed disorder strength 0.20
-- train-only 1st/99th percentile feature clipping
-- train-only absolute feature-target correlation ranking
-- top 240 features
-- train-only StandardScaler
-- Ridge(alpha=1000) on log future RV
-
-This reproduces ``linear_clip_top240_alpha1000`` under the common Phase 3
-purged walk-forward protocol. No TFIM tuning is performed.
+``level`` reproduces the historical ``linear_clip_top240_alpha1000`` model.
+``innovation`` preserves the frozen reservoir and readout geometry but trains the
+Ridge readout directly on ``log(future_rv_20d / rv_20d)``.
 """
 from __future__ import annotations
 
@@ -27,6 +11,7 @@ import argparse
 import importlib.util
 import json
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -36,6 +21,15 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.data.features import FEATURE_COLUMNS
+from qpitome_qrc.data.targets import (
+    RV_INNOVATION_TARGET,
+    RV_LEVEL_TARGET,
+    RV_REFERENCE_COLUMN,
+    add_rv_innovation_target,
+    reconstruct_future_rv,
+)
+from qpitome_qrc.evaluation.metrics import evaluate_volatility_forecast
+from qpitome_qrc.evaluation.transition import evaluate_transition_forecast
 from qpitome_qrc.qrc.tfim_reservoir import (
     TFIMQRCConfig,
     _safe_feature_target_correlations,
@@ -44,11 +38,12 @@ from qpitome_qrc.qrc.tfim_reservoir import (
 )
 
 MASTER_PATH = Path(__file__).with_name("run_master_comparison.py")
-TARGET = "future_rv_20d"
 SPLITS = ("train", "val", "test")
 LEAK = 0.3
 TOP_K = 240
 READOUT_ALPHA = 1000.0
+DEFAULT_LEVEL_OUT = Path("results/canonical/segments/tfim_phase2_final")
+DEFAULT_LEVEL_TAG = "tfim_phase2_final"
 
 
 def load_master():
@@ -63,15 +58,22 @@ def load_master():
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data", type=Path, default=Path("data/processed/phase2_spy_vix_volatility.csv"))
-    p.add_argument("--out-dir", type=Path, default=Path("results/canonical/segments/tfim_phase2_final"))
-    p.add_argument("--tag", default="tfim_phase2_final")
+    p.add_argument("--out-dir", type=Path, default=DEFAULT_LEVEL_OUT)
+    p.add_argument("--tag", default=DEFAULT_LEVEL_TAG)
+    p.add_argument("--task", choices=("level", "innovation"), default="level")
     p.add_argument("--only-folds", nargs="*", type=int, default=None)
     p.add_argument("--n-folds", type=int, default=5)
     p.add_argument("--min-train", type=int, default=2500)
     p.add_argument("--val-size", type=int, default=504)
     p.add_argument("--purge", type=int, default=60)
     p.add_argument("--force", action="store_true")
-    return p.parse_args()
+    args = p.parse_args()
+    if args.task == "innovation":
+        if args.out_dir == DEFAULT_LEVEL_OUT:
+            args.out_dir = Path("results/canonical/segments/tfim_innovation")
+        if args.tag == DEFAULT_LEVEL_TAG:
+            args.tag = "tfim_innovation"
+    return args
 
 
 def atomic_csv(frame: pd.DataFrame, path: Path) -> None:
@@ -90,8 +92,13 @@ def leaky_integrate_windows(X: np.ndarray, leak: float = LEAK) -> np.ndarray:
     return out
 
 
-def exact_phase2_readout(features: dict[str, np.ndarray], y: dict[str, np.ndarray]) -> tuple[dict[str, np.ndarray], dict]:
-    """Exact ``linear_clip_top240_alpha1000`` readout from the Phase 2 notebook."""
+def exact_phase2_readout(
+    features: dict[str, np.ndarray],
+    y: dict[str, np.ndarray],
+    *,
+    task: str,
+) -> tuple[dict[str, np.ndarray], dict]:
+    """Frozen Phase 2 feature processing with a task-aware target transform."""
     lower = np.percentile(features["train"], 1.0, axis=0)
     upper = np.percentile(features["train"], 99.0, axis=0)
     clipped = {s: np.clip(features[s], lower, upper) for s in SPLITS}
@@ -102,17 +109,20 @@ def exact_phase2_readout(features: dict[str, np.ndarray], y: dict[str, np.ndarra
     selected = {s: clipped[s][:, selected_idx] for s in SPLITS}
 
     scaler = StandardScaler()
-    H_train = scaler.fit_transform(selected["train"])
-    H_val = scaler.transform(selected["val"])
-    H_test = scaler.transform(selected["test"])
+    transformed = {
+        "train": scaler.fit_transform(selected["train"]),
+        "val": scaler.transform(selected["val"]),
+        "test": scaler.transform(selected["test"]),
+    }
 
     model = Ridge(alpha=READOUT_ALPHA)
-    model.fit(H_train, np.log(np.maximum(y["train"], 1e-8)))
-    scores = {
-        "train": model.predict(H_train),
-        "val": model.predict(H_val),
-        "test": model.predict(H_test),
-    }
+    train_target = (
+        np.log(np.maximum(y["train"], 1e-8))
+        if task == "level"
+        else y["train"]
+    )
+    model.fit(transformed["train"], train_target)
+    scores = {s: model.predict(transformed[s]) for s in SPLITS}
     metadata = {
         "n_raw_features": int(features["train"].shape[1]),
         "n_selected_features": int(k),
@@ -120,9 +130,111 @@ def exact_phase2_readout(features: dict[str, np.ndarray], y: dict[str, np.ndarra
         "clip_percentiles": [1.0, 99.0],
         "feature_selection": "train_abs_feature_target_correlation",
         "ridge_alpha": READOUT_ALPHA,
-        "target_transform": "log",
+        "target_transform": "log" if task == "level" else "none",
     }
     return scores, metadata
+
+
+def evaluate_innovation_model(
+    *,
+    master,
+    fold_id: int,
+    y: dict[str, np.ndarray],
+    dates: dict[str, np.ndarray],
+    scores: dict[str, np.ndarray],
+    references: dict[str, np.ndarray],
+    future_levels: dict[str, np.ndarray],
+    q90_threshold: float,
+    lab90: dict[str, np.ndarray],
+    q95_threshold: float,
+    lab95: dict[str, np.ndarray],
+    metadata: dict,
+) -> tuple[dict, list[dict]]:
+    row = {
+        "fold": fold_id,
+        "model": "tfim_phase2_final",
+        "protocol": "exact",
+        "task": "innovation",
+        **metadata,
+    }
+
+    for split in ("val", "test"):
+        transition = evaluate_transition_forecast(y[split], scores[split])
+        row.update({f"{split}_{key}": value for key, value in transition.items()})
+        reconstructed = reconstruct_future_rv(references[split], scores[split])
+        level_metrics = asdict(
+            evaluate_volatility_forecast(future_levels[split], reconstructed)
+        )
+        row.update(
+            {
+                f"{split}_reconstructed_{key}": value
+                for key, value in level_metrics.items()
+            }
+        )
+
+    row["q90_target_threshold"] = q90_threshold
+    row["q95_target_threshold"] = q95_threshold
+    for q, labs in ((90, lab90), (95, lab95)):
+        score_threshold, source = master.select_f1_threshold(
+            labs["train"], labs["val"], scores["train"], scores["val"], q / 100.0
+        )
+        row[f"q{q}_score_threshold"] = score_threshold
+        row[f"q{q}_threshold_source"] = source
+        for split in ("val", "test"):
+            values = master.classification_metrics(labs[split], scores[split], score_threshold)
+            for key, value in values.items():
+                row[f"q{q}_{split}_{key}"] = value
+
+    pred_rows: list[dict] = []
+    for split in SPLITS:
+        reconstructed = reconstruct_future_rv(references[split], scores[split])
+        for i in range(len(y[split])):
+            pred_rows.append(
+                {
+                    "fold": fold_id,
+                    "model": "tfim_phase2_final",
+                    "protocol": "exact",
+                    "task": "innovation",
+                    "split": split,
+                    "date": dates[split][i],
+                    "innovation_true": float(y[split][i]),
+                    "innovation_pred": float(scores[split][i]),
+                    "reference_rv": float(references[split][i]),
+                    "future_rv_true": float(future_levels[split][i]),
+                    "predicted_future_rv": float(reconstructed[i]),
+                    "q90_label": int(lab90[split][i]),
+                    "q95_label": int(lab95[split][i]),
+                }
+            )
+    return row, pred_rows
+
+
+def aggregate_task_metrics(per_fold: pd.DataFrame, task: str, master) -> pd.DataFrame:
+    if task == "level":
+        return master.aggregate_metrics(per_fold)
+
+    numeric = [
+        column
+        for column in per_fold.columns
+        if column.startswith("test_") or column.startswith("q90_test_") or column.startswith("q95_test_")
+    ]
+    rows = []
+    for (model, protocol), group in per_fold.groupby(["model", "protocol"], dropna=False):
+        base = {
+            "model": model,
+            "protocol": protocol,
+            "task": task,
+            "n_folds_regression": int(group["test_innovation_rmse"].notna().sum()),
+            "n_folds_q90_valid": int(group["q90_test_ap"].notna().sum()),
+            "n_folds_q95_valid": int(group["q95_test_ap"].notna().sum()),
+        }
+        for column in numeric:
+            values = pd.to_numeric(group[column], errors="coerce")
+            base[f"{column}_median"] = float(values.median()) if values.notna().any() else np.nan
+            base[f"{column}_mean"] = float(values.mean()) if values.notna().any() else np.nan
+            base[f"{column}_std"] = float(values.std(ddof=1)) if values.notna().sum() > 1 else np.nan
+        rows.append(base)
+    return pd.DataFrame(rows)
 
 
 def main() -> None:
@@ -155,6 +267,19 @@ def main() -> None:
         return
 
     df = pd.read_csv(args.data).sort_values("date").reset_index(drop=True)
+    if args.task == "innovation":
+        df = add_rv_innovation_target(df)
+        target = RV_INNOVATION_TARGET
+    else:
+        target = RV_LEVEL_TARGET
+
+    required = ["date", target, *FEATURE_COLUMNS]
+    if args.task == "innovation":
+        required += [RV_REFERENCE_COLUMN, RV_LEVEL_TARGET]
+    missing = sorted(set(required) - set(df.columns))
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
     folds = master.make_folds(
         len(df), n_folds=args.n_folds, min_train=args.min_train,
         val_size=args.val_size, purge=args.purge,
@@ -176,7 +301,7 @@ def main() -> None:
         evolution_time=0.5,
         angle_max=np.pi / 2,
         ridge_alpha=READOUT_ALPHA,
-        target_transform="log",
+        target_transform="log" if args.task == "level" else "none",
         seed=42,
         collect_anchor_features=True,
         use_disorder=True,
@@ -189,7 +314,7 @@ def main() -> None:
             print(f"SKIP completed TFIM fold {fold_id}")
             continue
 
-        print(f"\n=== Canonical exact Phase 2 TFIM fold {fold_id} ===")
+        print(f"\n=== Canonical exact Phase 2 TFIM fold {fold_id} ({args.task}) ===")
         frames = {s: df.iloc[fold[s][0] : fold[s][1]].copy().reset_index(drop=True) for s in SPLITS}
 
         scaler = StandardScaler()
@@ -201,14 +326,14 @@ def main() -> None:
         for split in SPLITS:
             z = pca.transform(scaler.transform(frames[split][FEATURE_COLUMNS]))
             frame = pd.DataFrame(z, columns=pca_cols)
-            frame[TARGET] = frames[split][TARGET].to_numpy()
+            frame[target] = frames[split][target].to_numpy()
             frame["date"] = frames[split]["date"].to_numpy()
             pca_frames[split] = frame
 
         raw_seq = make_qrc_sequence_splits(
             pca_frames,
             feature_columns=pca_cols,
-            target_column=TARGET,
+            target_column=target,
             lookback_days=config.lookback_days,
         )
         seq = {
@@ -217,6 +342,15 @@ def main() -> None:
         }
         y = {s: np.asarray(seq[s][1], dtype=float) for s in SPLITS}
         dates = {s: np.asarray(seq[s][2]) for s in SPLITS}
+        references = {
+            s: frames[s].iloc[config.lookback_days - 1 :][RV_REFERENCE_COLUMN].to_numpy(dtype=float)
+            for s in SPLITS
+        } if args.task == "innovation" else {}
+        future_levels = {
+            s: frames[s].iloc[config.lookback_days - 1 :][RV_LEVEL_TARGET].to_numpy(dtype=float)
+            for s in SPLITS
+        } if args.task == "innovation" else {}
+
         q90_target, lab90 = master.labels_for(y["train"], y, 0.90)
         q95_target, lab95 = master.labels_for(y["train"], y, 0.95)
 
@@ -225,36 +359,54 @@ def main() -> None:
         feature_seconds = time.perf_counter() - start
 
         start = time.perf_counter()
-        scores, readout_meta = exact_phase2_readout(features, y)
+        scores, readout_meta = exact_phase2_readout(features, y, task=args.task)
         fit_seconds = time.perf_counter() - start
+        metadata = {
+            "quantum_tasks_per_date": 1,
+            "shots": np.nan,
+            "shot_seed": np.nan,
+            "fit_seconds": fit_seconds,
+            "feature_seconds": feature_seconds,
+            "selected_config": json.dumps({
+                **config.__dict__,
+                "input_leak": LEAK,
+                **readout_meta,
+            }, sort_keys=True, default=str),
+            "selection_metric": "frozen_phase2_linear_clip_top240_alpha1000",
+            "n_raw_features": readout_meta["n_raw_features"],
+            "n_selected_features": readout_meta["n_selected_features"],
+        }
 
-        row, preds = master.evaluate_model(
-            model_name="tfim_phase2_final",
-            protocol="exact",
-            fold_id=fold_id,
-            y=y,
-            dates=dates,
-            scores=scores,
-            q90_threshold=q90_target,
-            lab90=lab90,
-            q95_threshold=q95_target,
-            lab95=lab95,
-            metadata={
-                "quantum_tasks_per_date": 1,
-                "shots": np.nan,
-                "shot_seed": np.nan,
-                "fit_seconds": fit_seconds,
-                "feature_seconds": feature_seconds,
-                "selected_config": json.dumps({
-                    **config.__dict__,
-                    "input_leak": LEAK,
-                    **readout_meta,
-                }, sort_keys=True, default=str),
-                "selection_metric": "frozen_phase2_linear_clip_top240_alpha1000",
-                "n_raw_features": readout_meta["n_raw_features"],
-                "n_selected_features": readout_meta["n_selected_features"],
-            },
-        )
+        if args.task == "level":
+            row, preds = master.evaluate_model(
+                model_name="tfim_phase2_final",
+                protocol="exact",
+                fold_id=fold_id,
+                y=y,
+                dates=dates,
+                scores=scores,
+                q90_threshold=q90_target,
+                lab90=lab90,
+                q95_threshold=q95_target,
+                lab95=lab95,
+                metadata=metadata,
+            )
+            row["task"] = "level"
+        else:
+            row, preds = evaluate_innovation_model(
+                master=master,
+                fold_id=fold_id,
+                y=y,
+                dates=dates,
+                scores=scores,
+                references=references,
+                future_levels=future_levels,
+                q90_threshold=q90_target,
+                lab90=lab90,
+                q95_threshold=q95_target,
+                lab95=lab95,
+                metadata=metadata,
+            )
 
         metric_rows = [r for r in metric_rows if int(r["fold"]) != fold_id] + [row]
         prediction_rows = [r for r in prediction_rows if int(r["fold"]) != fold_id] + preds
@@ -264,7 +416,7 @@ def main() -> None:
 
     per_fold = pd.DataFrame(metric_rows).sort_values("fold").reset_index(drop=True)
     predictions = pd.DataFrame(prediction_rows).sort_values(["fold", "split", "date"]).reset_index(drop=True)
-    aggregate = master.aggregate_metrics(per_fold)
+    aggregate = aggregate_task_metrics(per_fold, args.task, master)
     atomic_csv(per_fold, per_fold_path)
     atomic_csv(predictions, pred_path)
     atomic_csv(aggregate, aggregate_path)
@@ -273,6 +425,8 @@ def main() -> None:
         "historical_source": "phase2-volatility-regression-qrc:notebooks/phase2_qrc_final_encoding_readout_probe.ipynb",
         "historical_run_name": "linear_clip_top240_alpha1000",
         "protocol": "exact",
+        "task": args.task,
+        "target": target,
         "folds": sorted(requested_folds),
         "configuration": config.__dict__,
         "input_leak": LEAK,
@@ -281,7 +435,7 @@ def main() -> None:
             "feature_selection": "top 240 by absolute train feature-target correlation",
             "scaler": "StandardScaler fit on selected train features",
             "ridge_alpha": READOUT_ALPHA,
-            "target_transform": "log",
+            "target_transform": "log" if args.task == "level" else "none",
         },
         "checkpoint_policy": "atomic CSV write after every completed fold; completed folds skipped on restart",
     }, indent=2, default=str))
