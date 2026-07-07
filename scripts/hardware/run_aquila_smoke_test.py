@@ -11,6 +11,10 @@ Hardware run (one small task):
     python scripts/hardware/run_aquila_smoke_test.py \
         --hardware --shots 20 --confirm SUBMIT_AQUILA_SMOKE_TEST
 
+Retrieve an already-submitted job without spending another task:
+    python scripts/hardware/run_aquila_smoke_test.py \
+        --job-id <QBRAID_JOB_ID>
+
 The script writes a checkpoint immediately after submission so the job ID is not
 lost if the notebook/session disconnects while the task is queued.
 """
@@ -35,7 +39,6 @@ def build_program():
     from braket.ahs.driving_field import DrivingField
     from braket.timings.time_series import TimeSeries
 
-    # Four atoms, 7 um spacing: small but genuinely interacting.
     register = AtomArrangement()
     for x_um in (-10.5, -3.5, 3.5, 10.5):
         register.add([x_um * 1e-6, 0.0])
@@ -61,7 +64,9 @@ def build_program():
 
 
 def normalize_counts(raw_counts: Any) -> dict[str, int]:
-    """Convert qBraid measurement counts to a JSON-safe string-key dictionary."""
+    """Convert qBraid analog counts to a JSON-safe string-key dictionary."""
+    if raw_counts is None:
+        raise RuntimeError("Completed analog result contains no measurement counts")
     return {str(state): int(count) for state, count in dict(raw_counts).items()}
 
 
@@ -80,9 +85,39 @@ def write_report(path: Path, report: dict[str, Any]) -> None:
     path.write_text(json.dumps(report, indent=2, sort_keys=True, default=str), encoding="utf-8")
 
 
+def extract_counts(result: Any) -> dict[str, int]:
+    """Use the public qBraid AnalogResultData API."""
+    return normalize_counts(result.data.get_counts())
+
+
+def retrieve_job(job_id: str, out: Path) -> int:
+    """Retrieve and parse an existing qBraid job without submitting new hardware work."""
+    from qbraid.runtime.native.job import QbraidJob
+
+    job = QbraidJob(job_id)
+    report: dict[str, Any] = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "purpose": "retrieve existing qBraid Aquila smoke-test job",
+        "job_id": job_id,
+        "job_status_before_result": str(job.status()),
+        "hardware_submitted": False,
+    }
+    result = job.result()
+    counts = extract_counts(result)
+    report["job_status_final"] = str(job.status())
+    report["measurement_counts"] = counts
+    report["result_summary"] = summarize_counts(counts)
+    write_report(out, report)
+
+    print(json.dumps(report, indent=2, sort_keys=True))
+    print(f"\nRetrieved existing job only. Wrote {out}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hardware", action="store_true", help="Submit one Aquila task")
+    parser.add_argument("--job-id", default="", help="Retrieve an existing qBraid job; submits nothing")
     parser.add_argument("--shots", type=int, default=20)
     parser.add_argument("--confirm", default="")
     parser.add_argument(
@@ -92,12 +127,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.hardware and args.job_id:
+        raise SystemExit("Choose either --hardware or --job-id, not both")
     if args.shots <= 0 or args.shots > 100:
         raise SystemExit("Smoke-test shots must be in 1..100")
     if args.hardware and args.confirm != CONFIRM_TOKEN:
         raise SystemExit(
             f"Hardware submission blocked. Re-run with --confirm {CONFIRM_TOKEN}"
         )
+    if args.job_id:
+        return retrieve_job(args.job_id, args.out)
 
     program = build_program()
     report: dict[str, Any] = {
@@ -146,7 +185,7 @@ def main() -> int:
     print(f"Checkpoint written to {args.out}")
 
     result = job.result()
-    counts = normalize_counts(result.data.measurement_counts)
+    counts = extract_counts(result)
     report["job_status_final"] = str(job.status())
     report["measurement_counts"] = counts
     report["result_summary"] = summarize_counts(counts)
