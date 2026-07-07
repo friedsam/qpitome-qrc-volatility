@@ -152,13 +152,16 @@ def variance_path_to_realized_volatility(
     variance_path: np.ndarray,
     *,
     return_scale: float = 100.0,
+    annualization_period: float | None = None,
 ) -> float:
     """Aggregate a variance path to realized-volatility units.
 
     ``arch`` is fit to scaled returns, so the conditional variances are first
     converted back to native return units and then summed across the forecast
-    horizon. The square root matches a target of the form
-    ``sqrt(sum(future_return**2))``.
+    horizon. When ``annualization_period`` is supplied, the aggregate variance
+    is multiplied by ``annualization_period / horizon`` before taking the square
+    root. This matches targets such as the canonical Phase 3 definition
+    ``sqrt(252 / horizon * sum(future_return**2))``.
     """
 
     path = np.asarray(variance_path, dtype=float)
@@ -170,9 +173,13 @@ def variance_path_to_realized_volatility(
         raise ValueError("variance_path contains negative values")
     if return_scale <= 0:
         raise ValueError("return_scale must be positive")
+    if annualization_period is not None and annualization_period <= 0:
+        raise ValueError("annualization_period must be positive when provided")
 
-    variance_native = path / (return_scale**2)
-    return float(np.sqrt(np.sum(variance_native)))
+    aggregate_variance = float(np.sum(path / (return_scale**2)))
+    if annualization_period is not None:
+        aggregate_variance *= annualization_period / len(path)
+    return float(np.sqrt(aggregate_variance))
 
 
 def config_to_dict(config: GARCHConfig) -> dict[str, Any]:
