@@ -1,0 +1,11 @@
+{
+  "source": "Independent PCA6 transition sweep; reservoir configurations selected by validation RMSE only",
+  "search_seed": 42,
+  "folds": {
+    "1": {"n": 300, "sr": 0.3, "inp": 0.1, "leak": 1.0},
+    "2": {"n": 500, "sr": 0.7, "inp": 0.2, "leak": 0.5},
+    "3": {"n": 300, "sr": 0.7, "inp": 0.1, "leak": 0.5},
+    "4": {"n": 300, "sr": 0.3, "inp": 0.3, "leak": 0.3},
+    "5": {"n": 500, "sr": 0.7, "inp": 0.1, "leak": 0.3}
+  }
+}
