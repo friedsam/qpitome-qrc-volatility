@@ -16,6 +16,7 @@ from typing import Any
 
 QBRAID_AQUILA_DEVICE_ID = "aws:quera:qpu:aquila"
 CONFIRM_TOKEN = "SUBMIT_AQUILA_LOCAL_DETUNING_TEST"
+EXPERIMENTAL_RUNTIME_OPTIONS = {"experimental_capabilities": "ALL"}
 
 
 def install_qbraid_decimal_encoder_patch() -> None:
@@ -97,6 +98,13 @@ def extract_counts(result: Any) -> dict[str, int]:
     return normalize_counts(result.data.get_counts())
 
 
+def job_metadata(job: Any) -> dict[str, Any]:
+    try:
+        return dict(job.metadata())
+    except Exception:
+        return dict(getattr(job, "_cache_metadata", {}) or {})
+
+
 def retrieve_job(job_id: str, out: Path) -> int:
     from qbraid.runtime.native.job import QbraidJob
 
@@ -109,8 +117,18 @@ def retrieve_job(job_id: str, out: Path) -> int:
         "hardware_submitted": False,
     }
     result = job.result()
-    counts = extract_counts(result)
     report["job_status_final"] = str(job.status())
+    report["job_metadata"] = job_metadata(job)
+    report["result_success"] = bool(result.success)
+    report["cost"] = str(result.cost)
+
+    if not result.success:
+        write_report(out, report)
+        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+        print(f"\nJob failed; diagnostic report written to {out}")
+        return 2
+
+    counts = extract_counts(result)
     report["measurement_counts"] = counts
     report["result_summary"] = summarize_counts(counts)
     write_report(out, report)
@@ -157,6 +175,7 @@ def main() -> int:
         "purpose": "minimal qBraid Aquila local-detuning smoke test",
         "qbraid_device_id": QBRAID_AQUILA_DEVICE_ID,
         "shots_requested": args.shots,
+        "runtime_options": EXPERIMENTAL_RUNTIME_OPTIONS,
         "program": {
             "n_atoms": 4,
             "spacing_um": 7.0,
@@ -189,6 +208,7 @@ def main() -> int:
     job = device.run(
         program,
         shots=args.shots,
+        runtime_options=EXPERIMENTAL_RUNTIME_OPTIONS,
         tags={
             "project": "qpitome-phase3",
             "test": "aquila-local-detuning-smoke",
@@ -202,8 +222,18 @@ def main() -> int:
     print(f"Checkpoint written immediately to {args.out}")
 
     result = job.result()
-    counts = extract_counts(result)
     report["job_status_final"] = str(job.status())
+    report["job_metadata"] = job_metadata(job)
+    report["result_success"] = bool(result.success)
+    report["cost"] = str(result.cost)
+
+    if not result.success:
+        write_report(args.out, report)
+        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+        print(f"Final failed-job report written to {args.out}")
+        return 2
+
+    counts = extract_counts(result)
     report["measurement_counts"] = counts
     report["result_summary"] = summarize_counts(counts)
     write_report(args.out, report)
