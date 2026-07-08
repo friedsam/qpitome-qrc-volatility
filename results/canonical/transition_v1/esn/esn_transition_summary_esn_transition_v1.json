@@ -1,0 +1,47 @@
+{
+  "tag": "esn_transition_v1",
+  "target": "rv_innovation_20d",
+  "selection": "validation innovation RMSE only",
+  "reservoir_policy": "per-fold reservoir frozen from prior PCA6 validation search",
+  "reservoir_config": "configs/esn_transition_fixed_reservoirs.json",
+  "representation_grid": [
+    6,
+    10,
+    16,
+    26
+  ],
+  "alphas": [
+    10.0,
+    30.0,
+    100.0,
+    300.0,
+    1000.0
+  ],
+  "median_test_metrics": {
+    "esn_selected": {
+      "test_innovation_rmse": 0.3580242549094958,
+      "test_innovation_r2": 0.23322258676742236,
+      "test_reconstructed_rmse": 0.06691470062304011
+    },
+    "full_linear": {
+      "test_innovation_rmse": 0.3662112370085164,
+      "test_innovation_r2": 0.2609524596120296,
+      "test_reconstructed_rmse": 0.06397031057007699
+    },
+    "har_rv_linear": {
+      "test_innovation_rmse": 0.4120723808626706,
+      "test_innovation_r2": 0.14531568214515755,
+      "test_reconstructed_rmse": 0.06559674767028079
+    },
+    "representation_linear_selected": {
+      "test_innovation_rmse": 0.36129165321102075,
+      "test_innovation_r2": 0.210547073155675,
+      "test_reconstructed_rmse": 0.06450608294589273
+    },
+    "zero_change": {
+      "test_innovation_rmse": 0.40507249278338464,
+      "test_innovation_r2": -0.0013290223367821152,
+      "test_reconstructed_rmse": 0.07279787766982146
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "purpose": "PyTorch confirmation of LSTM early-stopping repair",
+  "target": "rv_innovation_20d",
+  "variants": {
+    "early_stop": false,
+    "early_stop_standardized": true
+  },
+  "canonical_lstm_config": {
+    "hidden_size": 32,
+    "dropout": 0.1,
+    "epochs": 40,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 32,
+    "seed": 123
+  },
+  "patience": 6,
+  "lookback": 40,
+  "pca_components": 6,
+  "walkforward": {
+    "n_folds": 5,
+    "min_train": 2500,
+    "val_size": 504,
+    "purge": 60,
+    "selected_folds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "note": "No gradient clipping; canonical module and runner left unchanged."
+}

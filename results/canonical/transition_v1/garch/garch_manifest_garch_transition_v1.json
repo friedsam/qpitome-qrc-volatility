@@ -1,0 +1,155 @@
+{
+  "tag": "garch_transition_v1",
+  "model": "garch_1_1_t",
+  "model_family": "GARCH",
+  "task": "innovation",
+  "data": "data/processed/phase2_spy_vix_volatility.csv",
+  "return_column": "spy_log_return",
+  "target": "rv_innovation_20d",
+  "target_definition": "log(future_rv_20d / rv_20d)",
+  "horizon": 20,
+  "annualization_period": 252.0,
+  "history": 2500,
+  "garch_config": {
+    "p": 1,
+    "q": 1,
+    "mean": "Zero",
+    "distribution": "StudentsT",
+    "return_scale": 100.0
+  },
+  "forecast_policy": "Sequential rolling-origin refit at every test date using returns available through that date.",
+  "walkforward": {
+    "n_folds": 5,
+    "min_train": 2500,
+    "val_size": 504,
+    "purge": 60,
+    "selected_folds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "folds": [
+    {
+      "fold": 1,
+      "row_ranges": {
+        "train": [
+          0,
+          2500
+        ],
+        "val": [
+          2500,
+          3004
+        ],
+        "purge": [
+          3004,
+          3064
+        ],
+        "test": [
+          3064,
+          4006
+        ]
+      },
+      "test_predictions": 942,
+      "failed_predictions": 0
+    },
+    {
+      "fold": 2,
+      "row_ranges": {
+        "train": [
+          0,
+          3442
+        ],
+        "val": [
+          3442,
+          3946
+        ],
+        "purge": [
+          3946,
+          4006
+        ],
+        "test": [
+          4006,
+          4948
+        ]
+      },
+      "test_predictions": 942,
+      "failed_predictions": 0
+    },
+    {
+      "fold": 3,
+      "row_ranges": {
+        "train": [
+          0,
+          4384
+        ],
+        "val": [
+          4384,
+          4888
+        ],
+        "purge": [
+          4888,
+          4948
+        ],
+        "test": [
+          4948,
+          5890
+        ]
+      },
+      "test_predictions": 942,
+      "failed_predictions": 0
+    },
+    {
+      "fold": 4,
+      "row_ranges": {
+        "train": [
+          0,
+          5326
+        ],
+        "val": [
+          5326,
+          5830
+        ],
+        "purge": [
+          5830,
+          5890
+        ],
+        "test": [
+          5890,
+          6832
+        ]
+      },
+      "test_predictions": 942,
+      "failed_predictions": 0
+    },
+    {
+      "fold": 5,
+      "row_ranges": {
+        "train": [
+          0,
+          6268
+        ],
+        "val": [
+          6268,
+          6772
+        ],
+        "purge": [
+          6772,
+          6832
+        ],
+        "test": [
+          6832,
+          7775
+        ]
+      },
+      "test_predictions": 943,
+      "failed_predictions": 0
+    }
+  ],
+  "known_limitations": [
+    "Sequential refitting is not the same training policy as fixed-readout reservoir models.",
+    "No GJR/EGARCH leverage extension or hyperparameter search is performed."
+  ]
+}

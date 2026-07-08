@@ -1,0 +1,270 @@
+{
+  "tag": "lstm_transition_v2_early_stop",
+  "model": "lstm",
+  "model_family": "LSTM",
+  "source_prototype": "reset-branch monthly LSTM implementation",
+  "adaptation": "Retains compact LSTM mechanics only; replaces monthly data, monthly feature catalog, and 245-fold protocol with canonical Phase 3 inputs.",
+  "data": "data/processed/phase2_spy_vix_volatility.csv",
+  "task": "innovation",
+  "target": "rv_innovation_20d",
+  "target_transform": "none",
+  "forecast_transform": "rv_20d * exp(predicted_innovation)",
+  "feature_columns": [
+    "spy_log_return",
+    "spy_abs_log_return",
+    "spy_squared_log_return",
+    "spy_log_hl_range",
+    "spy_log_oc_return",
+    "spy_log_volume",
+    "spy_log_volume_change",
+    "spy_log_dollar_volume",
+    "rv_5d",
+    "rv_10d",
+    "rv_20d",
+    "rv_60d",
+    "rv_ratio_5_20",
+    "rv_ratio_20_60",
+    "rv_slope_5_20",
+    "rv_slope_20_60",
+    "parkinson_var",
+    "garman_klass_var",
+    "spy_drawdown_20d",
+    "vix_close",
+    "vix_log_change",
+    "vix_abs_log_change",
+    "vix_log_hl_range",
+    "vix_ma_5d",
+    "vix_std_5d",
+    "vix_ma_20d",
+    "vix_std_20d"
+  ],
+  "preprocessing": {
+    "nonfinite_policy": "drop explicitly within each split",
+    "scaler": "StandardScaler fit on train only",
+    "pca_components": 6,
+    "pca_fit": "train only",
+    "sequence_construction": "split local",
+    "lookback": 40
+  },
+  "training_selection": {
+    "method": "validation early stopping",
+    "patience": 6,
+    "selection_metric": "validation MSE",
+    "restore_best_checkpoint": true
+  },
+  "lstm_config": {
+    "hidden_size": 32,
+    "dropout": 0.1,
+    "epochs": 40,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 32,
+    "seed": 42,
+    "early_stopping_patience": 6
+  },
+  "walkforward": {
+    "n_folds": 5,
+    "min_train": 2500,
+    "val_size": 504,
+    "purge": 60,
+    "selected_folds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "folds": [
+    {
+      "fold": 1,
+      "row_ranges": {
+        "train": [
+          0,
+          2500
+        ],
+        "val": [
+          2500,
+          3004
+        ],
+        "purge": [
+          3004,
+          3064
+        ],
+        "test": [
+          3064,
+          4006
+        ]
+      },
+      "split_sequence_counts": {
+        "train": 2461,
+        "val": 465,
+        "test": 903
+      },
+      "best_epoch": 1,
+      "epochs_ran": 7,
+      "best_val_mse": 0.05835285782814026,
+      "pca_explained_variance_ratio": [
+        0.4063927555967857,
+        0.12822580604862713,
+        0.09355316731344542,
+        0.0780109620267904,
+        0.06152429240991917,
+        0.04162907922330653
+      ]
+    },
+    {
+      "fold": 2,
+      "row_ranges": {
+        "train": [
+          0,
+          3442
+        ],
+        "val": [
+          3442,
+          3946
+        ],
+        "purge": [
+          3946,
+          4006
+        ],
+        "test": [
+          4006,
+          4948
+        ]
+      },
+      "split_sequence_counts": {
+        "train": 3403,
+        "val": 465,
+        "test": 903
+      },
+      "best_epoch": 1,
+      "epochs_ran": 7,
+      "best_val_mse": 0.14254222810268402,
+      "pca_explained_variance_ratio": [
+        0.3751789074105184,
+        0.11515147985871567,
+        0.09312418766769073,
+        0.0774530967372464,
+        0.0631959897762088,
+        0.05993318207981463
+      ]
+    },
+    {
+      "fold": 3,
+      "row_ranges": {
+        "train": [
+          0,
+          4384
+        ],
+        "val": [
+          4384,
+          4888
+        ],
+        "purge": [
+          4888,
+          4948
+        ],
+        "test": [
+          4948,
+          5890
+        ]
+      },
+      "split_sequence_counts": {
+        "train": 4345,
+        "val": 465,
+        "test": 903
+      },
+      "best_epoch": 3,
+      "epochs_ran": 9,
+      "best_val_mse": 0.14574000239372253,
+      "pca_explained_variance_ratio": [
+        0.41591662923362477,
+        0.11234415507270802,
+        0.09166372114190174,
+        0.07152716062284299,
+        0.05758416840985483,
+        0.05523455129335449
+      ]
+    },
+    {
+      "fold": 4,
+      "row_ranges": {
+        "train": [
+          0,
+          5326
+        ],
+        "val": [
+          5326,
+          5830
+        ],
+        "purge": [
+          5830,
+          5890
+        ],
+        "test": [
+          5890,
+          6832
+        ]
+      },
+      "split_sequence_counts": {
+        "train": 5287,
+        "val": 465,
+        "test": 903
+      },
+      "best_epoch": 1,
+      "epochs_ran": 7,
+      "best_val_mse": 0.14620473980903625,
+      "pca_explained_variance_ratio": [
+        0.4102674661034453,
+        0.11219254753578031,
+        0.09111595456186077,
+        0.07301122040912225,
+        0.0628606816418172,
+        0.055713874942567215
+      ]
+    },
+    {
+      "fold": 5,
+      "row_ranges": {
+        "train": [
+          0,
+          6268
+        ],
+        "val": [
+          6268,
+          6772
+        ],
+        "purge": [
+          6772,
+          6832
+        ],
+        "test": [
+          6832,
+          7775
+        ]
+      },
+      "split_sequence_counts": {
+        "train": 6229,
+        "val": 465,
+        "test": 904
+      },
+      "best_epoch": 1,
+      "epochs_ran": 7,
+      "best_val_mse": 0.3295593857765198,
+      "pca_explained_variance_ratio": [
+        0.40263341976435457,
+        0.11325285743793362,
+        0.0897927627266492,
+        0.07345010159563778,
+        0.06971067761844224,
+        0.05539005283451754
+      ]
+    }
+  ],
+  "known_limitations": [
+    "Architecture and optimizer settings are fixed rather than tuned.",
+    "PCA6 is a matched preprocessing choice, not evidence that six components are optimal for LSTM.",
+    "Seed robustness was checked separately on seeds 7, 42, and 123 for the innovation task."
+  ]
+}
