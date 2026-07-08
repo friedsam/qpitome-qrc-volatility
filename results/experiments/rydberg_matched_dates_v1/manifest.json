@@ -1,0 +1,126 @@
+{
+  "target": "rv_innovation_20d",
+  "folds": [
+    {
+      "fold": 1,
+      "train_dates": [
+        "1993-06-22",
+        "2003-04-01"
+      ],
+      "val_dates": [
+        "2003-05-29",
+        "2005-04-01"
+      ],
+      "test_dates": [
+        "2005-08-23",
+        "2009-03-25"
+      ],
+      "n_train": 2461,
+      "n_val": 465,
+      "n_test": 903
+    },
+    {
+      "fold": 2,
+      "train_dates": [
+        "1993-06-22",
+        "2006-12-26"
+      ],
+      "val_dates": [
+        "2007-02-26",
+        "2008-12-26"
+      ],
+      "test_dates": [
+        "2009-05-21",
+        "2012-12-19"
+      ],
+      "n_train": 3403,
+      "n_val": 465,
+      "n_test": 903
+    },
+    {
+      "fold": 3,
+      "train_dates": [
+        "1993-06-22",
+        "2010-09-23"
+      ],
+      "val_dates": [
+        "2010-11-18",
+        "2012-09-21"
+      ],
+      "test_dates": [
+        "2013-02-19",
+        "2016-09-16"
+      ],
+      "n_train": 4345,
+      "n_val": 465,
+      "n_test": 903
+    },
+    {
+      "fold": 4,
+      "train_dates": [
+        "1993-06-22",
+        "2014-06-23"
+      ],
+      "val_dates": [
+        "2014-08-19",
+        "2016-06-22"
+      ],
+      "test_dates": [
+        "2016-11-11",
+        "2020-06-16"
+      ],
+      "n_train": 5287,
+      "n_val": 465,
+      "n_test": 903
+    },
+    {
+      "fold": 5,
+      "train_dates": [
+        "1993-06-22",
+        "2018-03-20"
+      ],
+      "val_dates": [
+        "2018-05-16",
+        "2020-03-20"
+      ],
+      "test_dates": [
+        "2020-08-12",
+        "2024-03-15"
+      ],
+      "n_train": 6229,
+      "n_val": 465,
+      "n_test": 904
+    }
+  ],
+  "protocol": "canonical folds; all arms restricted to temporal 40-day sequence dates",
+  "alpha_grid": [
+    0.1,
+    1.0,
+    10.0,
+    100.0,
+    1000.0
+  ],
+  "spatial": {
+    "n_atoms": 8,
+    "spacing_um": 10.0,
+    "omega_rad_us": 6.283185307179586,
+    "encoding_scale_rad_us": 9.0,
+    "total_time_us": 4.0,
+    "probe_times_us": [
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      2.5,
+      3.0,
+      3.5,
+      4.0
+    ]
+  },
+  "temporal": {
+    "lookback_days": 40,
+    "anchor_count": 8,
+    "total_time_us": 0.55,
+    "encoding": "plateau"
+  }
+}
