@@ -10,11 +10,26 @@ import argparse
 import json
 from collections import Counter
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 QBRAID_AQUILA_DEVICE_ID = "aws:quera:qpu:aquila"
 CONFIRM_TOKEN = "SUBMIT_AQUILA_LOCAL_DETUNING_TEST"
+
+
+def install_qbraid_decimal_encoder_patch() -> None:
+    """Work around qBraid 0.12.1 analog JSON serialization of Decimal values."""
+    from qbraid.programs.analog._model import AnalogHamiltonianEncoder
+
+    original_default = AnalogHamiltonianEncoder.default
+
+    def patched_default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return original_default(self, obj)
+
+    AnalogHamiltonianEncoder.default = patched_default
 
 
 def build_program():
@@ -130,9 +145,11 @@ def main() -> int:
 
     from qbraid.runtime import QbraidProvider
 
+    install_qbraid_decimal_encoder_patch()
     program = build_program()
     device = QbraidProvider().get_device(QBRAID_AQUILA_DEVICE_ID)
     device.validate([program])
+    prepared = device.prepare(program)
 
     ir = program.to_ir()
     report: dict[str, Any] = {
@@ -151,6 +168,8 @@ def main() -> int:
             "local_pattern": [0.0, 0.33, 0.67, 1.0],
         },
         "qbraid_validation_passed": True,
+        "qbraid_prepare_passed": True,
+        "prepared_format": str(getattr(prepared, "format", type(prepared).__name__)),
         "ahs_ir_preview": str(ir)[:12000],
         "hardware_submitted": False,
     }
