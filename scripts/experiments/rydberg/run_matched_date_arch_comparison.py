@@ -144,10 +144,10 @@ def main() -> int:
             for name in ("train", "val", "test")
         }
         cleaned = {}
-        required = FEATURE_COLUMNS + [RV_INNOVATION_TARGET, "rv_20d", "date"]
+        required = list(dict.fromkeys(FEATURE_COLUMNS + [RV_INNOVATION_TARGET, "rv_20d", "date"]))
+        num_cols = list(dict.fromkeys(FEATURE_COLUMNS + [RV_INNOVATION_TARGET, "rv_20d"]))
         for name, df in raw.items():
             sub = df.copy()
-            num_cols = FEATURE_COLUMNS + [RV_INNOVATION_TARGET, "rv_20d"]
             sub[num_cols] = sub[num_cols].replace([np.inf, -np.inf], np.nan)
             cleaned[name] = sub.dropna(subset=required).reset_index(drop=True)
 
