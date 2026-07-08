@@ -61,8 +61,8 @@ def build_program():
     )
 
     local = LocalDetuning.from_lists(
-        times=[t0, t1],
-        values=[0.0, 1.0e6],
+        times=[t0, 1.5e-6, t1],
+        values=[0.0, -1.0e6, 0.0],
         pattern=[0.0, 0.33, 0.67, 1.0],
     )
 
@@ -120,7 +120,7 @@ def retrieve_job(job_id: str, out: Path) -> int:
     report["job_status_final"] = str(job.status())
     report["job_metadata"] = job_metadata(job)
     report["result_success"] = bool(result.success)
-    report["cost"] = str(result.cost)
+    report["cost"] = str(job.metadata().get("cost"))
 
     if not result.success:
         write_report(out, report)
@@ -183,7 +183,7 @@ def main() -> int:
             "global_omega_max_rad_s": 6.3e6,
             "global_detuning_start_rad_s": -25.2e6,
             "global_detuning_end_rad_s": 25.2e6,
-            "local_detuning_end_rad_s": 1.0e6,
+            "local_detuning_end_rad_s": -1.0e6,
             "local_pattern": [0.0, 0.33, 0.67, 1.0],
         },
         "qbraid_validation_passed": True,
@@ -225,7 +225,7 @@ def main() -> int:
     report["job_status_final"] = str(job.status())
     report["job_metadata"] = job_metadata(job)
     report["result_success"] = bool(result.success)
-    report["cost"] = str(result.cost)
+    report["cost"] = str(job.metadata().get("cost"))
 
     if not result.success:
         write_report(args.out, report)
