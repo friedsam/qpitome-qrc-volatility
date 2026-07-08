@@ -1,24 +1,35 @@
 #!/usr/bin/env python3
-"""Inspect the Aquila device schema for local-detuning support without submitting a task."""
+"""Inspect qBraid's Aquila device/profile for local-detuning support.
+
+No AWS credentials are used and no hardware task is submitted.
+"""
 from __future__ import annotations
 
 import json
-from braket.aws import AwsDevice
 
-AQUILA_ARN = "arn:aws:braket:us-east-1::device/qpu/quera/Aquila"
+from qbraid.runtime import QbraidProvider
+
+QBRAID_AQUILA_DEVICE_ID = "aws:quera:qpu:aquila"
+
+
+def serialize(value):
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "dict"):
+        return value.dict()
+    if hasattr(value, "__dict__"):
+        return value.__dict__
+    return value
 
 
 def main() -> int:
-    device = AwsDevice(AQUILA_ARN)
-    properties = device.properties
+    provider = QbraidProvider()
+    device = provider.get_device(QBRAID_AQUILA_DEVICE_ID)
 
-    if hasattr(properties, "model_dump"):
-        payload = properties.model_dump()
-    elif hasattr(properties, "dict"):
-        payload = properties.dict()
-    else:
-        payload = properties
-
+    payload = {
+        "status": str(device.status()),
+        "profile": serialize(device.profile),
+    }
     text = json.dumps(payload, indent=2, default=str)
     matches = [
         line.strip()
@@ -26,10 +37,11 @@ def main() -> int:
         if "local" in line.lower() or "detun" in line.lower()
     ]
 
-    print(f"device={device.name}")
-    print(f"arn={device.arn}")
-    print(f"status={device.status}")
-    print("\nSchema lines containing 'local' or 'detun':")
+    print(f"qbraid_device_id={QBRAID_AQUILA_DEVICE_ID}")
+    print(f"status={device.status()}")
+    print(f"experiment_type={device.profile.experiment_type}")
+    print(f"program_spec={device.profile.program_spec}")
+    print("\nqBraid device/profile lines containing 'local' or 'detun':")
     if matches:
         for line in matches:
             print(line)
@@ -37,14 +49,14 @@ def main() -> int:
         print("<none>")
 
     lowered = text.lower()
-    has_local_detuning = (
+    advertised = (
         "localdetuning" in lowered
         or "local_detuning" in lowered
         or ("local" in lowered and "detuning" in lowered)
     )
-    print(f"\nlocal_detuning_advertised={has_local_detuning}")
-    print("No task was submitted.")
-    return 0 if has_local_detuning else 2
+    print(f"\nlocal_detuning_advertised_by_qbraid_profile={advertised}")
+    print("No task was submitted. No AWS credentials were used.")
+    return 0
 
 
 if __name__ == "__main__":
