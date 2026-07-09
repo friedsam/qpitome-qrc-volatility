@@ -28,15 +28,16 @@ docs/experiments/branching_extractor_formalization.md
 | Cheap branch probability | Do class priors, VIX, current state, or simple motion solve recovery versus relapse? | `scripts/baselines/comparison/run_branch_probabilistic_front.py` | `results/baselines/branch_probabilistic_front_v1/` | `docs/experiments/branch_probabilistic_front.md` | not trivially solved |
 | HAR branch probability | Does a causal HAR normalization forecast resolve branch outcomes? | `scripts/baselines/comparison/run_branch_har_front.py` | `results/baselines/branch_har_front_v1/` | `docs/experiments/branch_har_front.md` | weak branch discriminator |
 | HAR continuous audit | Is HAR still useful as a volatility forecaster inside branch states? | `scripts/diagnostics/har/audit_branch_har_continuous.py` | `results/baselines/branch_har_continuous_audit_v1/` | `docs/experiments/branch_har_front.md` plus this map | diagnostic; HAR remains useful overall |
-| Ordered path classification | Does a 40-day ordered path improve recovery-versus-relapse prediction? | `scripts/baselines/esn/run_branch_path_reservoir_front.py` | `results/baselines/branch_path_reservoir_front_v1/` | `docs/experiments/branch_path_reservoir_front.md` | direct classifier negative for current architecture |
-| Modern HAR residual | Can path representations predict HAR forecast error across branch episodes? | `scripts/baselines/esn/run_branch_har_residual_path_front.py` | `results/baselines/branch_har_residual_path_front_v1/` | this map; result manifests | overall negative; outcome heterogeneity observed |
-| Residual input families | Do volatility-failure or HAR-aware channels improve the residual model? | `scripts/baselines/esn/run_branch_har_residual_input_families_v2.py` | `results/baselines/branch_har_residual_input_families_v1/` | this map; result manifests | exploratory; no overall win |
+| Ordered path classification | Does a 40-day ordered path improve recovery-versus-relapse prediction? | `scripts/baselines/esn/run_branch_path_reservoir_front.py` | `results/baselines/branch_path_reservoir_front_v1/` | `docs/experiments/branch_path_reservoir_front.md` | modern-sample direct classifier negative for current primitive architecture |
+| Long-history direct branch replication | Does the modern recovery-versus-relapse hierarchy survive on the canonical 1950–2026 episodes? | `scripts/baselines/esn/run_long_history_branch_resolution_replication.py` | `results/baselines/long_history_branch_resolution_replication_v1/` | this map; result manifest | primary forecasting replication; pending run |
+| Modern HAR residual | Can path representations predict HAR forecast error across branch episodes? | `scripts/baselines/esn/run_branch_har_residual_path_front.py` | `results/baselines/branch_har_residual_path_front_v1/` | this map; result manifests | secondary volatility diagnostic; overall negative |
+| Residual input families | Do volatility-failure or HAR-aware channels improve the residual model? | `scripts/baselines/esn/run_branch_har_residual_input_families_v2.py` | `results/baselines/branch_har_residual_input_families_v1/` | this map; result manifests | secondary volatility diagnostic; no overall win |
 | Long-history preprocessing audit | Why did the first long reconstruction disagree with the project RV convention and earlier episode count? | `scripts/diagnostics/regime/audit_long_history_reconstruction_discrepancy.py` | `results/regimes/long_history_reconstruction_discrepancy_v1/` | this map | valid forensic audit |
-| Canonical long-history replication | Does the modern branch/HAR-residual experiment survive on 1950–2026 data without retuning? | `scripts/baselines/esn/run_long_history_har_residual_replication_canonical.py`; engine: `scripts/baselines/esn/run_long_history_har_residual_replication.py` | `results/regimes/long_history_branch_reconstruction_v2/`; `results/baselines/long_history_har_residual_replication_v2/` | this map | current canonical long-history run |
+| Canonical long-history volatility-residual replication | Does the modern branch/HAR-residual side experiment survive on 1950–2026 data without retuning? | `scripts/baselines/esn/run_long_history_har_residual_replication_canonical.py`; engine: `scripts/baselines/esn/run_long_history_har_residual_replication.py` | `results/regimes/long_history_branch_reconstruction_v2/`; `results/baselines/long_history_har_residual_replication_v2/` | this map | completed secondary diagnostic |
 
 ## Canonical long-history reconstruction
 
-The supported long-history entry point is:
+The supported long-history reconstruction entry point is currently bundled with the volatility-residual replication:
 
 ```text
 scripts/baselines/esn/run_long_history_har_residual_replication_canonical.py
@@ -60,11 +61,13 @@ recovery: 28
 relapse:  19
 ```
 
-The canonical runner uses the exact modern project RV convention:
+The canonical reconstruction uses the exact modern project RV convention:
 
 ```text
 sqrt(rolling_mean(log_return^2) * 252)
 ```
+
+The direct branch-resolution replication consumes these frozen reconstruction artifacts. It does not reconstruct or retune the branch detector.
 
 ## Invalid long-history run removed
 
@@ -87,24 +90,41 @@ The current evidence supports these statements:
 
 - broad stress and generic regime change contain substantial cheap classical structure;
 - the branching state recurs and has heterogeneous future outcomes;
-- naive path summaries do not exhaust temporal information;
+- the primary forecasting task is recovery versus relapse from the branching state;
+- volatility forecasting is secondary because it does not by itself resolve the branch outcome;
 - one primitive ESN architecture is not enough to characterize ESN capacity;
 - unconditional HAR-residual correction does not improve overall branch forecasting;
-- outcome-conditioned differences are diagnostically interesting but do not by themselves define a deployable target;
-- the target space and ESN architecture space remain insufficiently explored to choose a final QRC endpoint.
+- outcome-conditioned volatility differences are diagnostically interesting but do not define the main target.
 
 The evidence does **not** yet justify:
 
-- treating relapse as the final QRC target;
+- treating volatility as the main forecasting target;
+- treating relapse as a pre-known deployable gate;
 - claiming ESN failure from one small architecture;
-- claiming a reservoir advantage;
-- claiming that volatility forecasting is the only relevant endpoint.
+- claiming a reservoir advantage.
 
 ## Next step
 
-No new runner should be added until it is placed in the existing taxonomy and added to this map or an existing experiment note.
+The immediate scientific step is the frozen long-history replication of direct recovery-versus-relapse forecasting:
 
-The next scientific step is to map temporal value across multiple continuous targets on the canonical long-history episodes before committing to a QRC endpoint. That experiment has not yet been implemented.
+```text
+scripts/baselines/esn/run_long_history_branch_resolution_replication.py
+```
+
+This run compares:
+
+```text
+historical class rate
+current state
+state + motion
+full 40-day linear path
+reset ESN
+continuous ESN
+```
+
+The ESN is deliberately unchanged from the primitive modern branch experiment. This run answers whether the modern information hierarchy survives on the 1950–2026 sample. It is not an architecture search.
+
+Only after that result should the ESN architecture be improved, and the improvements should be driven by the observed forecasting failures rather than by an arbitrary hyperparameter sweep.
 
 ## Submission extraction rule
 
