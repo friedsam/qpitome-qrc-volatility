@@ -71,9 +71,9 @@ def compact_reservoir_features(
     n_components: int,
 ) -> tuple[np.ndarray, np.ndarray, float]:
     """Fit scaler and PCA on training reservoir states only."""
-    if len(train_states) <= n_components:
+    if len(train_states) < n_components:
         raise ValueError(
-            f"Need more than {n_components} training episodes for PCA; got {len(train_states)}"
+            f"Need at least {n_components} training episodes for PCA; got {len(train_states)}"
         )
     scaler = StandardScaler()
     train_scaled = scaler.fit_transform(train_states)
