@@ -1,4 +1,4 @@
-# Formal branching-state extractor: audit before lock
+# Formal branching-state extractor and outcome-label history
 
 Last updated: 2026-07-08
 
@@ -52,10 +52,11 @@ Shared module:
 src/qpitome_qrc/regimes/branching_state.py
 ```
 
-Audit runner:
+Audit runners:
 
 ```text
 scripts/regimes/audit_branching_extractor.py
+scripts/regimes/audit_branch_outcome_labels.py
 ```
 
 The module separates three operations.
@@ -96,7 +97,7 @@ This rule is explicit and can be challenged after the audit, but it is not silen
 
 Future information enters only after episodes exist.
 
-The 40-day label uses the volatility-scaled thresholds supported by the long-history validation:
+The 40-day label currently uses volatility-scaled thresholds:
 
 ```text
 move_unit = rv20(branch) * sqrt(40 / 252)
@@ -105,32 +106,117 @@ recovery threshold = +0.55 * move_unit
 relapse threshold  = -0.70 * move_unit
 ```
 
-Outcome logic:
+Current provisional outcome logic:
 
 ```text
 recovery:
-    terminal forward return reaches recovery threshold
+    terminal 40-day forward return reaches recovery threshold
     and relapse drawdown threshold is not hit
 
 relapse:
     future running drawdown hits relapse threshold
-    and recovery terminal threshold is not reached
+    and terminal recovery threshold is not reached
 
 mixed:
     both or neither
 ```
 
-The volatility scaling is important because fixed absolute ±4%/−5% labels were miscalibrated in older lower-volatility eras.
+The current 48-episode mid-grid extraction happens to contain only `neither` mixed cases, but `both` remains part of the formal definition.
 
-## 24-definition audit
+## Outcome-label history
+
+This section is intentionally retained because the outcome definition may change again.
+
+### Stage A: fixed absolute future-move thresholds
+
+The first exploratory work used fixed absolute recovery/relapse thresholds.
+
+The long-history validation showed that these labels were miscalibrated in older low-volatility eras. A fixed move has different meaning when current realized volatility is 10% versus 40%.
+
+Decision:
+
+```text
+reject fixed absolute thresholds as the formal benchmark
+```
+
+### Stage B: volatility-scaled thresholds
+
+The long-history validation adopted:
+
+```text
+move_unit = rv20(branch) * sqrt(horizon / 252)
+recovery = +0.55 * move_unit
+relapse  = -0.70 * move_unit
+```
+
+This improved outcome balance across eras and is the current basis of the formal labels.
+
+Decision:
+
+```text
+retain volatility scaling provisionally
+```
+
+### Stage C: terminal recovery versus anytime recovery
+
+The formal implementation initially defined recovery using terminal return at the 40-day horizon.
+
+A focused audit then compared this with an alternative rule:
+
+```text
+recovery if the recovery threshold is reached at any time during the 40-day window
+```
+
+Current terminal-rule counts:
+
+```text
+17 recovery
+13 relapse
+18 mixed
+```
+
+Anytime-recovery counts:
+
+```text
+24 recovery
+12 relapse
+12 mixed
+```
+
+Transition table:
+
+```text
+mixed -> mixed       11
+mixed -> recovery     7
+recovery -> recovery 17
+relapse -> relapse   12
+relapse -> mixed      1
+```
+
+All 18 current mixed cases are `neither` cases. None currently hit both thresholds.
+
+The anytime rule was not adopted because it can label a temporary rebound as recovery even when the path later deteriorates. One current relapse became mixed under the anytime rule because both thresholds were reached. That behavior conflicts with the scientific question of genuine recovery versus renewed deterioration.
+
+Decision as of 2026-07-08:
+
+```text
+keep terminal-horizon recovery as the provisional main label
+keep anytime-recovery results as a documented sensitivity analysis
+```
+
+This is not a claim that the terminal rule is permanently correct. Near-threshold cases remain intrinsically brittle. For example, the 2020-03-25 episode finished only slightly below its volatility-scaled terminal recovery threshold.
+
+The benchmark should therefore preserve continuous outcome diagnostics and probability calibration even when hard labels are used for model comparison.
+
+## 24-definition state audit
 
 The state threshold grid is:
 
 ```text
-stress quantile:        0.65, 0.70, 0.75
-120d drawdown:         -0.05, -0.06
-5d stabilization floor:-0.015, -0.005
-recent decline:        -0.03, -0.05
+stress quantile:         0.65, 0.70, 0.75
+120d drawdown:          -0.05, -0.06
+5d stabilization floor: -0.015, -0.005
+recent decline:         -0.03, -0.05
 ```
 
 This gives:
@@ -151,31 +237,40 @@ outcome horizon = 40 rows
 
 These numbers are not yet the final benchmark definition. The point of the audit is to determine whether the branching phenomenon is robust to reasonable nearby definitions.
 
+## State-audit result
+
+Across all 24 definitions:
+
+```text
+47-78 labeled episodes
+all three outcome classes present
+episodes recur from the late 1990s through 2025
+all definitions span seven distinct five-year blocks
+```
+
+The mid-grid candidate currently gives:
+
+```text
+48 episodes
+17 recovery
+13 relapse
+18 mixed
+```
+
+This is enough to establish robustness of the branching phenomenon and continue the critical path. Whether the mid-grid detector is uniquely preferable is delegated as a parallel robustness question; the main line does not stop on that question.
+
 ## Audit outputs
 
-Default directory:
+State audit:
 
 ```text
 results/regimes/branching_extractor_audit_v1/
 ```
 
-Outputs:
+Outcome-label audit:
 
 ```text
-threshold_audit_summary.csv
-mid_grid_daily_candidates.csv
-mid_grid_episodes.csv
-mid_grid_decade_outcomes.csv
-run_manifest.json
-episode_sets/<one CSV per threshold definition>
-```
-
-The audit prints:
-
-```text
-all 24 episode/outcome counts
-mid-grid episode dates and state values
-mid-grid decade outcome counts
+results/regimes/branch_outcome_label_audit_v1/
 ```
 
 ## Lock criteria
@@ -192,4 +287,12 @@ The fixed extractor should satisfy:
 6. reasonable recovery/relapse/mixed balance under volatility-scaled labels;
 7. stability of the scientific conclusion across nearby threshold choices.
 
-Only after the extractor and labels are locked do we construct the episode-level walk-forward benchmark.
+Current status:
+
+```text
+branching phenomenon: robust enough to proceed
+mid-grid detector: provisional canonical working definition
+outcome labels: provisionally locked for the next benchmark stage
+```
+
+The next formal component is the episode-level walk-forward evaluation protocol.
