@@ -29,10 +29,7 @@ from qpitome_qrc.baselines.branch_path_reservoir import (
     extract_episode_windows,
     reset_esn_features,
 )
-from qpitome_qrc.baselines.branch_probabilistic import (
-    FEATURE_SETS,
-    add_branch_baseline_features,
-)
+from qpitome_qrc.baselines.branch_probabilistic import FEATURE_SETS
 from qpitome_qrc.evaluation.episode_prequential import (
     EpisodePrequentialConfig,
     make_episode_prequential_steps,
@@ -115,7 +112,15 @@ def main() -> None:
 
     daily = pd.read_csv(a.data, parse_dates=["date"]).sort_values("date").reset_index(drop=True)
     episodes = pd.read_csv(a.episodes, parse_dates=["branch_date"]).sort_values("branch_date").reset_index(drop=True)
-    featured = add_branch_baseline_features(episodes, daily).set_index("episode_id", drop=False)
+
+    # state_plus_motion does not use VIX. Build only the exact six required
+    # episode-level features so the long GSPC reconstruction remains valid.
+    featured = episodes.copy()
+    featured["stress_ratio"] = featured["rv_20d"] / featured["branch_stress_cut"]
+    missing = set(STATE_MOTION) - set(featured.columns)
+    if missing:
+        raise KeyError(f"Missing state_plus_motion features: {sorted(missing)}")
+    featured = featured.set_index("episode_id", drop=False)
 
     channels = add_causal_path_channels(daily)
     ids, windows = extract_episode_windows(channels, episodes, LOOKBACK)
