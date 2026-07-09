@@ -2,13 +2,27 @@
 
 Last updated: 2026-07-09
 
-This is the authoritative project-level record. It is intentionally shorter than the research history. Detailed experiment notes remain in topic documentation and Git history.
+This is the authoritative project-level record. Detailed experiment history remains in topic documentation and Git history.
 
 ## Current scientific thesis
 
-The challenge is fundamentally about **forecasting regime changes**, not maximizing generic volatility-forecast accuracy. Broad 20-day realized-volatility forecasting is strongly explained by cheap classical information, especially VIX/HAR-like level structure. The more interesting Track A problem is a recurrent causal **unstable-aftermath branching state**: markets remain stressed and damaged but appear to stabilize, then resolve into recovery, relapse, or mixed outcomes.
+The challenge is fundamentally about **forecasting regime changes**, not maximizing generic volatility-forecast accuracy.
 
-The key empirical hypothesis is therefore not that volatility becomes unforecastable. It is that **volatility can remain forecastable while becoming a misleading or weak guide to the direction of the regime transition**. In these episodes VIX is no longer dominant as an outcome discriminator. The current project question is whether temporal models, especially reservoir models, can add predictive information about branch resolution beyond the still-useful classical volatility forecast.
+Broad 20-day realized-volatility forecasting is strongly explained by cheap classical information, especially VIX/HAR-like level structure. The more interesting Track A problem is a recurrent causal **stressed-but-stabilizing branching state**: markets remain stressed and damaged, appear to stabilize, then resolve into recovery, relapse, or mixed outcomes.
+
+The key empirical distinction is:
+
+```text
+volatility forecast skill
+!=
+regime-transition forecast skill
+```
+
+The current target is therefore:
+
+```text
+P(recovery versus relapse | information available at branch date)
+```
 
 No quantum advantage has been demonstrated.
 
@@ -17,22 +31,27 @@ No quantum advantage has been demonstrated.
 ```text
 broad volatility forecasting
     -> cheap classical models dominate
-    -> challenge asks for regime-transition forecasting, not only volatility level
+    -> challenge asks for regime-transition forecasting
     -> identify recurrent stressed/stabilizing branching state
-    -> verify state recurrence and heterogeneous outcomes
-    -> show that volatility can still be forecast while VIX/HAR cease to determine recovery versus relapse
-    -> isolate the transition information missing from the volatility forecast
-    -> ESN as closest classical reservoir control
-    -> QRC only after that unresolved transition target is fixed
+    -> verify heterogeneous future resolutions
+    -> VIX and static state do not resolve recovery versus relapse well
+    -> state + motion provides weak contemporary transition ranking signal
+    -> HAR volatility forecast remains strong almost everywhere except relapse branches
+    -> generic ESN representations fail
+    -> generic PCA compression preserves variance but not incremental transition value
+    -> residual-targeted ESN correction also fails
+    -> retain baseline-plus-correction architecture
+    -> redesign reservoir input around transition-specific path ordering
+    -> test matched compact classical temporal control before QRC
 ```
 
 ## Proven or strongly supported findings
 
-### 1. Broad volatility level is classically easy relative to the QRC task
+### 1. Broad volatility level is classically easy relative to the transition task
 
 Status: **KEEP**
 
-The historical canonical HAR result used five features:
+Historical canonical HAR:
 
 ```text
 rv_5d, rv_10d, rv_20d, rv_60d, vix_close
@@ -41,7 +60,7 @@ rv_5d, rv_10d, rv_20d, rv_60d, vix_close
 -> future_rv_20d
 ```
 
-Independent audit showed VIX alone is nearly as strong as the headline HAR+VIX model on the old level target. This changes the interpretation: the dominant baseline is largely a forward-looking implied-volatility information effect, not evidence that generic linear dynamics exhaust the regime-transition problem.
+VIX alone is nearly as strong as the headline HAR+VIX model on the broad level target. The dominant baseline is largely a forward-looking implied-volatility information effect, not evidence that generic linear dynamics solve regime transitions.
 
 Relevant files:
 
@@ -50,13 +69,13 @@ src/qpitome_qrc/baselines/branch_har.py
 scripts/canonical/run_canonical_har.py
 ```
 
-### 2. The unstable-aftermath branching state is real enough to study
+### 2. The stressed-but-stabilizing branching state is real enough to study
 
 Status: **KEEP**
 
-The state is defined causally from high realized volatility, persistent drawdown, short-horizon volatility deceleration, partial stabilization, and evidence that a decline actually occurred. VIX and future targets do not enter state detection.
+The state is defined causally from high realized volatility, persistent drawdown, short-horizon volatility deceleration, partial stabilization, and evidence that a decline actually occurred. VIX and future targets do not enter detection.
 
-The phenomenon survived nearby threshold definitions and independent long-history reconstruction. Exact episode counts and hard labels remain formulation-dependent; the existence of the recurrent branching morphology is much stronger than any single classifier score.
+The phenomenon survived nearby threshold definitions and independent long-history reconstruction. Exact counts and hard labels remain formulation-dependent; the recurrent morphology is stronger evidence than any single classifier score.
 
 Canonical implementation:
 
@@ -64,25 +83,18 @@ Canonical implementation:
 src/qpitome_qrc/regimes/branching_state.py
 ```
 
-Primary provenance:
+Primary documentation:
 
 ```text
-docs/experiments/regime_branching_analysis.md
 docs/experiments/branching_extractor_formalization.md
-```
-
-Primary audit outputs:
-
-```text
-results/regimes/branching_extractor_audit_v1/
-results/regimes/branch_outcome_label_audit_v1/
+docs/experiments/branching_workstream_map.md
 ```
 
 ### 3. Episode prediction requires leakage-safe chronological evaluation
 
 Status: **KEEP**
 
-The accepted current geometry is expanding prequential evaluation: before predicting one episode, use only earlier episodes whose full future outcome windows have already completed. Each eligible episode receives one out-of-sample probability.
+Accepted geometry: expanding prequential evaluation. Before predicting one episode, train only on earlier episodes whose full future outcome windows have completed.
 
 Canonical implementation:
 
@@ -90,63 +102,214 @@ Canonical implementation:
 src/qpitome_qrc/evaluation/episode_prequential.py
 ```
 
-The earlier five-fold episode walk-forward protocol is useful history but is no longer the primary evaluation dependency.
-
 ### 4. Episode-level power is a hard limitation
 
 Status: **KEEP AS LIMITATION**
 
-Even long-history reconstruction yields only tens of independent recovery/relapse episodes. Small apparent differences between ESN and QRC cannot support strong superiority claims by episode-level AUC alone. Continuous forecasting metrics, probability calibration, and dependence-aware inference remain necessary.
+Modern canonical sample:
 
-### 5. Current QRC evidence is mechanistic, not advantageous
+```text
+48 complete episodes
+17 recovery
+13 relapse
+18 mixed
+17 binary OOS predictions
+```
 
-Status: **KEEP ELSEWHERE; NOT PART OF THIS JULY-8 AUDIT**
+Long-history reconstruction:
 
-Current temporal Rydberg work established real nonlinear temporal memory but is beaten by an information-matched primitive classical control. Structured spatial results moved to approximate parity after fair preprocessing. The QRC architecture must not be redesigned until the forecasting target is fixed.
+```text
+80 complete episodes
+28 recovery
+19 relapse
+33 mixed
+37 binary OOS predictions
+```
+
+Small AUC differences cannot support strong superiority claims alone. Probability quality, temporal stability, ablations, and matched controls are mandatory.
+
+### 5. Cheap direct transition baselines are weak but informative
+
+Status: **KEEP**
+
+Modern direct binary results:
+
+```text
+historical class rate      AUC 0.492
+VIX only                   AUC 0.386
+current state              AUC 0.500
+state + motion             AUC 0.621
+```
+
+Interpretation:
+
+- VIX does not resolve the transition.
+- Static state does not resolve the transition.
+- A small amount of recent motion adds weak ranking information.
+- Sample size is too small for a strong performance claim.
+
+Canonical features:
+
+```text
+stress_ratio
+drawdown_120d
+rv_ratio_5_20_branch
+return_5d_branch
+rv_5d_change_5d_branch
+worst_return_5d_in_prior_window
+```
+
+### 6. HAR adds no useful direct branch-transition signal
+
+Status: **KEEP AS SUPPORTING NEGATIVE RESULT**
+
+Direct HAR-derived branch classifiers do not improve on `state_plus_motion`.
+
+The more important continuous result is different:
+
+```text
+HAR volatility forecasting works well in recovery branches
+HAR volatility forecasting works very well in mixed branches
+HAR volatility forecasting fails specifically in relapse branches
+```
+
+Canonical reproduced innovation R2:
+
+```text
+all complete episodes          +0.315
+binary recovery/relapse        +0.035
+mixed                          +0.783
+recovery                       +0.623
+relapse                        -0.263
+```
+
+This supports the project thesis that broad volatility predictability and transition predictability are different objects.
+
+### 7. Generic ESN reservoir representations are closed as a primary lane
+
+Status: **CLOSED / KEEP AS DIAGNOSTIC EVIDENCE**
+
+The generic ESN investigation tested:
+
+- reset and continuous state;
+- 50, 300, and 500 units;
+- historical spectral-radius and leak configurations;
+- fixed input normalization;
+- explicit bias;
+- final-state and mean-state trajectory summaries;
+- 5- and 10-component PCA compression;
+- incremental addition to `state_plus_motion`;
+- residual-targeted 1-3 component PLS compression;
+- additive correction to a frozen classical baseline.
+
+No usable improvement emerged.
+
+The strongest interpretation is:
+
+> The generic reservoir is learning structure, but not structure aligned with recovery-versus-relapse information missing from the classical transition baseline.
+
+Detailed records:
+
+```text
+docs/experiments/branch_esn_architecture_audit.md
+docs/experiments/branch_esn_architecture_audit_results.md
+docs/experiments/branch_residual_offset_correction_results.md
+```
+
+### 8. High variance retention does not validate quantum opportunity
+
+Status: **KEEP AS METHODOLOGICAL PRINCIPLE**
+
+Compact ESN results showed:
+
+```text
+5 PCs preserve roughly 95% of reservoir variance
+10 PCs preserve roughly 99.8-99.9%
+```
+
+Yet adding those components worsened incremental transition prediction.
+
+Therefore:
+
+```text
+preserving variance
+!=
+preserving information complementary to the classical baseline
+```
+
+If a classical model performs nearly identically after PCA, that establishes only that PCA preserved what that classical model needs. It provides no evidence either for or against whether the same compression preserves information a quantum model could exploit.
+
+This is not an argument against PCA. It is an argument against using classical equivalence after PCA as validation of quantum opportunity.
 
 ## Current unresolved scientific question
 
-The immediate question is not yet "which QRC architecture wins?"
+The immediate question is now:
 
-It is:
+> **Among episodes with similar branch-point state and recent motion, does temporal ordering within the preceding path contain stable information about recovery versus relapse?**
 
-> **Can classical models continue to forecast volatility inside the branching state while failing to forecast which regime transition occurs, and what information resolves that gap?**
+The next model should not be asked to reconstruct information already handled by the classical baseline.
 
-This distinction is mandatory:
-
-```text
-volatility forecast skill
-!=
-regime-transition forecast skill
-```
-
-The next accepted experiment must establish one of three cases:
-
-1. HAR/VIX volatility forecasts remain useful and also determine recovery versus relapse -> the branching task is largely classically solved.
-2. HAR/VIX volatility forecasts remain useful but are weak or misleading for recovery versus relapse -> the desired regime-transition gap exists.
-3. HAR/VIX volatility forecasts themselves collapse inside branch states -> this is a different failure mode and should not be confused with the intended transition problem.
-
-The scientifically interesting case is #2.
-
-## Rework boundary
-
-The current audit places the rework boundary here:
+Retained architecture:
 
 ```text
-branch discovery
--> extractor
--> labels
--> prequential protocol
--> cheap probabilistic controls
--> causal HAR inside branch states
-================ REWORK / UNDERSTAND HERE ================
--> path ESN
--> HAR-residual ESN
--> input-family variants
--> long-history residual variants
+frozen state_plus_motion baseline
++
+small temporal correction
 ```
 
-The work after the line is not discarded, but it is **not an accepted dependency** until the HAR/branch relationship is understood deeply enough to define the transition target.
+The correction is the only object under comparison.
+
+## QRC design direction
+
+Do not send the previous generic six-channel path directly into a quantum reservoir and hope the circuit discovers the transition structure automatically.
+
+The first task-aligned design focuses on four causal path contrasts:
+
+```text
+1. shock recurrence after apparent stabilization
+2. rebound efficiency after damage
+3. volatility-relaxation smoothness versus re-acceleration
+4. return-volatility phase relation
+```
+
+Preferred minimal sequence:
+
+```text
+u1(t): signed return / local volatility
+u2(t): downside-shock recurrence signal
+u3(t): change in log(RV5 / RV20)
+u4(t): drawdown-repair increment
+```
+
+The first QRC candidate is deliberately compact:
+
+```text
+4 qubits
+40 sequential time steps
+fixed recurrent entangling layer
+8 observables total:
+  4 single-qubit Z
+  4 nearest-neighbor ZZ
+```
+
+Detailed design:
+
+```text
+docs/experiments/task_aligned_qrc_transition_design.md
+```
+
+## Required admission gate before QRC
+
+The task-specific sequence must first pass:
+
+```text
+1. endpoint redundancy audit
+2. temporal-order destruction control
+3. matched compact classical temporal control
+4. baseline-plus-correction OOS evaluation
+```
+
+The purpose is not to require classical success before quantum success. The purpose is to verify that the proposed channels actually represent the intended missing-information hypothesis and are not trivial rewrites of the baseline.
 
 ## Active artifact map
 
@@ -155,17 +318,17 @@ The work after the line is not discarded, but it is **not an accepted dependency
 ```text
 docs/PROJECT_STATE.md
 
-docs/experiments/regime_branching_analysis.md
 docs/experiments/branching_extractor_formalization.md
+docs/experiments/branching_workstream_map.md
+docs/experiments/branch_esn_architecture_audit_results.md
+docs/experiments/branch_residual_offset_correction_results.md
+docs/experiments/task_aligned_qrc_transition_design.md
 
 src/qpitome_qrc/regimes/branching_state.py
 src/qpitome_qrc/evaluation/episode_prequential.py
 src/qpitome_qrc/baselines/branch_probabilistic.py
 src/qpitome_qrc/baselines/branch_har.py
 
-scripts/regimes/audit_branching_extractor.py
-scripts/regimes/audit_branch_outcome_labels.py
-scripts/regimes/audit_episode_prequential.py
 scripts/baselines/comparison/run_branch_probabilistic_front.py
 scripts/baselines/comparison/run_branch_har_front.py
 scripts/diagnostics/har/audit_branch_har_continuous.py
@@ -176,20 +339,23 @@ results/regimes/episode_prequential_audit_v1/
 results/baselines/branch_probabilistic_front_v1/
 ```
 
-### MAYBE — diagnostic evidence only
+### KEEP — important rejected-hypothesis evidence
 
 ```text
 src/qpitome_qrc/baselines/branch_path_reservoir.py
-scripts/baselines/esn/run_branch_path_reservoir_front.py
-docs/experiments/branch_path_reservoir_front.md
+src/qpitome_qrc/baselines/branch_esn_audit.py
+src/qpitome_qrc/baselines/branch_residual_correction.py
 
-scripts/baselines/esn/run_long_history_branch_resolution_replication.py
-scripts/diagnostics/regime/audit_long_history_reconstruction_discrepancy.py
+scripts/baselines/esn/run_branch_path_reservoir_front.py
+scripts/baselines/esn/run_branch_esn_architecture_audit.py
+scripts/baselines/esn/run_branch_historical_esn_capacity_admission.py
+scripts/baselines/esn/run_branch_compact_reservoir_incremental.py
+scripts/baselines/esn/run_branch_residual_offset_correction.py
 ```
 
-These may survive as one primitive temporal-control experiment and one forensic data-validation record. They are not yet part of the submission lineage.
+These remain active because deleting them would remove the evidence that the generic ESN failure is not explained by one obvious architecture defect, readout dimension, or forced reconstruction of the classical component.
 
-### ARCHIVE CANDIDATES — scientifically superseded or premature fronts
+### ARCHIVE CANDIDATES — superseded or premature fronts
 
 ```text
 docs/experiments/regime_front.md
@@ -211,13 +377,9 @@ scripts/baselines/esn/run_long_history_har_residual_replication.py
 scripts/baselines/esn/run_long_history_har_residual_replication_canonical.py
 ```
 
-Associated result trees should move with their runners when the archive pass is executed. Nothing should be deleted before exact provenance and reproducibility are checked.
+Nothing should be deleted before exact provenance and reproducibility are checked.
 
-### REJECTED / INVALID
-
-The earlier long-history reconstruction based on rolling standard deviation rather than the project RMS realized-volatility convention is invalid. Active-tree artifacts were already removed; Git history is sufficient provenance.
-
-## Repository invariants from now on
+## Repository invariants
 
 1. **One scientific question -> one canonical runner.**
 2. Shared behavior belongs in `src/`; scripts are thin orchestration.
@@ -232,33 +394,25 @@ The earlier long-history reconstruction based on rolling standard deviation rath
    - output location;
    - plausible paper role.
 8. An artifact remains active only if deleting it would make a final claim unverifiable or remove the only evidence for an important rejected hypothesis.
-9. **Do not let volatility forecasting become the project objective by default.** Any volatility result must be interpreted against the actual Track A question: forecasting regime changes and transitions.
-
-## Time control
-
-Working assumption: approximately 15 days remain.
-
-```text
-Days 1-2: audit, triage, reconstruct HAR/branch finding
-Days 3-7: scientific convergence on target and baseline
-Days 8-10: freeze final model/ablation chain
-Days 11-15: no architecture wandering; reproduce, clean, archive, write, figures, final qBraid path
-```
-
-After day 10, new science requires explicit justification against submission risk.
+9. **Do not let volatility forecasting become the project objective by default.**
+10. **Do not use variance retention or classical equivalence after compression as evidence about quantum opportunity.**
+11. **Do not force a constrained reservoir to reproduce information already handled well by the frozen classical baseline when the scientific question is incremental value.**
 
 ## Immediate next action
 
-Reconstruct the causal HAR behavior inside branch states from code and outputs, specifically:
+Implement and audit the four task-specific causal path channels before building another reservoir.
+
+Required order:
 
 ```text
-volatility forecast skill inside branch states
-vs
-ability of the same forecast to discriminate recovery from relapse
-vs
-VIX discrimination inside the same episodes
-vs
-matched stressed non-branch controls where relevant
+1. implement causal task-specific path channels in src/
+2. add unit tests for causality, clipping, and endpoint invariance
+3. run endpoint redundancy audit
+4. run temporal-order destruction control
+5. freeze the four-channel sequence
+6. build matched compact classical temporal control
+7. only then implement the 4-qubit QRC
+8. evaluate both as additive corrections to the same frozen baseline
 ```
 
-Do not run another reservoir experiment until this distinction is established.
+No broad reservoir or circuit architecture search is justified at this stage.
