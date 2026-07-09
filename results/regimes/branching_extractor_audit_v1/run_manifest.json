@@ -1,0 +1,47 @@
+{
+  "data_path": "data/processed/phase3_spy_vix_volatility_extended.csv",
+  "n_rows": 8330,
+  "date_start": "1993-04-27",
+  "date_end": "2026-06-03",
+  "grid": {
+    "stress_quantiles": [
+      0.65,
+      0.7,
+      0.75
+    ],
+    "drawdown_thresholds": [
+      -0.05,
+      -0.06
+    ],
+    "stabilization_return_floors": [
+      -0.015,
+      -0.005
+    ],
+    "prior_decline_thresholds": [
+      -0.03,
+      -0.05
+    ],
+    "n_definitions": 24
+  },
+  "mid_grid": {
+    "state_config": {
+      "expanding_min_periods": 504,
+      "stress_quantile": 0.7,
+      "drawdown_threshold": -0.06,
+      "rv_ratio_cap": 1.0,
+      "stabilization_return_floor": -0.005,
+      "prior_decline_threshold": -0.05,
+      "prior_decline_lookback": 20,
+      "merge_gap_days": 3,
+      "min_episode_separation": 20
+    },
+    "outcome_config": {
+      "horizon": 40,
+      "recovery_scale": 0.55,
+      "relapse_scale": 0.7
+    },
+    "branch_point_rule": "first qualifying day of merged causal candidate run",
+    "episode_rule": "merge gaps <= merge_gap_days, then enforce minimum start separation"
+  },
+  "status": "audit only; no benchmark definition is locked by this runner"
+}

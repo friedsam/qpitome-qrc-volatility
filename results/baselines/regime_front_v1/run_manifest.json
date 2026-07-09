@@ -1,0 +1,51 @@
+{
+  "data_path": "data/processed/phase3_spy_vix_volatility_extended.csv",
+  "n_rows": 7807,
+  "date_start": "1995-04-24",
+  "date_end": "2026-05-05",
+  "target": "broad regime 20 trading rows ahead",
+  "regime_order": [
+    "calm",
+    "mild_stress",
+    "deterioration",
+    "acute_crisis",
+    "volatile_rebound",
+    "easing_normalization"
+  ],
+  "models": {
+    "persistence": "future regime equals current regime",
+    "har_state_logit": [
+      "log_rv_5d",
+      "log_rv_20d",
+      "log_rv_60d"
+    ],
+    "state_logit": [
+      "log_rv_5d",
+      "log_rv_20d",
+      "log_rv_60d",
+      "rv_ratio_5_20_map",
+      "rv_ratio_20_60_map",
+      "rv_5d_change_5d",
+      "rv_20d_change_5d",
+      "return_5d",
+      "return_20d",
+      "drawdown_120d"
+    ]
+  },
+  "regime_config": {
+    "expanding_min_periods": 504,
+    "stress_quantile": 0.7,
+    "high_stress_quantile": 0.9,
+    "damage_threshold": -0.05,
+    "severe_damage_threshold": -0.1,
+    "rebound_5d_threshold": 0.01,
+    "deterioration_5d_threshold": -0.01
+  },
+  "walkforward": {
+    "n_folds": 5,
+    "min_train": 2500,
+    "val_size": 504,
+    "purge": 60,
+    "min_test_size": 100
+  }
+}
