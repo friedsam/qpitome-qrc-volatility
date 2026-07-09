@@ -6,7 +6,9 @@ This is the authoritative project-level record. It is intentionally shorter than
 
 ## Current scientific thesis
 
-Broad 20-day realized-volatility forecasting is strongly explained by cheap classical information, especially VIX/HAR-like level structure. The more interesting Track A problem is a recurrent causal **unstable-aftermath branching state**: markets remain stressed and damaged but appear to stabilize, then resolve into recovery, relapse, or mixed outcomes. The current project question is whether temporal models, especially reservoir models, can add predictive information where cheap classical volatility forecasting and static branch-state descriptions stop being decisive.
+The challenge is fundamentally about **forecasting regime changes**, not maximizing generic volatility-forecast accuracy. Broad 20-day realized-volatility forecasting is strongly explained by cheap classical information, especially VIX/HAR-like level structure. The more interesting Track A problem is a recurrent causal **unstable-aftermath branching state**: markets remain stressed and damaged but appear to stabilize, then resolve into recovery, relapse, or mixed outcomes.
+
+The key empirical hypothesis is therefore not that volatility becomes unforecastable. It is that **volatility can remain forecastable while becoming a misleading or weak guide to the direction of the regime transition**. In these episodes VIX is no longer dominant as an outcome discriminator. The current project question is whether temporal models, especially reservoir models, can add predictive information about branch resolution beyond the still-useful classical volatility forecast.
 
 No quantum advantage has been demonstrated.
 
@@ -15,13 +17,13 @@ No quantum advantage has been demonstrated.
 ```text
 broad volatility forecasting
     -> cheap classical models dominate
-    -> inspect where this stops answering the regime-transition question
+    -> challenge asks for regime-transition forecasting, not only volatility level
     -> identify recurrent stressed/stabilizing branching state
     -> verify state recurrence and heterogeneous outcomes
-    -> test whether HAR/VIX remains useful but ceases to determine outcome
-    -> define the unresolved forecasting target
+    -> show that volatility can still be forecast while VIX/HAR cease to determine recovery versus relapse
+    -> isolate the transition information missing from the volatility forecast
     -> ESN as closest classical reservoir control
-    -> QRC only after the target and classical residual are fixed
+    -> QRC only after that unresolved transition target is fixed
 ```
 
 ## Proven or strongly supported findings
@@ -39,7 +41,7 @@ rv_5d, rv_10d, rv_20d, rv_60d, vix_close
 -> future_rv_20d
 ```
 
-Independent audit showed VIX alone is nearly as strong as the headline HAR+VIX model on the old level target. This changes the interpretation: the dominant baseline is largely a forward-looking implied-volatility information effect, not evidence that generic linear dynamics exhaust every transition problem.
+Independent audit showed VIX alone is nearly as strong as the headline HAR+VIX model on the old level target. This changes the interpretation: the dominant baseline is largely a forward-looking implied-volatility information effect, not evidence that generic linear dynamics exhaust the regime-transition problem.
 
 Relevant files:
 
@@ -108,13 +110,23 @@ The immediate question is not yet "which QRC architecture wins?"
 
 It is:
 
-> **What exactly changes about classical volatility forecasting inside the branching state, and is that change linked to recovery versus relapse?**
+> **Can classical models continue to forecast volatility inside the branching state while failing to forecast which regime transition occurs, and what information resolves that gap?**
+
+This distinction is mandatory:
+
+```text
+volatility forecast skill
+!=
+regime-transition forecast skill
+```
 
 The next accepted experiment must establish one of three cases:
 
-1. HAR/VIX does not fail differently in branch states -> the proposed residual story is wrong.
-2. HAR/VIX behaves differently in branch states, but forecast errors are unrelated to branch outcome -> volatility forecasting and branch resolution are separate tasks.
-3. HAR/VIX forecast behavior or residuals differ systematically by eventual outcome -> a residual/temporal reservoir target is scientifically justified.
+1. HAR/VIX volatility forecasts remain useful and also determine recovery versus relapse -> the branching task is largely classically solved.
+2. HAR/VIX volatility forecasts remain useful but are weak or misleading for recovery versus relapse -> the desired regime-transition gap exists.
+3. HAR/VIX volatility forecasts themselves collapse inside branch states -> this is a different failure mode and should not be confused with the intended transition problem.
+
+The scientifically interesting case is #2.
 
 ## Rework boundary
 
@@ -134,7 +146,7 @@ branch discovery
 -> long-history residual variants
 ```
 
-The work after the line is not discarded, but it is **not an accepted dependency** until the HAR/branch relationship is understood deeply enough to define the target.
+The work after the line is not discarded, but it is **not an accepted dependency** until the HAR/branch relationship is understood deeply enough to define the transition target.
 
 ## Active artifact map
 
@@ -220,6 +232,7 @@ The earlier long-history reconstruction based on rolling standard deviation rath
    - output location;
    - plausible paper role.
 8. An artifact remains active only if deleting it would make a final claim unverifiable or remove the only evidence for an important rejected hypothesis.
+9. **Do not let volatility forecasting become the project objective by default.** Any volatility result must be interpreted against the actual Track A question: forecasting regime changes and transitions.
 
 ## Time control
 
@@ -239,10 +252,13 @@ After day 10, new science requires explicit justification against submission ris
 Reconstruct the causal HAR behavior inside branch states from code and outputs, specifically:
 
 ```text
-global HAR performance
-vs branch-state HAR performance
-vs matched stressed non-branch controls
-vs recovery/relapse outcome-conditioned behavior
+volatility forecast skill inside branch states
+vs
+ability of the same forecast to discriminate recovery from relapse
+vs
+VIX discrimination inside the same episodes
+vs
+matched stressed non-branch controls where relevant
 ```
 
-Do not run another reservoir experiment until this relationship is understood.
+Do not run another reservoir experiment until this distinction is established.
