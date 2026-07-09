@@ -1,0 +1,17 @@
+{
+  "episode_source": "results/regimes/branching_extractor_audit_v1/mid_grid_episodes.csv",
+  "n_complete_episodes": 48,
+  "config": {
+    "n_folds": 5,
+    "min_train_episodes": 18,
+    "val_episodes": 6,
+    "min_test_episodes": 4,
+    "outcome_horizon_rows": 40,
+    "embargo_rows": 0
+  },
+  "unit_of_evaluation": "branch episode",
+  "leakage_rule": "train/validation outcome window must end strictly before first test branch point",
+  "test_blocks": "chronological, non-overlapping episode blocks",
+  "validation": "most recent leakage-safe prior episodes",
+  "status": "protocol audit; no model fitting"
+}

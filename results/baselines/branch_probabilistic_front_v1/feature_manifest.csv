@@ -1,0 +1,5 @@
+model,features
+historical_class_rate,historical recovery rate
+vix_only,vix_close
+current_state,stress_ratio | drawdown_120d | rv_ratio_5_20_branch | return_5d_branch
+state_plus_motion,stress_ratio | drawdown_120d | rv_ratio_5_20_branch | return_5d_branch | rv_5d_change_5d_branch | worst_return_5d_in_prior_window

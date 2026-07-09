@@ -1,0 +1,25 @@
+{
+  "data": "data/processed/phase3_spy_vix_volatility_extended.csv",
+  "episodes": "results/regimes/branching_extractor_audit_v1/mid_grid_episodes.csv",
+  "task": "binary recovery versus relapse",
+  "positive_class": "recovery",
+  "mixed_handling": "retained in chronology; excluded from binary fitting and scoring",
+  "protocol": {
+    "min_train_episodes": 18,
+    "outcome_horizon_rows": 40,
+    "embargo_rows": 0
+  },
+  "models": [
+    "historical_class_rate",
+    "vix_only",
+    "current_state",
+    "state_plus_motion"
+  ],
+  "logit": {
+    "standardization": "fit on each prequential training set only",
+    "C": 1.0,
+    "solver": "lbfgs",
+    "tuning": "none"
+  },
+  "status": "first boring probabilistic baseline ladder"
+}

@@ -1,0 +1,13 @@
+{
+  "episode_source": "results/regimes/branching_extractor_audit_v1/mid_grid_episodes.csv",
+  "n_complete_episodes": 48,
+  "config": {
+    "min_train_episodes": 18,
+    "outcome_horizon_rows": 40,
+    "embargo_rows": 0
+  },
+  "unit_of_evaluation": "branch episode",
+  "evaluation": "expanding one-step prequential",
+  "leakage_rule": "training episode outcome window must end strictly before test branch point",
+  "status": "protocol audit; no model fitting"
+}
