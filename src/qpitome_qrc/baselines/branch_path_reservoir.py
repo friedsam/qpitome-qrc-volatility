@@ -108,10 +108,20 @@ def continuous_esn_daily_states(
     leak: float,
     seed: int,
 ) -> np.ndarray:
-    """Run one reservoir continuously through the full causal market sequence."""
+    """Run one reservoir continuously after the causal channel warm-up period."""
     x = daily_channels.loc[:, PATH_COLUMNS].to_numpy(dtype=float)
-    if not np.isfinite(x).all():
-        raise ValueError("Continuous ESN channels contain non-finite values")
+    finite_rows = np.isfinite(x).all(axis=1)
+    if not finite_rows.any():
+        raise ValueError("Continuous ESN channels contain no fully finite rows")
+
+    first_finite = int(np.flatnonzero(finite_rows)[0])
+    if not finite_rows[first_finite:].all():
+        bad = np.flatnonzero(~finite_rows[first_finite:]) + first_finite
+        raise ValueError(
+            "Continuous ESN channels contain non-finite values after warm-up: "
+            f"first bad row {int(bad[0])}"
+        )
+
     w_in, w = make_esn_weights(
         n_inputs=x.shape[1],
         n_reservoir=n_reservoir,
@@ -120,12 +130,13 @@ def continuous_esn_daily_states(
         seed=seed,
     )
     h = np.zeros(n_reservoir, dtype=float)
-    rows: list[np.ndarray] = []
-    for u_t in x:
+    rows = np.full((len(x), n_reservoir + x.shape[1]), np.nan, dtype=float)
+    for row_idx in range(first_finite, len(x)):
+        u_t = x[row_idx]
         h_new = np.tanh(w_in @ u_t + w @ h)
         h = (1.0 - leak) * h + leak * h_new
-        rows.append(np.concatenate([h.copy(), u_t]))
-    return np.asarray(rows)
+        rows[row_idx] = np.concatenate([h.copy(), u_t])
+    return rows
 
 
 def episode_features_from_daily_states(
@@ -134,4 +145,7 @@ def episode_features_from_daily_states(
 ) -> tuple[np.ndarray, np.ndarray]:
     ids = episodes["episode_id"].astype(int).to_numpy()
     idx = episodes["branch_idx"].astype(int).to_numpy()
-    return ids, daily_states[idx]
+    features = daily_states[idx]
+    if not np.isfinite(features).all():
+        raise ValueError("One or more episode branch points occur before ESN warm-up completes")
+    return ids, features
