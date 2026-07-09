@@ -159,6 +159,7 @@ def main() -> None:
         ]["episode_id"].astype(int).tolist()
         y_train = lookup.loc[train_ids, "har_log_residual_actual"].to_numpy(float)
 
+        # HAR itself is the zero-residual reference prediction.
         rows.append({
             "step": int(step.step),
             "episode_id": test_id,
@@ -196,6 +197,7 @@ def main() -> None:
         pred["har_future_rv20_pred"] * np.exp(pred["har_log_residual_pred"])
     ).clip(lower=1e-8)
 
+    # Fixed-seed ensembles average residual predictions before reconstruction.
     for family in ("reset_esn", "continuous_esn"):
         seed_models = [f"{family}_seed{s}" for s in SEEDS]
         subset = pred[pred["model"].isin(seed_models)]
