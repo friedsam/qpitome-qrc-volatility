@@ -116,6 +116,7 @@ def main() -> None:
 
     pred = pd.DataFrame(rows)
 
+    # Fixed-seed ensemble probabilities are averages, not selected seeds.
     for family in ("reset_esn", "continuous_esn"):
         seed_models = [f"{family}_seed{s}" for s in SEEDS]
         wide = pred[pred["model"].isin(seed_models)].pivot(index="episode_id", columns="model", values="p_recovery")
