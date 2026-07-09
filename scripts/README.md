@@ -31,12 +31,13 @@ Dataset construction and extension:
 
 ESN and matched-path evaluation workflows. Active branch-state runners:
 
-- `run_branch_path_reservoir_front.py` — matched full-path linear versus reset/continuous ESN classifier
+- `run_branch_path_reservoir_front.py` — matched full-path linear versus reset/continuous ESN classifier on the modern branch sample
+- `run_long_history_branch_resolution_replication.py` — frozen direct recovery-versus-relapse replication on the canonical 1950–2026 branch episodes
 - `run_branch_har_residual_path_front.py` — modern-sample HAR-residual path benchmark
 - `run_branch_har_residual_input_families.py` — input-family experiment implementation
 - `run_branch_har_residual_input_families_v2.py` — corrected supported entry point for the input-family experiment
-- `run_long_history_har_residual_replication.py` — reusable long-history replication engine
-- `run_long_history_har_residual_replication_canonical.py` — supported canonical 1950–2026 replication entry point
+- `run_long_history_har_residual_replication.py` — reusable long-history volatility-residual replication engine
+- `run_long_history_har_residual_replication_canonical.py` — supported canonical 1950–2026 volatility-residual replication entry point
 
 `baselines/comparison/`
 
