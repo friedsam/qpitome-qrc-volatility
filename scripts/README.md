@@ -29,11 +29,26 @@ Dataset construction and extension:
 
 `baselines/esn/`
 
-ESN evaluation workflows.
+ESN and matched-path evaluation workflows. Active branch-state runners:
+
+- `run_branch_path_reservoir_front.py` — matched full-path linear versus reset/continuous ESN classifier
+- `run_branch_har_residual_path_front.py` — modern-sample HAR-residual path benchmark
+- `run_branch_har_residual_input_families.py` — input-family experiment implementation
+- `run_branch_har_residual_input_families_v2.py` — corrected supported entry point for the input-family experiment
+- `run_long_history_har_residual_replication.py` — reusable long-history replication engine
+- `run_long_history_har_residual_replication_canonical.py` — supported canonical 1950–2026 replication entry point
 
 `baselines/comparison/`
 
-Cross-baseline comparison workflows.
+Cheap controls and cross-baseline comparison workflows. Active Phase 3 runners:
+
+- `run_residual_front_baselines.py` — continuous innovation persistence/HAR front
+- `run_regime_front_baselines.py` — broad next-regime controls
+- `run_regime_change_front.py` — generic regime-change controls
+- `run_branch_probabilistic_front.py` — boring branch-resolution probability baseline
+- `run_branch_har_front.py` — causal HAR-derived branch-resolution baseline
+
+No new runner should be created directly under `scripts/baselines/`.
 
 ## Quantum reservoir computing
 
@@ -59,9 +74,17 @@ Tail-event and finite-shot diagnostics.
 
 HAR failure analysis and matched-path diagnostics.
 
+Active branch-state audit:
+
+- `audit_branch_har_continuous.py` — branch-conditioned continuous HAR versus persistence
+
 `diagnostics/regime/`
 
 Market-regime discovery and state interpretation.
+
+Active long-history audit:
+
+- `audit_long_history_reconstruction_discrepancy.py` — forensic RV-convention and episode-count audit
 
 `diagnostics/temporal_context/`
 
