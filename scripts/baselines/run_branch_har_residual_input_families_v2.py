@@ -31,15 +31,15 @@ def add_har_aware_channels_contiguous(
     out = mod.add_base_ratios(daily)
 
     earliest_branch = int(episodes["branch_idx"].astype(int).min())
-    latest_branch = int(episodes["branch_idx"].astype(int).max())
 
     # Earliest local path row needs forecasts lagged by 20 rows and differenced
-    # by 5 rows. Compute one contiguous span so the continuous ESN has no gaps.
+    # by 5 rows. Compute from there through the dataset end so the generic
+    # continuous-state ESN sees one fully contiguous finite sequence.
     first_needed = max(
         0,
         earliest_branch - mod.LOOKBACK + 1 - 25,
     )
-    needed_rows = np.arange(first_needed, latest_branch + 1, dtype=int)
+    needed_rows = np.arange(first_needed, len(out), dtype=int)
 
     har_pred = mod.causal_har_predictions_for_rows(out, needed_rows)
     out["causal_har_pred_daily"] = har_pred
