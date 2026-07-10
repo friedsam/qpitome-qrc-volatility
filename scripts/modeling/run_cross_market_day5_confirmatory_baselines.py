@@ -59,10 +59,11 @@ def score(group, model):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     frame = pd.read_csv(BASE / "day5_landmark_frame.csv", parse_dates=["branch_date", "landmark_date"])
-    clusters = pd.read_csv(CLUSTERS, parse_dates=["branch_date"])
+    clusters = pd.read_csv(CLUSTERS)
     clusters = clusters[["market_key", "episode_id", "cluster_id"]]
-    cluster_start = clusters.groupby("cluster_id", as_index=False)["branch_date"].min().rename(columns={"branch_date": "cluster_start"})
-    frame = frame.merge(clusters, on=["market_key", "episode_id"], how="left").merge(cluster_start, on="cluster_id", how="left")
+    frame = frame.merge(clusters, on=["market_key", "episode_id"], how="left")
+    cluster_start = frame.groupby("cluster_id", as_index=False)["branch_date"].min().rename(columns={"branch_date": "cluster_start"})
+    frame = frame.merge(cluster_start, on="cluster_id", how="left")
     frame = frame.dropna(subset=D2 + ["y_recovery", "landmark_date", "cluster_start"]).sort_values(["landmark_date", "market_key", "episode_id"]).reset_index(drop=True)
 
     rows = []
