@@ -84,7 +84,9 @@ def test_extract_transition_windows_ends_at_branch_index() -> None:
     episodes = pd.DataFrame(
         {
             "episode_id": [3, 7],
-            "branch_idx": [150, 170],
+            # The drawdown-repair channel has a 120-row warm-up. Use branch
+            # points whose full 40-row windows are beyond that warm-up.
+            "branch_idx": [160, 170],
         }
     )
 
