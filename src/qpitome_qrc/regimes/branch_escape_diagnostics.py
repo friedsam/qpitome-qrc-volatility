@@ -100,7 +100,9 @@ def _eligible_control_mask(
     episodes: pd.DataFrame,
     cfg: EscapeDiagnosticConfig,
 ) -> np.ndarray:
-    mask = detected["branch_high_stress"].fillna(False).to_numpy(dtype=bool)
+    # pandas may expose a read-only NumPy view; this mask is intentionally
+    # mutated below, so force an independent writable array.
+    mask = detected["branch_high_stress"].fillna(False).to_numpy(dtype=bool).copy()
     mask &= ~detected["branch_candidate"].fillna(False).to_numpy(dtype=bool)
     n = len(mask)
     for idx in episodes["branch_idx"].astype(int):
@@ -162,8 +164,13 @@ def match_high_stress_controls(
         if pool.empty:
             break
 
-        branch_vector = (np.asarray([getattr(row, f) for f in MATCH_FEATURES], dtype=float) - center.to_numpy()) / scale.to_numpy()
-        pool_matrix = (pool.loc[:, MATCH_FEATURES].to_numpy(dtype=float) - center.to_numpy()) / scale.to_numpy()
+        branch_vector = (
+            np.asarray([getattr(row, f) for f in MATCH_FEATURES], dtype=float)
+            - center.to_numpy()
+        ) / scale.to_numpy()
+        pool_matrix = (
+            pool.loc[:, MATCH_FEATURES].to_numpy(dtype=float) - center.to_numpy()
+        ) / scale.to_numpy()
         distances = np.sqrt(np.sum((pool_matrix - branch_vector) ** 2, axis=1))
         best_position = int(np.argmin(distances))
         best = pool.iloc[best_position]
@@ -211,7 +218,12 @@ def build_matched_control_relaxation(
             segment = channels.iloc[start:end]
             if len(segment) != cfg.control_window:
                 continue
-            required = ["normalized_return", "log_rv_ratio", "downside_pressure", "drawdown_state"]
+            required = [
+                "normalized_return",
+                "log_rv_ratio",
+                "downside_pressure",
+                "drawdown_state",
+            ]
             if segment[required].isna().any().any():
                 continue
             rows.append(
@@ -265,7 +277,10 @@ def build_resolution_aligned_separation(
     return pd.DataFrame(rows)
 
 
-def commitment_window(separation: pd.DataFrame, config: EscapeDiagnosticConfig | None = None) -> int | None:
+def commitment_window(
+    separation: pd.DataFrame,
+    config: EscapeDiagnosticConfig | None = None,
+) -> int | None:
     """Return farthest lead with a sustained multi-feature separation signal."""
     cfg = config or EscapeDiagnosticConfig()
     summary = (
@@ -278,10 +293,15 @@ def commitment_window(separation: pd.DataFrame, config: EscapeDiagnosticConfig |
         .sort_values("lead_days_before_escape", ascending=False)
     )
     strong_by_lead = {
-        int(row.lead_days_before_escape): int(row.strong) >= cfg.commitment_required_metrics
+        int(row.lead_days_before_escape): int(row.strong)
+        >= cfg.commitment_required_metrics
         for row in summary.itertuples(index=False)
     }
-    for farthest in range(cfg.commitment_max_lead, cfg.commitment_consecutive_days - 1, -1):
+    for farthest in range(
+        cfg.commitment_max_lead,
+        cfg.commitment_consecutive_days - 1,
+        -1,
+    ):
         leads = range(farthest, farthest - cfg.commitment_consecutive_days, -1)
         if all(strong_by_lead.get(lead, False) for lead in leads):
             return farthest
