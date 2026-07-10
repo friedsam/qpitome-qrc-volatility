@@ -49,10 +49,12 @@ def test_cluster_episode_intervals_forms_connected_components() -> None:
         intervals, CrisisClusterConfig(buffer_days=2)
     )
 
-    assert detail["cluster_id"].tolist() == [1, 1, 1, 2]
-    assert summary["n_episodes"].tolist() == [3, 1]
-    assert summary["n_markets"].tolist() == [3, 1]
-    assert summary["multi_market"].tolist() == [True, False]
+    # The first two buffered intervals overlap. The third starts one calendar day
+    # after the connected component ends, so it forms a new cluster.
+    assert detail["cluster_id"].tolist() == [1, 1, 2, 3]
+    assert summary["n_episodes"].tolist() == [2, 1, 1]
+    assert summary["n_markets"].tolist() == [2, 1, 1]
+    assert summary["multi_market"].tolist() == [True, False, False]
 
 
 def test_summarize_cluster_contribution_counts_market_unique_clusters() -> None:
