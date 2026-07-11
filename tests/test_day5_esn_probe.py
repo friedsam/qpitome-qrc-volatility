@@ -46,7 +46,6 @@ def test_sequence_tensor_preserves_day_and_channel_order() -> None:
 
 
 def test_offset_logistic_leaves_zero_correction_when_offset_is_exact() -> None:
-    # Three balanced groups with exact empirical probabilities supplied as offsets.
     probabilities = np.repeat([0.25, 0.50, 0.75], 40)
     y = np.concatenate(
         [
@@ -80,6 +79,15 @@ def test_offset_logistic_finds_incremental_signal() -> None:
 
     assert beta.shape == (1,)
     assert beta[0] > 0.4
+
+
+def test_single_row_offset_correction_extracts_scalar() -> None:
+    features = np.array([[1.0, -2.0]])
+    beta = np.array([0.25, 0.5])
+    correction = (features @ beta).item()
+
+    assert isinstance(correction, float)
+    assert correction == pytest.approx(-0.75)
 
 
 def test_honest_d1_predictions_use_only_rows_before_cluster_start(monkeypatch) -> None:
