@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""State-conditioned memoryless Rydberg probe for the day-5 branch target."""
+"""Local-detuning Rydberg probe for the day-5 branch-direction target."""
 
 from __future__ import annotations
 
@@ -15,13 +15,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.baselines.logistic_offset import clip_prob
-from qpitome_qrc.qrc.rydberg_reservoir import RydbergQRCConfig, build_rydberg_feature_matrix
+from qpitome_qrc.qrc.local_detuning_reservoir import (
+    LocalDetuningConfig,
+    build_local_detuning_feature_matrix,
+)
 
 MIN_TRAIN = 30
 EVAL_START = pd.Timestamp("1990-01-01")
-MASK_COUNT = 4
-MASK_SEED = 20260711
-MASK_EVOLUTION_US = 0.55
 
 D1 = [
     "current_return_5d_from_branch",
@@ -36,6 +36,7 @@ STATIC = [
     "closest_to_relapse",
     "closest_to_recovery",
 ]
+MODEL = "D1_plus_local_rydberg_joint"
 
 
 def add_extrema(frame: pd.DataFrame) -> pd.DataFrame:
@@ -83,57 +84,33 @@ def logistic_pipeline(C: float) -> Pipeline:
     )
 
 
-def make_masks() -> np.ndarray:
-    rng = np.random.default_rng(MASK_SEED)
-    return rng.normal(0.0, 1.0 / np.sqrt(len(STATIC)), size=(MASK_COUNT, 2, len(STATIC)))
-
-
-def make_mask_windows(
-    train_X: np.ndarray,
-    all_X: np.ndarray,
-    masks: np.ndarray,
-) -> np.ndarray:
+def static_to_local_patterns(train_X: np.ndarray, X: np.ndarray) -> np.ndarray:
+    """Map five train-standardized coordinates to eight site coefficients."""
     scaler = StandardScaler().fit(train_X)
-    scaled = scaler.transform(all_X)
-    projected = np.einsum("sd,mcd->smc", scaled, masks)
-    return np.tanh(projected)
-
-
-def rydberg_config() -> RydbergQRCConfig:
-    return RydbergQRCConfig(
-        geometry="dual_chain",
-        n_atoms_slow=4,
-        n_atoms_fast=4,
-        spacing_slow_um=9.0,
-        spacing_fast_um=15.0,
-        row_gap_um=14.0,
-        lookback_days=MASK_COUNT,
-        anchor_count=MASK_COUNT,
-        anchor_policy="even",
-        total_time_us=MASK_COUNT * MASK_EVOLUTION_US,
-        delta_center_rad_us=6.0,
-        delta_span_rad_us=4.0,
-        omega_base_rad_us=6.0,
-        omega_mod_frac=0.5,
-        omega_mode="encode_rate",
-        encoding="plateau",
-        memory_mode="memoryless",
-        observable_mode="n",
-        collect_anchor_features=True,
-        shots=None,
+    z = scaler.transform(X)
+    site_values = np.column_stack(
+        [
+            z[:, 0],
+            z[:, 1],
+            z[:, 2],
+            z[:, 3],
+            z[:, 4],
+            (z[:, 0] - z[:, 1]) / np.sqrt(2.0),
+            (z[:, 3] - z[:, 4]) / np.sqrt(2.0),
+            (z[:, 1] - z[:, 2] + z[:, 3] - z[:, 4]) / 2.0,
+        ]
     )
+    return 0.5 * (np.tanh(site_values) + 1.0)
 
 
 def evaluate(frame: pd.DataFrame) -> pd.DataFrame:
-    masks = make_masks()
-    config = rydberg_config()
+    config = LocalDetuningConfig()
     rows = []
 
     for i, row in frame.iterrows():
         if row["landmark_date"] < EVAL_START:
             continue
-        train_mask = frame["landmark_date"] < row["cluster_start"]
-        train_idx = np.flatnonzero(train_mask.to_numpy())
+        train_idx = np.flatnonzero((frame["landmark_date"] < row["cluster_start"]).to_numpy())
         if len(train_idx) < MIN_TRAIN:
             continue
         train = frame.iloc[train_idx]
@@ -145,18 +122,22 @@ def evaluate(frame: pd.DataFrame) -> pd.DataFrame:
         d1_model.fit(train[D1].to_numpy(float), y_train)
         p_d1 = float(d1_model.predict_proba(frame.loc[[i], D1].to_numpy(float))[0, 1])
 
-        windows = make_mask_windows(
+        fold_rows = np.concatenate([train_idx, np.array([i], dtype=int)])
+        patterns = static_to_local_patterns(
             train[STATIC].to_numpy(float),
-            frame[STATIC].to_numpy(float),
-            masks,
+            frame.iloc[fold_rows][STATIC].to_numpy(float),
         )
-        features = build_rydberg_feature_matrix(windows, config)
-        joint_train = np.column_stack([train[D1].to_numpy(float), features[train_idx]])
-        joint_test = np.column_stack([frame.loc[[i], D1].to_numpy(float), features[[i]]])
+        rydberg_features = build_local_detuning_feature_matrix(patterns, config)
+        H_train = rydberg_features[:-1]
+        H_test = rydberg_features[-1:]
 
         joint = logistic_pipeline(C=0.1)
-        joint.fit(joint_train, y_train)
-        p_joint = float(joint.predict_proba(joint_test)[0, 1])
+        joint.fit(np.column_stack([train[D1].to_numpy(float), H_train]), y_train)
+        p_joint = float(
+            joint.predict_proba(
+                np.column_stack([frame.loc[[i], D1].to_numpy(float), H_test])
+            )[0, 1]
+        )
 
         rows.append(
             {
@@ -167,7 +148,7 @@ def evaluate(frame: pd.DataFrame) -> pd.DataFrame:
                 "landmark_date": row["landmark_date"],
                 "y": int(row["y_recovery"]),
                 "D1": p_d1,
-                "D1_plus_rydberg_joint": p_joint,
+                MODEL: p_joint,
             }
         )
 
@@ -189,11 +170,11 @@ def score(group: pd.DataFrame, model: str) -> dict:
     }
 
 
-def paired_delta(group: pd.DataFrame, model: str) -> dict:
-    use = group[["y", "D1", model, "cluster_id"]].dropna().copy()
+def paired_delta(group: pd.DataFrame) -> dict:
+    use = group[["y", "D1", MODEL, "cluster_id"]].dropna().copy()
     y = use["y"].to_numpy(int)
     p_d1 = clip_prob(use["D1"].to_numpy(float))
-    p_model = clip_prob(use[model].to_numpy(float))
+    p_model = clip_prob(use[MODEL].to_numpy(float))
     ll_d1 = -(y * np.log(p_d1) + (1 - y) * np.log(1 - p_d1))
     ll_model = -(y * np.log(p_model) + (1 - y) * np.log(1 - p_model))
     br_d1 = (p_d1 - y) ** 2
@@ -202,7 +183,7 @@ def paired_delta(group: pd.DataFrame, model: str) -> dict:
     use["dbr"] = br_model - br_d1
     cluster = use.groupby("cluster_id")[["dll", "dbr"]].mean()
     return {
-        "model": model,
+        "model": MODEL,
         "n": int(len(use)),
         "n_clusters": int(use["cluster_id"].nunique()),
         "D1_logloss_matched": float(ll_d1.mean()),
@@ -250,14 +231,14 @@ def summarize(predictions: pd.DataFrame):
     paired_rows = []
     cluster_rows = []
     for group_name, group in groups.items():
-        for model in ("D1", "D1_plus_rydberg_joint"):
+        for model in ("D1", MODEL):
             row = score(group, model)
             row["group"] = group_name
             summary_rows.append(row)
             crow = cluster_metrics(group, model)
             crow["group"] = group_name
             cluster_rows.append(crow)
-        prow = paired_delta(group, "D1_plus_rydberg_joint")
+        prow = paired_delta(group)
         prow["group"] = group_name
         paired_rows.append(prow)
     return pd.DataFrame(summary_rows), pd.DataFrame(paired_rows), pd.DataFrame(cluster_rows)
@@ -283,14 +264,19 @@ def main() -> None:
     summary.to_csv(args.outdir / "summary_metrics.csv", index=False)
     paired.to_csv(args.outdir / "paired_score_deltas.csv", index=False)
     cluster.to_csv(args.outdir / "cluster_weighted_metrics.csv", index=False)
+    config = LocalDetuningConfig()
     manifest = {
-        "purpose": "Bounded state-conditioned memoryless Rydberg probe",
+        "purpose": "Bounded native local-detuning Rydberg probe",
         "static_inputs": STATIC,
-        "mask_count": MASK_COUNT,
-        "mask_seed": MASK_SEED,
-        "mask_evolution_us": MASK_EVOLUTION_US,
-        "feature_dimension": MASK_COUNT * 8,
-        "rydberg_config": rydberg_config().__dict__,
+        "site_encoding": "five direct coordinates plus three fixed contrasts",
+        "feature_dimension": 36,
+        "local_detuning_config": {
+            "evolution_time_us": config.evolution_time_us,
+            "global_omega_rad_us": config.global_omega_rad_us,
+            "global_delta_rad_us": config.global_delta_rad_us,
+            "local_delta_rad_us": config.local_delta_rad_us,
+            "reservoir": config.reservoir.__dict__,
+        },
         "status": "exploratory exact-state simulation; no parameter sweep",
     }
     (args.outdir / "run_manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
