@@ -1,10 +1,9 @@
 """Static local-detuning Rydberg feature map.
 
-This module complements ``rydberg_reservoir`` with a state-conditioned local
-field. Each sample supplies one spatial detuning pattern over the atoms while
-the global Rabi drive and global detuning remain fixed. The state is freshly
-initialized for every sample; this is a static nonlinear feature map, not a
-temporal reservoir.
+Each sample supplies one spatial detuning pattern over the atoms while the global
+Rabi drive and global detuning remain fixed. The state is freshly initialized
+for every sample; this is a static nonlinear feature map, not a temporal
+reservoir.
 
 Hamiltonian (angular-frequency units):
 
@@ -12,10 +11,6 @@ Hamiltonian (angular-frequency units):
                - Delta_g sum_i n_i
                - Delta_l sum_i h_i(x) n_i
                + sum_{i<j} V_ij n_i n_j
-
-The local pattern ``h_i(x)`` is constrained to [0, 1]. On hardware, changing
-``h_i`` changes the program; samples are not free shot repetitions of one
-waveform.
 """
 
 from __future__ import annotations
@@ -67,11 +62,11 @@ def validate_local_patterns(patterns: np.ndarray, n_atoms: int) -> np.ndarray:
     return patterns
 
 
-def evolve_local_detuning_batch(
+def evolve_local_detuning_states(
     local_patterns: np.ndarray,
     config: LocalDetuningConfig,
 ) -> np.ndarray:
-    """Evolve one fresh state per local-detuning pattern and return features."""
+    """Evolve one fresh exact state per local-detuning pattern."""
     pre = precompute(config.reservoir)
     patterns = validate_local_patterns(local_patterns, pre.n_atoms)
     n_samples = len(patterns)
@@ -80,7 +75,6 @@ def evolve_local_detuning_batch(
     states = np.zeros((n_samples, dim), dtype=complex)
     states[:, 0] = 1.0
 
-    # Site-resolved occupation-weighted local pattern for every basis state.
     local_occupation = patterns @ pre.occ_bits.T
     diag = (
         pre.e_int[None, :]
@@ -113,7 +107,16 @@ def evolve_local_detuning_batch(
     for step in range(n_steps):
         states = _apply_global_rx_batch(states, theta, pre.n_atoms)
         states = states * (half if step == n_steps - 1 else full)
+    return states
 
+
+def evolve_local_detuning_batch(
+    local_patterns: np.ndarray,
+    config: LocalDetuningConfig,
+) -> np.ndarray:
+    """Evolve exact states and return configured measured features."""
+    pre = precompute(config.reservoir)
+    states = evolve_local_detuning_states(local_patterns, config)
     rng = (
         np.random.default_rng(config.reservoir.shot_seed)
         if config.reservoir.shots is not None
