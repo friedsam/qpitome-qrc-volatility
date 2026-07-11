@@ -29,7 +29,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     average_precision_score,
@@ -40,12 +39,17 @@ from sklearn.metrics import (
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from qpitome_qrc.baselines.logistic_offset import (
+    clip_prob,
+    fit_offset_logistic,
+    logit,
+    sigmoid,
+)
 from qpitome_qrc.baselines.numpy_esn import make_esn_weights, esn_states
 
 
 MIN_TRAIN = 30
 EVAL_START = pd.Timestamp("1990-01-01")
-EPS = 1e-6
 
 D1 = [
     "current_return_5d_from_branch",
@@ -92,25 +96,6 @@ SENSITIVITY = ESNConfig(
     seeds=(7, 42, 123, 1001, 2026),
     correction_l2=10.0,
 )
-
-
-def clip_prob(p: np.ndarray | float) -> np.ndarray:
-    return np.clip(np.asarray(p, dtype=float), EPS, 1.0 - EPS)
-
-
-def logit(p: np.ndarray | float) -> np.ndarray:
-    p = clip_prob(p)
-    return np.log(p / (1.0 - p))
-
-
-def sigmoid(x: np.ndarray | float) -> np.ndarray:
-    x = np.asarray(x, dtype=float)
-    out = np.empty_like(x)
-    pos = x >= 0
-    out[pos] = 1.0 / (1.0 + np.exp(-x[pos]))
-    expx = np.exp(x[~pos])
-    out[~pos] = expx / (1.0 + expx)
-    return out
 
 
 def load_frame(path_panel: Path, clusters_path: Path) -> pd.DataFrame:
@@ -203,45 +188,6 @@ def compute_honest_d1_predictions(frame: pd.DataFrame) -> np.ndarray:
             frame.loc[[i], D1].to_numpy(float)
         )[0, 1]
     return pred
-
-
-def fit_offset_logistic(
-    X: np.ndarray,
-    y: np.ndarray,
-    offset: np.ndarray,
-    l2: float,
-) -> tuple[np.ndarray, float]:
-    """
-    Fit p = sigmoid(offset + intercept + X @ beta).
-    Features must already be standardized.
-    Intercept is unpenalized; beta has L2 penalty.
-    """
-    n_features = X.shape[1]
-
-    def objective(theta: np.ndarray) -> tuple[float, np.ndarray]:
-        intercept = theta[0]
-        beta = theta[1:]
-        eta = offset + intercept + X @ beta
-        p = clip_prob(sigmoid(eta))
-        loss = -np.sum(y * np.log(p) + (1 - y) * np.log(1 - p))
-        loss += 0.5 * l2 * float(beta @ beta)
-
-        residual = p - y
-        grad_intercept = float(np.sum(residual))
-        grad_beta = X.T @ residual + l2 * beta
-        grad = np.concatenate([[grad_intercept], grad_beta])
-        return float(loss), grad
-
-    result = minimize(
-        fun=lambda th: objective(th)[0],
-        x0=np.zeros(n_features + 1),
-        jac=lambda th: objective(th)[1],
-        method="L-BFGS-B",
-        options={"maxiter": 1000, "ftol": 1e-10},
-    )
-    if not result.success:
-        raise RuntimeError(f"Offset optimization failed: {result.message}")
-    return result.x[1:], float(result.x[0])
 
 
 def reservoir_features_for_fold(
