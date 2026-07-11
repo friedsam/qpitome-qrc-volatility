@@ -11,6 +11,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import KFold
+from sklearn.preprocessing import StandardScaler
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -50,6 +53,54 @@ FEATURE_BLOCKS: dict[str, list[str]] = {
 RIDGE_ALPHA = 10.0
 OFFSET_L2 = 100.0
 RNG_SEED = 20260711
+N_SPLITS = 5
+
+
+def residualize_train_test_safe(
+    X_train: np.ndarray,
+    H_train: np.ndarray,
+    X_test: np.ndarray,
+    H_test: np.ndarray,
+    alpha: float,
+    n_splits: int = N_SPLITS,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Cross-fit residuals while preserving a 2D shape for single-output Ridge."""
+    X_train = np.asarray(X_train, dtype=float)
+    X_test = np.asarray(X_test, dtype=float)
+    H_train = np.asarray(H_train, dtype=float)
+    H_test = np.asarray(H_test, dtype=float)
+    if H_train.ndim == 1:
+        H_train = H_train.reshape(-1, 1)
+    if H_test.ndim == 1:
+        H_test = H_test.reshape(-1, 1)
+
+    def fitted_values(
+        X_fit: np.ndarray,
+        H_fit: np.ndarray,
+        X_eval: np.ndarray,
+    ) -> np.ndarray:
+        x_scaler = StandardScaler().fit(X_fit)
+        h_scaler = StandardScaler().fit(H_fit)
+        Xs = x_scaler.transform(X_fit)
+        Xes = x_scaler.transform(X_eval)
+        Hs = h_scaler.transform(H_fit)
+        model = Ridge(alpha=alpha).fit(Xs, Hs)
+        predicted = np.asarray(model.predict(Xes), dtype=float)
+        if predicted.ndim == 1:
+            predicted = predicted.reshape(-1, 1)
+        return h_scaler.inverse_transform(predicted)
+
+    splits = min(n_splits, len(X_train))
+    if splits < 2:
+        raise ValueError("At least two training rows are required")
+    predicted_train = np.empty_like(H_train, dtype=float)
+    kfold = KFold(n_splits=splits, shuffle=False)
+    for fit_idx, valid_idx in kfold.split(X_train):
+        predicted_train[valid_idx] = fitted_values(
+            X_train[fit_idx], H_train[fit_idx], X_train[valid_idx]
+        )
+    predicted_test = fitted_values(X_train, H_train, X_test)
+    return H_train - predicted_train, H_test - predicted_test
 
 
 def score_deltas(predictions: pd.DataFrame, model: str) -> dict[str, float | int | str]:
@@ -107,7 +158,7 @@ def run(frame: pd.DataFrame) -> pd.DataFrame:
         for block_name, columns in FEATURE_BLOCKS.items():
             H_train = train[columns].to_numpy(float)
             H_test = test[columns].to_numpy(float)
-            R_train, R_test = base.residualize_train_test(
+            R_train, R_test = residualize_train_test_safe(
                 X_train, H_train, X_test, H_test, RIDGE_ALPHA
             )
 
