@@ -1,5 +1,7 @@
 # Day-5 Spatial Rydberg Standard Assay
 
+> Completed results, confirmation tests, and bounded conclusions are recorded in [`day5_spatial_rydberg_results.md`](day5_spatial_rydberg_results.md).
+
 ## Four experimental layers
 
 1. **Input features** — which financial state variables enter the quantum system.
