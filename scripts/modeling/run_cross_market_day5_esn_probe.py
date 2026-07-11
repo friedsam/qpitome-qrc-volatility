@@ -430,6 +430,74 @@ def cluster_weighted(group: pd.DataFrame, model: str) -> dict:
     }
 
 
+def paired_score_deltas(
+    group: pd.DataFrame,
+    model: str,
+    reference: str = "D1",
+) -> dict:
+    """Paired proper-score deltas on the exact common prediction cohort."""
+    use = group[["y", reference, model, "cluster_id"]].dropna().copy()
+    y = use["y"].to_numpy(int)
+    p_ref = clip_prob(use[reference].to_numpy(float))
+    p_model = clip_prob(use[model].to_numpy(float))
+    ll_ref = -(y * np.log(p_ref) + (1 - y) * np.log(1 - p_ref))
+    ll_model = -(y * np.log(p_model) + (1 - y) * np.log(1 - p_model))
+    brier_ref = (p_ref - y) ** 2
+    brier_model = (p_model - y) ** 2
+
+    use["delta_logloss"] = ll_model - ll_ref
+    use["delta_brier"] = brier_model - brier_ref
+    by_cluster = use.groupby("cluster_id")[["delta_logloss", "delta_brier"]].mean()
+
+    return {
+        "model": model,
+        "reference": reference,
+        "n": int(len(use)),
+        "n_clusters": int(use["cluster_id"].nunique()),
+        "reference_logloss_matched": float(ll_ref.mean()),
+        "model_logloss_matched": float(ll_model.mean()),
+        "delta_logloss_model_minus_reference": float((ll_model - ll_ref).mean()),
+        "reference_brier_matched": float(brier_ref.mean()),
+        "model_brier_matched": float(brier_model.mean()),
+        "delta_brier_model_minus_reference": float((brier_model - brier_ref).mean()),
+        "cluster_mean_delta_logloss": float(by_cluster["delta_logloss"].mean()),
+        "cluster_mean_delta_brier": float(by_cluster["delta_brier"].mean()),
+    }
+
+
+def paired_summary(preds: pd.DataFrame) -> pd.DataFrame:
+    models = ["ESN_direct", "D1_plus_ESN_joint", "D1_plus_ESN_offset"]
+    groups = {
+        "all_post1990_purged": preds,
+        "validation_non_spy": preds[preds["market_key"] != "spy"],
+        "leave_nikkei_out_eval": preds[preds["market_key"] != "nikkei_225"],
+        "nikkei_only_eval": preds[preds["market_key"] == "nikkei_225"],
+    }
+    rows = []
+    for group_name, group in groups.items():
+        for model in models:
+            row = paired_score_deltas(group, model)
+            row["group"] = group_name
+            rows.append(row)
+    return pd.DataFrame(rows)[
+        [
+            "group",
+            "model",
+            "reference",
+            "n",
+            "n_clusters",
+            "reference_logloss_matched",
+            "model_logloss_matched",
+            "delta_logloss_model_minus_reference",
+            "reference_brier_matched",
+            "model_brier_matched",
+            "delta_brier_model_minus_reference",
+            "cluster_mean_delta_logloss",
+            "cluster_mean_delta_brier",
+        ]
+    ]
+
+
 def summarize(preds: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     models = ["D1", "ESN_direct", "D1_plus_ESN_joint", "D1_plus_ESN_offset"]
     groups = {
@@ -519,10 +587,12 @@ def main() -> None:
 
     predictions = pd.concat(all_preds, ignore_index=True)
     metrics, cluster_metrics = summarize(predictions)
+    paired_metrics = paired_summary(predictions)
 
     predictions.to_csv(args.outdir / "predictions.csv", index=False)
     metrics.to_csv(args.outdir / "summary_metrics.csv", index=False)
     cluster_metrics.to_csv(args.outdir / "cluster_weighted_metrics.csv", index=False)
+    paired_metrics.to_csv(args.outdir / "paired_score_deltas.csv", index=False)
 
     manifest = {
         "purpose": "Exploratory bounded ESN assessment for day-5 branch direction",
@@ -547,6 +617,8 @@ def main() -> None:
 
     print("\nSummary metrics")
     print(metrics.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
+    print("\nPaired score deltas versus D1 (positive = worse)")
+    print(paired_metrics.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
     print("\nCluster-weighted metrics")
     print(
         cluster_metrics.to_string(
