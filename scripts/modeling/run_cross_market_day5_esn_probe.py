@@ -374,7 +374,7 @@ def evaluate_config(
                 eta_test = (
                     float(logit(p_d1_test))
                     + intercept
-                    + float(F_corr_test @ beta)
+                    + (F_corr_test @ beta).item()
                 )
                 offset_seed_preds.append(float(sigmoid(eta_test)))
 
