@@ -1,0 +1,38 @@
+{
+  "name": "d1_leave_one_out_positive_control",
+  "preparation": "none",
+  "blocks": {
+    "current_return_5d_from_branch": {
+      "features": ["current_return_5d_from_branch"],
+      "baseline_features": [
+        "distance_to_recovery_barrier",
+        "distance_to_relapse_barrier",
+        "barrier_width"
+      ]
+    },
+    "distance_to_recovery_barrier": {
+      "features": ["distance_to_recovery_barrier"],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_relapse_barrier",
+        "barrier_width"
+      ]
+    },
+    "distance_to_relapse_barrier": {
+      "features": ["distance_to_relapse_barrier"],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_recovery_barrier",
+        "barrier_width"
+      ]
+    },
+    "barrier_width": {
+      "features": ["barrier_width"],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_recovery_barrier",
+        "distance_to_relapse_barrier"
+      ]
+    }
+  }
+}
