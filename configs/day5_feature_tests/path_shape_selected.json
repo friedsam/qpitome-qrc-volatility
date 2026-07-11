@@ -1,0 +1,56 @@
+{
+  "name": "selected_path_shape_candidates",
+  "preparation": "path_shape",
+  "blocks": {
+    "path_efficiency": {
+      "features": ["path_efficiency"],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_recovery_barrier",
+        "distance_to_relapse_barrier",
+        "barrier_width"
+      ]
+    },
+    "path_reversal_count": {
+      "features": ["path_reversal_count"],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_recovery_barrier",
+        "distance_to_relapse_barrier",
+        "barrier_width"
+      ]
+    },
+    "path_early_late_imbalance": {
+      "features": ["path_early_late_imbalance"],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_recovery_barrier",
+        "distance_to_relapse_barrier",
+        "barrier_width"
+      ]
+    },
+    "trajectory_r_d1": {
+      "features": ["trajectory_r_d1"],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_recovery_barrier",
+        "distance_to_relapse_barrier",
+        "barrier_width"
+      ]
+    },
+    "compact_four": {
+      "features": [
+        "path_efficiency",
+        "path_reversal_count",
+        "path_early_late_imbalance",
+        "trajectory_r_d1"
+      ],
+      "baseline_features": [
+        "current_return_5d_from_branch",
+        "distance_to_recovery_barrier",
+        "distance_to_relapse_barrier",
+        "barrier_width"
+      ]
+    }
+  }
+}
