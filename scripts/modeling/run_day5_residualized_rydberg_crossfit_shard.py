@@ -25,6 +25,8 @@ BLOCK = "occupations"
 RESIDUALIZER = "quadratic"
 RIDGE_ALPHA = 10.0
 OFFSET_L2 = 100.0
+INNER_CROSSFIT_MIN_TRAIN = 10
+MIN_CORRECTION_TRAIN = 20
 
 
 def historical_crossfit_d1_logits(train: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
@@ -33,7 +35,7 @@ def historical_crossfit_d1_logits(train: pd.DataFrame) -> tuple[np.ndarray, np.n
     for cluster_start, group in train.groupby("cluster_start", sort=True):
         valid_positions = train.index.get_indexer(group.index)
         prior = train[train["landmark_date"] < cluster_start]
-        if len(prior) < base.assay.MIN_TRAIN or prior["y_recovery"].nunique() < 2:
+        if len(prior) < INNER_CROSSFIT_MIN_TRAIN or prior["y_recovery"].nunique() < 2:
             continue
         model = base.assay.logistic_pipeline(1.0)
         model.fit(prior[base.assay.D1].to_numpy(float), prior["y_recovery"].to_numpy(int))
@@ -76,8 +78,11 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
         )
 
         cf_positions, cf_logits = historical_crossfit_d1_logits(train)
-        if len(cf_positions) < base.assay.MIN_TRAIN or np.unique(y_train[cf_positions]).size < 2:
-            raise RuntimeError(f"Insufficient cross-fitted rows for cluster {cluster_start}")
+        if len(cf_positions) < MIN_CORRECTION_TRAIN or np.unique(y_train[cf_positions]).size < 2:
+            raise RuntimeError(
+                f"Insufficient cross-fitted rows for cluster {cluster_start}: "
+                f"got {len(cf_positions)}, need {MIN_CORRECTION_TRAIN}"
+            )
 
         full_d1 = base.assay.logistic_pipeline(1.0)
         full_d1.fit(d1_train, y_train)
@@ -143,6 +148,8 @@ def main() -> None:
         "residualizer": RESIDUALIZER,
         "ridge_alpha": RIDGE_ALPHA,
         "offset_l2": OFFSET_L2,
+        "inner_crossfit_min_train": INNER_CROSSFIT_MIN_TRAIN,
+        "min_correction_train": MIN_CORRECTION_TRAIN,
         "n_predictions": int(len(predictions)),
     }
     (args.outdir / f"manifest_shard_{args.shard_index}.json").write_text(json.dumps(manifest, indent=2))
