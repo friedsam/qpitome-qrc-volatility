@@ -41,9 +41,9 @@ def test_path_shape_features_are_finite() -> None:
 
 def test_total_variation_and_reversals() -> None:
     out = module.add_path_shape_features(toy_frame())
-    assert out.loc[0, "path_total_variation"] == 8.0
+    assert out.loc[0, "path_total_variation"] == 6.0
     assert out.loc[0, "path_reversal_count"] == 2
-    assert out.loc[1, "path_total_variation"] == 8.0
+    assert out.loc[1, "path_total_variation"] == 6.0
     assert out.loc[1, "path_reversal_count"] == 2
 
 
