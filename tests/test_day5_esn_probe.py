@@ -8,14 +8,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 
-SCRIPT = (
-    Path(__file__).resolve().parents[1]
-    / "scripts"
-    / "modeling"
-    / "run_cross_market_day5_esn_probe.py"
-)
+REPO = Path(__file__).resolve().parents[1]
+SCRIPT = REPO / "scripts" / "modeling" / "run_cross_market_day5_esn_probe.py"
 SPEC = importlib.util.spec_from_file_location("day5_esn_probe", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 probe = importlib.util.module_from_spec(SPEC)
@@ -116,3 +113,51 @@ def test_honest_d1_predictions_use_only_rows_before_cluster_start(monkeypatch) -
         range(probe.MIN_TRAIN, n), observed_training_maxima
     ):
         assert maximum_training_date < frame.loc[row_index, "cluster_start"]
+
+
+def test_reproduced_d1_matches_locked_prediction_oracle() -> None:
+    """Integration oracle; runs when the exploratory path panel is available."""
+    panel = REPO / "scratch" / "path_panel_day0_5.csv"
+    clusters = (
+        REPO
+        / "results"
+        / "diagnostics"
+        / "cross_market_crisis_clusters_v2"
+        / "branch_sync_cluster_detail.csv"
+    )
+    oracle = (
+        REPO
+        / "results"
+        / "baselines"
+        / "cross_market_day5_confirmatory_v1"
+        / "purged_calendar_prequential_predictions.csv"
+    )
+    if not panel.exists() or not clusters.exists() or not oracle.exists():
+        pytest.skip("integration inputs are not present")
+
+    frame = probe.load_frame(panel, clusters)
+    reproduced = probe.compute_honest_d1_predictions(frame)
+    current = frame.loc[
+        frame["landmark_date"] >= probe.EVAL_START,
+        ["market_key", "episode_id"],
+    ].copy()
+    current["D1_reproduced"] = reproduced[current.index]
+    current = current.dropna(subset=["D1_reproduced"])
+
+    locked = pd.read_csv(oracle)[
+        ["market_key", "episode_id", "D1_geometry"]
+    ]
+    comparison = current.merge(
+        locked,
+        on=["market_key", "episode_id"],
+        how="inner",
+        validate="one_to_one",
+    )
+
+    assert len(comparison) == len(locked)
+    np.testing.assert_allclose(
+        comparison["D1_reproduced"].to_numpy(float),
+        comparison["D1_geometry"].to_numpy(float),
+        atol=1e-12,
+        rtol=0,
+    )
