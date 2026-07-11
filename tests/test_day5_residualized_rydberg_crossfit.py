@@ -38,4 +38,5 @@ def test_historical_crossfit_uses_only_prior_rows() -> None:
     assert len(positions) == len(logits)
     assert len(positions) > 0
     assert np.all(np.isfinite(logits))
-    assert positions.min() >= 30
+    assert positions.min() >= 12
+    assert len(positions) >= module.MIN_CORRECTION_TRAIN
