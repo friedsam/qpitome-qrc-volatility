@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,7 @@ SCRIPT = (
 SPEC = importlib.util.spec_from_file_location("day5_esn_probe", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 probe = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = probe
 SPEC.loader.exec_module(probe)
 
 
@@ -47,7 +49,7 @@ def test_sequence_tensor_preserves_day_and_channel_order() -> None:
 
 
 def test_offset_logistic_leaves_zero_correction_when_offset_is_exact() -> None:
-    # Four balanced groups with exact empirical probabilities supplied as offsets.
+    # Three balanced groups with exact empirical probabilities supplied as offsets.
     probabilities = np.repeat([0.25, 0.50, 0.75], 40)
     y = np.concatenate(
         [
