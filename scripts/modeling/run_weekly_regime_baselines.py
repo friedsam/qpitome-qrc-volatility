@@ -122,11 +122,18 @@ def evaluate(
     rows = []
     fit_history = []
 
+    refit_number = 0
     for t in range(initial_train, len(x)):
         must_refit = t == initial_train or (refit_every > 0 and (t - initial_train) % refit_every == 0)
         if must_refit:
+            refit_number += 1
             train = x[:t]
+            print(
+                f"refit {refit_number} date={dates[t].date()} train_weeks={t}",
+                flush=True,
+            )
             for model_name, spec in specs.items():
+                print(f"  fitting {model_name}", flush=True)
                 fit = fit_gaussian_hmm(
                     train,
                     n_states=spec["n_states"],
@@ -146,7 +153,7 @@ def evaluate(
                 )
                 filtered[model_name] = filtered_train[-1]
                 fit_history.append({
-                    "refit_date": dates[t],
+                    "refit_date": str(dates[t].date()),
                     "train_weeks": int(t),
                     "model": model_name,
                     "train_log_likelihood": fit.log_likelihood,
@@ -245,6 +252,9 @@ def main() -> None:
     weekly.to_csv(args.outdir / "weekly_returns.csv", header=True)
     predictions.to_csv(args.outdir / "one_step_predictions.csv", index=False)
     scores.to_csv(args.outdir / "predictive_scores.csv", index=False)
+    pd.DataFrame(manifest["fit_history"]).to_csv(
+        args.outdir / "fit_history.csv", index=False
+    )
     (args.outdir / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
     print("Weekly regime baseline predictive scores (higher is better)")
