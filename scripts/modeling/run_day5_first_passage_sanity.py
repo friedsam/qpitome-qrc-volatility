@@ -140,7 +140,7 @@ def run(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     )
     lam = corridor_position(frame.loc[eligible])
     diagnostics = {
-        "n_eligible": int(eligible.sum()),
+        "n_eligible": int(len(eval_frame)),
         "max_abs_width_identity_error": float(np.max(np.abs(width_error))),
         "lambda_min": float(np.min(lam)),
         "lambda_max": float(np.max(lam)),
