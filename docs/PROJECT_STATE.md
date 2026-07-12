@@ -1,418 +1,185 @@
 # Project state and submission lineage
 
-Last updated: 2026-07-09
+Last updated: 2026-07-12
 
 This is the authoritative project-level record. Detailed experiment history remains in topic documentation and Git history.
 
 ## Current scientific thesis
 
-The challenge is fundamentally about **forecasting regime changes**, not maximizing generic volatility-forecast accuracy.
+The primary stakeholder question is:
 
-Broad 20-day realized-volatility forecasting is strongly explained by cheap classical information, especially VIX/HAR-like level structure. The more interesting Track A problem is a recurrent causal **stressed-but-stabilizing branching state**: markets remain stressed and damaged, appear to stabilize, then resolve into recovery, relapse, or mixed outcomes.
+> Can we detect, early enough to matter, that the market is entering a rare transition regime where ordinary volatility dynamics become unreliable, and then predict whether the market moves toward recovery or further deterioration?
 
-The key empirical distinction is:
+The project now separates two tasks:
 
-```text
-volatility forecast skill
-!=
-regime-transition forecast skill
-```
+1. **Task A — branching-onset detection:** predict the onset of a rare broad-regime transition.
+2. **Task B — destination prediction:** predict the destination regime once the market is entering a branching interval.
 
-The current target is therefore:
-
-```text
-P(recovery versus relapse | information available at branch date)
-```
+A useful Rydberg result may improve either task. Task B is currently the preferred primary target because nonlinear temporal memory is more likely to matter for destination prediction. Task A is retained as a bounded fallback and write-up component.
 
 No quantum advantage has been demonstrated.
 
-## Current story
+## Current route
 
 ```text
-broad volatility forecasting
-    -> cheap classical models dominate
-    -> challenge asks for regime-transition forecasting
-    -> identify recurrent stressed/stabilizing branching state
-    -> verify heterogeneous future resolutions
-    -> VIX and static state do not resolve recovery versus relapse well
-    -> state + motion provides weak contemporary transition ranking signal
-    -> HAR volatility forecast remains strong almost everywhere except relapse branches
-    -> generic ESN representations fail
-    -> generic PCA compression preserves variance but not incremental transition value
-    -> residual-targeted ESN correction also fails
-    -> retain baseline-plus-correction architecture
-    -> redesign reservoir input around transition-specific path ordering
-    -> test matched compact classical temporal control before QRC
+continuous weekly returns
+    -> causal HMM/GARCH classical baseline
+    -> identify rare broad-regime transition windows
+    -> audit whether onset detection is trivial
+    -> define a destination target from future observed market behavior
+    -> compare strong classical temporal controls
+    -> test temporal Rydberg reservoir on the unresolved residual task
+    -> only then perform noise, shot, and hardware studies
 ```
 
-## Proven or strongly supported findings
+The previous barrier-defined recovery/relapse classifier is no longer the primary route. It remains part of the historical experiment record but should not be used as the headline target.
 
-### 1. Broad volatility level is classically easy relative to the transition task
+## Classical baseline status
 
-Status: **KEEP**
+### Weekly Gaussian regime models
 
-Historical canonical HAR:
+Causal expanding-history evaluation on weekly S&P 500 returns used 520 initial training weeks and annual refits. The current implementation is a masked Baum-Welch EM approximation, not a faithful Bayesian replication of Maheu, McCurdy, and Song.
 
-```text
-rv_5d, rv_10d, rv_20d, rv_60d, vix_close
--> StandardScaler
--> Ridge(alpha=1.0)
--> future_rv_20d
-```
+One-step predictive-density results over 3,471 forecast weeks:
 
-VIX alone is nearly as strong as the headline HAR+VIX model on the broad level target. The dominant baseline is largely a forward-looking implied-volatility information effect, not evidence that generic linear dynamics solve regime transitions.
-
-Relevant files:
-
-```text
-src/qpitome_qrc/baselines/branch_har.py
-scripts/canonical/run_canonical_har.py
-```
-
-### 2. The stressed-but-stabilizing branching state is real enough to study
-
-Status: **KEEP**
-
-The state is defined causally from high realized volatility, persistent drawdown, short-horizon volatility deceleration, partial stabilization, and evidence that a decline actually occurred. VIX and future targets do not enter detection.
-
-The phenomenon survived nearby threshold definitions and independent long-history reconstruction. Exact counts and hard labels remain formulation-dependent; the recurrent morphology is stronger evidence than any single classifier score.
-
-Canonical implementation:
-
-```text
-src/qpitome_qrc/regimes/branching_state.py
-```
-
-Primary documentation:
-
-```text
-docs/experiments/branching_extractor_formalization.md
-docs/experiments/branching_workstream_map.md
-```
-
-### 3. Episode prediction requires leakage-safe chronological evaluation
-
-Status: **KEEP**
-
-Accepted geometry: expanding prequential evaluation. Before predicting one episode, train only on earlier episodes whose full future outcome windows have completed.
-
-Canonical implementation:
-
-```text
-src/qpitome_qrc/evaluation/episode_prequential.py
-```
-
-### 4. Episode-level power is a hard limitation
-
-Status: **KEEP AS LIMITATION**
-
-Modern canonical sample:
-
-```text
-48 complete episodes
-17 recovery
-13 relapse
-18 mixed
-17 binary OOS predictions
-```
-
-Long-history reconstruction:
-
-```text
-80 complete episodes
-28 recovery
-19 relapse
-33 mixed
-37 binary OOS predictions
-```
-
-Small AUC differences cannot support strong superiority claims alone. Probability quality, temporal stability, ablations, and matched controls are mandatory.
-
-### 5. Cheap direct transition baselines are weak but informative
-
-Status: **KEEP**
-
-Modern direct binary results:
-
-```text
-historical class rate      AUC 0.492
-VIX only                   AUC 0.386
-current state              AUC 0.500
-state + motion             AUC 0.621
-```
+| Model | Mean log predictive density | Total log predictive density |
+|---|---:|---:|
+| restricted HMM4 | -2.07638 | -7207.12 |
+| unrestricted HMM4 | -2.07859 | -7214.77 |
+| HMM2 | -2.09757 | -7280.66 |
+| iid Gaussian | -2.21780 | -7697.98 |
 
 Interpretation:
 
-- VIX does not resolve the transition.
-- Static state does not resolve the transition.
-- A small amount of recent motion adds weak ranking information.
-- Sample size is too small for a strong performance claim.
+- Four states materially outperform two states and an iid Gaussian baseline.
+- The restricted HMM4 beats unrestricted HMM4 by only 7.65 total log-score units.
+- That restricted-model advantage is concentrated in the most extreme 1% of return weeks and is strongly influenced by COVID.
+- Unrestricted HMM4 remains the neutral predictive comparator.
+- Restricted HMM4 remains valuable because its states are economically interpretable and it is more robust in a small number of extreme periods.
 
-Canonical features:
+### Restricted HMM4 state interpretation
 
-```text
-stress_ratio
-drawdown_120d
-rv_ratio_5_20_branch
-return_5d_branch
-rv_5d_change_5d_branch
-worst_return_5d_in_prior_window
-```
+Aggregate causal filtered-state profiles align with the intended four-state hierarchy:
 
-### 6. HAR adds no useful direct branch-transition signal
+| State | Interpretation | Weighted mean return | Weighted mean absolute return | Weighted 13-week volatility |
+|---|---|---:|---:|---:|
+| 0 | bear/stress | -0.13% | 2.43% | 2.56% |
+| 1 | bear rally | +0.41% | 1.48% | 2.00% |
+| 2 | bull correction | -0.46% | 1.65% | 1.74% |
+| 3 | bull | +0.48% | 1.10% | 1.67% |
 
-Status: **KEEP AS SUPPORTING NEGATIVE RESULT**
+The unrestricted model separates negative states reasonably but produces two less clearly differentiated positive states.
 
-Direct HAR-derived branch classifiers do not improve on `state_plus_motion`.
+Annual parameter stability is unresolved because the first long run lost fit-history output at manifest serialization. The runner is fixed and now checkpoints `fit_history.csv`. A later overnight rerun is justified, but it is not the immediate priority.
 
-The more important continuous result is different:
+### GARCH
 
-```text
-HAR volatility forecasting works well in recovery branches
-HAR volatility forecasting works very well in mixed branches
-HAR volatility forecasting fails specifically in relapse branches
-```
+GARCH remains required as a challenge-aligned classical comparator. The baseline set should remain compact:
 
-Canonical reproduced innovation R2:
+- iid or persistence baseline;
+- GARCH(1,1), preferably Student-t innovations;
+- HMM2;
+- unrestricted HMM4;
+- restricted HMM4;
+- one matched classical temporal reservoir for the final Rydberg comparison.
 
-```text
-all complete episodes          +0.315
-binary recovery/relapse        +0.035
-mixed                          +0.783
-recovery                       +0.623
-relapse                        -0.263
-```
+Do not expand classical exploration unless it changes target choice, hardware choice, encoding choice, or the final comparison.
 
-This supports the project thesis that broad volatility predictability and transition predictability are different objects.
+## Task A — branching-onset detection
 
-### 7. Generic ESN reservoir representations are closed as a primary lane
+Exploratory direction-neutral label:
 
-Status: **CLOSED / KEEP AS DIAGNOSTIC EVIDENCE**
+- current broad regime is bear-side `{0,1}` or bull-side `{2,3}`;
+- positive label means the broad regime flips within four weeks;
+- the new regime persists for at least three of the following four weeks.
 
-The generic ESN investigation tested:
+The label is retrospective, but all detector features are causal. The final write-up must state that this is forecasting a future latent-regime transition, not an externally observed event label.
 
-- reset and continuous state;
-- 50, 300, and 500 units;
-- historical spectral-radius and leak configurations;
-- fixed input normalization;
-- explicit bias;
-- final-state and mean-state trajectory summaries;
-- 5- and 10-component PCA compression;
-- incremental addition to `state_plus_motion`;
-- residual-targeted 1-3 component PLS compression;
-- additive correction to a frozen classical baseline.
+Chronological 60/40 holdout audit:
 
-No usable improvement emerged.
+- train prevalence: 0.1413;
+- test prevalence: 0.1497;
+- strongest trivial detector, HMM long-regime uncertainty: AP 0.3357, ROC AUC 0.7483;
+- one-week probability motion: AP 0.2870, ROC AUC 0.7312;
+- 4-week volatility: AP 0.1742;
+- 13-week volatility: AP 0.1728;
+- volatility change: AP 0.1588;
+- absolute return: AP 0.1743.
 
-The strongest interpretation is:
+Conclusion:
 
-> The generic reservoir is learning structure, but not structure aligned with recovery-versus-relapse information missing from the classical transition baseline.
+> Onset prediction is not merely a volatility-threshold problem. HMM state uncertainty contains useful but incomplete warning information.
 
-Detailed records:
+Task A passes the cheap gate. It should remain a limited write-up component and fallback target, not consume the main project unless Task B fails quickly or extra time remains.
 
-```text
-docs/experiments/branch_esn_architecture_audit.md
-docs/experiments/branch_esn_architecture_audit_results.md
-docs/experiments/branch_residual_offset_correction_results.md
-```
+The next Task A check is an event-time trajectory: warning probability should rise as the transition approaches, and useful lead time matters more than same-week confirmation.
 
-### 8. High variance retention does not validate quantum opportunity
+## Task B — destination prediction
 
-Status: **KEEP AS METHODOLOGICAL PRINCIPLE**
+This is the preferred Rydberg target.
 
-Compact ESN results showed:
+The desired question is:
 
-```text
-5 PCs preserve roughly 95% of reservoir variance
-10 PCs preserve roughly 99.8-99.9%
-```
+> Given a causal transition context, can the model predict whether the market moves toward recovery or further deterioration?
 
-Yet adding those components worsened incremental transition prediction.
+Requirements before implementation:
 
-Therefore:
+- destination outcome must be defined from future observed market behavior, not solely from an HMM-generated label;
+- admission into the transition set must be direction-neutral;
+- no shared geometric construction between diagnostic and outcome;
+- enough positive and negative episodes must remain for chronological evaluation;
+- trivial direction rules must be audited before Rydberg work;
+- the final Rydberg comparison should use a frozen classical baseline plus a protected correction whenever practical.
 
-```text
-preserving variance
-!=
-preserving information complementary to the classical baseline
-```
+## Rydberg hypothesis
 
-If a classical model performs nearly identically after PCA, that establishes only that PCA preserved what that classical model needs. It provides no evidence either for or against whether the same compression preserves information a quantum model could exploit.
+The defensible hypothesis is:
 
-This is not an argument against PCA. It is an argument against using classical equivalence after PCA as validation of quantum opportunity.
+> A temporal Rydberg reservoir can encode nonlinear path-dependent transition structure that is poorly represented by GARCH and finite-state Markov models, improving either early transition warning or conditional destination prediction.
 
-## Current unresolved scientific question
+The project should not claim that generic quantum dynamics forecast volatility better. Volatility is retained as an input, comparator, and challenge-aligned diagnostic, not as the sole scientific goal.
 
-The immediate question is now:
+## Closed or demoted lanes
 
-> **Among episodes with similar branch-point state and recent motion, does temporal ordering within the preceding path contain stable information about recovery versus relapse?**
+### Barrier-defined D1 classifier
 
-The next model should not be asked to reconstruct information already handled by the classical baseline.
+The four D1 features are rank two after standardization and nearly algebraically redundant. A zero-parameter first-passage null reproduces most of the D1 log-loss improvement over the prior. The old D1 headline is retired as construction-implied predictability.
 
-Retained architecture:
+### Static and residual Rydberg assays on D1
 
-```text
-frozen state_plus_motion baseline
-+
-small temporal correction
-```
+Occupations and pair observables largely reconstruct D1 geometry. Strict residualized Rydberg confirmation did not add generalizable signal. Higher-order output engineering also failed.
 
-The correction is the only object under comparison.
+### Generic ESN on the old branch task
 
-## QRC design direction
+Generic ESN representations, PCA compression, and residual correction did not improve the old recovery/relapse task. These remain methodological negative results, not evidence against temporal reservoirs on a redesigned dense or transition target.
 
-Do not send the previous generic six-channel path directly into a quantum reservoir and hope the circuit discovers the transition structure automatically.
+## Immediate priorities
 
-The first task-aligned design focuses on four causal path contrasts:
+1. Record Task A event-time score trajectories without expanding feature engineering.
+2. Add GARCH to complete the compact classical baseline.
+3. Define and audit Task B for sample count, class balance, trivial predictability, and chronological evaluability.
+4. Choose one Rydberg target.
+5. Freeze the baseline ladder and evaluation protocol.
+6. Run Rydberg simulation, matched classical controls, noise studies, and hardware tests.
+7. Write the submission while experiments are still running.
+
+## Repository rules
+
+Use one topic taxonomy across code, results, and documentation:
 
 ```text
-1. shock recurrence after apparent stabilization
-2. rebound efficiency after damage
-3. volatility-relaxation smoothness versus re-acceleration
-4. return-volatility phase relation
+scripts/modeling/<experiment>.py
+results/<family>/<experiment>_vN/
+docs/experiments/<protocol_or_results>.md
 ```
 
-Preferred minimal sequence:
+Each durable experiment should have:
 
-```text
-u1(t): signed return / local volatility
-u2(t): downside-shock recurrence signal
-u3(t): change in log(RV5 / RV20)
-u4(t): drawdown-repair increment
-```
+- one explicit question;
+- one output directory;
+- a manifest or configuration record;
+- predictions where applicable;
+- summary metrics;
+- a keep/skip decision.
 
-The first QRC candidate is deliberately compact:
-
-```text
-4 qubits
-40 sequential time steps
-fixed recurrent entangling layer
-8 observables total:
-  4 single-qubit Z
-  4 nearest-neighbor ZZ
-```
-
-Detailed design:
-
-```text
-docs/experiments/task_aligned_qrc_transition_design.md
-```
-
-## Required admission gate before QRC
-
-The task-specific sequence must first pass:
-
-```text
-1. endpoint redundancy audit
-2. temporal-order destruction control
-3. matched compact classical temporal control
-4. baseline-plus-correction OOS evaluation
-```
-
-The purpose is not to require classical success before quantum success. The purpose is to verify that the proposed channels actually represent the intended missing-information hypothesis and are not trivial rewrites of the baseline.
-
-## Active artifact map
-
-### KEEP — active dependencies
-
-```text
-docs/PROJECT_STATE.md
-
-docs/experiments/branching_extractor_formalization.md
-docs/experiments/branching_workstream_map.md
-docs/experiments/branch_esn_architecture_audit_results.md
-docs/experiments/branch_residual_offset_correction_results.md
-docs/experiments/task_aligned_qrc_transition_design.md
-
-src/qpitome_qrc/regimes/branching_state.py
-src/qpitome_qrc/evaluation/episode_prequential.py
-src/qpitome_qrc/baselines/branch_probabilistic.py
-src/qpitome_qrc/baselines/branch_har.py
-
-scripts/baselines/comparison/run_branch_probabilistic_front.py
-scripts/baselines/comparison/run_branch_har_front.py
-scripts/diagnostics/har/audit_branch_har_continuous.py
-
-results/regimes/branching_extractor_audit_v1/
-results/regimes/branch_outcome_label_audit_v1/
-results/regimes/episode_prequential_audit_v1/
-results/baselines/branch_probabilistic_front_v1/
-```
-
-### KEEP — important rejected-hypothesis evidence
-
-```text
-src/qpitome_qrc/baselines/branch_path_reservoir.py
-src/qpitome_qrc/baselines/branch_esn_audit.py
-src/qpitome_qrc/baselines/branch_residual_correction.py
-
-scripts/baselines/esn/run_branch_path_reservoir_front.py
-scripts/baselines/esn/run_branch_esn_architecture_audit.py
-scripts/baselines/esn/run_branch_historical_esn_capacity_admission.py
-scripts/baselines/esn/run_branch_compact_reservoir_incremental.py
-scripts/baselines/esn/run_branch_residual_offset_correction.py
-```
-
-These remain active because deleting them would remove the evidence that the generic ESN failure is not explained by one obvious architecture defect, readout dimension, or forced reconstruction of the classical component.
-
-### ARCHIVE CANDIDATES — superseded or premature fronts
-
-```text
-docs/experiments/regime_front.md
-docs/experiments/regime_target_decision.md
-docs/experiments/residual_front.md
-
-docs/experiments/episode_walkforward_protocol.md
-src/qpitome_qrc/evaluation/episode_walkforward.py
-scripts/regimes/audit_episode_walkforward.py
-
-scripts/baselines/comparison/run_regime_front_baselines.py
-scripts/baselines/comparison/run_regime_change_front.py
-scripts/baselines/comparison/run_residual_front_baselines.py
-
-scripts/baselines/esn/run_branch_har_residual_path_front.py
-scripts/baselines/esn/run_branch_har_residual_input_families.py
-scripts/baselines/esn/run_branch_har_residual_input_families_v2.py
-scripts/baselines/esn/run_long_history_har_residual_replication.py
-scripts/baselines/esn/run_long_history_har_residual_replication_canonical.py
-```
-
-Nothing should be deleted before exact provenance and reproducibility are checked.
-
-## Repository invariants
-
-1. **One scientific question -> one canonical runner.**
-2. Shared behavior belongs in `src/`; scripts are thin orchestration.
-3. No permanent `_v2`, `_v3`, `_final`, `_new`, or `_fixed2` filename chains.
-4. Topic taxonomy must align across `scripts/`, `src/`, `results/`, and `docs/`.
-5. No refactor is accepted without reproduction against an independent oracle or historical artifact.
-6. Generated row-level output is not tracked unless it is irreplaceable evidence.
-7. Every experiment must state before execution:
-   - exact claim tested;
-   - falsifying result;
-   - existing artifact extended or replaced;
-   - output location;
-   - plausible paper role.
-8. An artifact remains active only if deleting it would make a final claim unverifiable or remove the only evidence for an important rejected hypothesis.
-9. **Do not let volatility forecasting become the project objective by default.**
-10. **Do not use variance retention or classical equivalence after compression as evidence about quantum opportunity.**
-11. **Do not force a constrained reservoir to reproduce information already handled well by the frozen classical baseline when the scientific question is incremental value.**
-
-## Immediate next action
-
-Implement and audit the four task-specific causal path channels before building another reservoir.
-
-Required order:
-
-```text
-1. implement causal task-specific path channels in src/
-2. add unit tests for causality, clipping, and endpoint invariance
-3. run endpoint redundancy audit
-4. run temporal-order destruction control
-5. freeze the four-channel sequence
-6. build matched compact classical temporal control
-7. only then implement the 4-qubit QRC
-8. evaluate both as additive corrections to the same frozen baseline
-```
-
-No broad reservoir or circuit architecture search is justified at this stage.
+Do not turn the repository into a list of speculative branches. The final submission should contain one problem formulation, one locked baseline ladder, one selected Rydberg target, and concise challenge-relevant comparisons.
