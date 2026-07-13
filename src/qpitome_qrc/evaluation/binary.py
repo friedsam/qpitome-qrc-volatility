@@ -19,6 +19,34 @@ def logistic_pipeline(C: float) -> Pipeline:
     ])
 
 
+def fit_joint_predict(
+    d1_train: np.ndarray,
+    H_train: np.ndarray,
+    y: np.ndarray,
+    d1_test: np.ndarray,
+    H_test: np.ndarray,
+    C: float,
+) -> float:
+    """Fit D1 plus a feature block and predict one held-out row."""
+
+    model = logistic_pipeline(C)
+    model.fit(np.column_stack([d1_train, H_train]), y)
+    return float(model.predict_proba(np.column_stack([d1_test, H_test]))[0, 1])
+
+
+def fit_feature_only_predict(
+    H_train: np.ndarray,
+    y: np.ndarray,
+    H_test: np.ndarray,
+    C: float,
+) -> float:
+    """Fit a feature-only standardized logistic model and predict one row."""
+
+    model = logistic_pipeline(C)
+    model.fit(H_train, y)
+    return float(model.predict_proba(H_test)[0, 1])
+
+
 def fit_offset_predict(
     H_train: np.ndarray,
     y: np.ndarray,
