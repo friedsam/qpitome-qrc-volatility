@@ -4,40 +4,35 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
-REPO = Path(__file__).resolve().parents[2]
-
-
-def load_module(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-protected = load_module(
-    "day5_protected_input",
-    REPO / "scripts" / "modeling" / "run_day5_protected_input_residual.py",
+from qpitome_qrc.baselines.logistic_offset import logit
+from qpitome_qrc.day5.features import PROTECTED_FEATURE_BLOCKS, add_path_shape_features
+from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
+from qpitome_qrc.evaluation.binary import (
+    fit_offset_predict,
+    fit_train_test_probability_arrays,
+    logistic_pipeline,
 )
-base = protected.base
-crossfit = protected.crossfit
+from qpitome_qrc.evaluation.historical_crossfit import historical_crossfit_d1_logits
+from qpitome_qrc.evaluation.residualization import (
+    d1_basis,
+    residualize_train_test_safe,
+)
+from qpitome_qrc.evaluation.scoring import proper_score_deltas
 
-FEATURE_BLOCKS = protected.FEATURE_BLOCKS
+FEATURE_BLOCKS = PROTECTED_FEATURE_BLOCKS
 OFFSET_L2 = 100.0
 RIDGE_ALPHA = 10.0
 TANH_WIDTH = 32
 RNG_SEED = 20260711
+INNER_CROSSFIT_MIN_TRAIN = 10
+MIN_CORRECTION_TRAIN = 20
 
 
 def nonlinear_maps(
@@ -74,9 +69,15 @@ def gaussian_control(
     return rng.normal(size=train_shape), rng.normal(size=test_shape)
 
 
+def score_deltas(predictions: pd.DataFrame, model: str) -> dict[str, float | int | str]:
+    """Return the historical nonlinear-input delta schema via shared scoring."""
+
+    return proper_score_deltas(predictions, model, baseline="D1", clip=1e-8)
+
+
 def run(frame: pd.DataFrame) -> pd.DataFrame:
-    frame = protected.input_audit.add_path_shape_features(frame)
-    eligible = base.assay.eligible_rows(frame)
+    frame = add_path_shape_features(frame)
+    eligible = eligible_rows(frame)
     fold_groups = list(frame.loc[eligible].groupby("cluster_start", sort=True))
     records: list[dict] = []
 
@@ -84,26 +85,32 @@ def run(frame: pd.DataFrame) -> pd.DataFrame:
         train = frame[frame["landmark_date"] < cluster_start].copy()
         test = frame.loc[test_group.index].copy()
         y_train = train["y_recovery"].to_numpy(int)
-        d1_train = train[base.assay.D1].to_numpy(float)
-        d1_test = test[base.assay.D1].to_numpy(float)
-        X_train = base.d1_basis(d1_train, "quadratic")
-        X_test = base.d1_basis(d1_test, "quadratic")
+        d1_train = train[D1].to_numpy(float)
+        d1_test = test[D1].to_numpy(float)
+        X_train = d1_basis(d1_train, "quadratic")
+        X_test = d1_basis(d1_test, "quadratic")
 
-        cf_positions, cf_logits = crossfit.historical_crossfit_d1_logits(train)
-        if len(cf_positions) < crossfit.MIN_CORRECTION_TRAIN or np.unique(y_train[cf_positions]).size < 2:
+        cf_positions, cf_logits = historical_crossfit_d1_logits(
+            train,
+            min_train=INNER_CROSSFIT_MIN_TRAIN,
+        )
+        if len(cf_positions) < MIN_CORRECTION_TRAIN or np.unique(y_train[cf_positions]).size < 2:
             raise RuntimeError(f"Insufficient cross-fitted rows for {cluster_start}")
 
-        d1_model = base.assay.logistic_pipeline(1.0)
-        d1_model.fit(d1_train, y_train)
-        p_test_d1 = d1_model.predict_proba(d1_test)[:, 1]
-        offset_test = base.assay.logit(p_test_d1)
+        _, p_test_d1 = fit_train_test_probability_arrays(
+            d1_train,
+            y_train,
+            d1_test,
+            C=1.0,
+        )
+        offset_test = logit(p_test_d1)
         fold_predictions: dict[str, np.ndarray] = {"D1": p_test_d1}
 
         fold_seed = RNG_SEED + int(pd.Timestamp(cluster_start).value % 2**31)
         for block_pos, (block_name, columns) in enumerate(FEATURE_BLOCKS.items()):
             H_train = train[columns].to_numpy(float)
             H_test = test[columns].to_numpy(float)
-            R_train, R_test = protected.residualize_train_test_safe(
+            R_train, R_test = residualize_train_test_safe(
                 X_train, H_train, X_test, H_test, RIDGE_ALPHA
             )
             maps = nonlinear_maps(R_train, R_test, fold_seed + 1000 * block_pos)
@@ -111,7 +118,7 @@ def run(frame: pd.DataFrame) -> pd.DataFrame:
             for map_pos, (map_name, (M_train, M_test)) in enumerate(maps.items()):
                 corrected = []
                 for row_number in range(len(test)):
-                    corrected.append(base.assay.fit_offset_predict(
+                    corrected.append(fit_offset_predict(
                         M_train[cf_positions], y_train[cf_positions], M_test[[row_number]],
                         cf_logits, float(offset_test[row_number]), OFFSET_L2,
                     ))
@@ -123,7 +130,7 @@ def run(frame: pd.DataFrame) -> pd.DataFrame:
                 )
                 gaussian = []
                 for row_number in range(len(test)):
-                    gaussian.append(base.assay.fit_offset_predict(
+                    gaussian.append(fit_offset_predict(
                         G_train[cf_positions], y_train[cf_positions], G_test[[row_number]],
                         cf_logits, float(offset_test[row_number]), OFFSET_L2,
                     ))
@@ -161,10 +168,10 @@ def main() -> None:
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
-    frame = base.assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions = run(frame)
     models = [column for column in predictions.columns if column.startswith("nonlinear_") or column.startswith("gaussian_")]
-    summary = pd.DataFrame([protected.score_deltas(predictions, model) for model in models]).sort_values(
+    summary = pd.DataFrame([score_deltas(predictions, model) for model in models]).sort_values(
         ["delta_logloss", "delta_brier"]
     )
 
