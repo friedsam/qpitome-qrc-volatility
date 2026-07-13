@@ -9,79 +9,26 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, brier_score_loss, log_loss, roc_auc_score
-from sklearn.pipeline import Pipeline
+from sklearn.metrics import brier_score_loss, log_loss
 from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.baselines.logistic_offset import clip_prob
+from qpitome_qrc.day5.protocol import (
+    D1,
+    EVAL_START,
+    MIN_TRAIN,
+    STATIC,
+    add_extrema,
+    load_frame,
+)
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
 from qpitome_qrc.qrc.local_detuning_reservoir import (
     LocalDetuningConfig,
     build_local_detuning_feature_matrix,
 )
 
-MIN_TRAIN = 30
-EVAL_START = pd.Timestamp("1990-01-01")
-
-D1 = [
-    "current_return_5d_from_branch",
-    "distance_to_recovery_barrier",
-    "distance_to_relapse_barrier",
-    "barrier_width",
-]
-STATIC = [
-    "current_return_5d_from_branch",
-    "distance_to_recovery_barrier",
-    "distance_to_relapse_barrier",
-    "closest_to_relapse",
-    "closest_to_recovery",
-]
 MODEL = "D1_plus_local_rydberg_joint"
-
-
-def add_extrema(frame: pd.DataFrame) -> pd.DataFrame:
-    out = frame.copy()
-    running = np.column_stack([out[f"r_d{day}"].to_numpy(float) for day in range(1, 6)])
-    endpoint = out["current_return_5d_from_branch"].to_numpy(float)
-    lower = endpoint - out["distance_to_relapse_barrier"].to_numpy(float)
-    upper = endpoint + out["distance_to_recovery_barrier"].to_numpy(float)
-    out["closest_to_relapse"] = running.min(axis=1) - lower
-    out["closest_to_recovery"] = upper - running.max(axis=1)
-    return out
-
-
-def load_frame(path_panel: Path, clusters_path: Path) -> pd.DataFrame:
-    frame = pd.read_csv(path_panel, parse_dates=["branch_date", "landmark_date"])
-    clusters = pd.read_csv(clusters_path)[["market_key", "episode_id", "cluster_id"]].drop_duplicates()
-    frame = frame.merge(clusters, on=["market_key", "episode_id"], how="left", validate="many_to_one")
-    if frame["cluster_id"].isna().any():
-        raise ValueError("path-panel rows are missing cluster ids")
-    starts = (
-        frame.groupby("cluster_id", as_index=False)["branch_date"]
-        .min()
-        .rename(columns={"branch_date": "cluster_start"})
-    )
-    frame = frame.merge(starts, on="cluster_id", how="left", validate="many_to_one")
-    frame = add_extrema(frame)
-    needed = D1 + STATIC + [f"r_d{day}" for day in range(1, 6)] + ["y_recovery", "landmark_date", "cluster_start"]
-    frame = frame.dropna(subset=needed).sort_values(["landmark_date", "market_key", "episode_id"]).reset_index(drop=True)
-    if not np.allclose(
-        frame["r_d5"].to_numpy(float),
-        frame["current_return_5d_from_branch"].to_numpy(float),
-        atol=1e-12,
-        rtol=0,
-    ):
-        raise ValueError("r_d5 does not match locked day-5 endpoint return")
-    return frame
-
-
-def logistic_pipeline(C: float) -> Pipeline:
-    return Pipeline(
-        [
-            ("scale", StandardScaler()),
-            ("logit", LogisticRegression(C=C, max_iter=5000, solver="lbfgs")),
-        ]
-    )
 
 
 def static_to_local_patterns(train_X: np.ndarray, X: np.ndarray) -> np.ndarray:
@@ -156,18 +103,9 @@ def evaluate(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def score(group: pd.DataFrame, model: str) -> dict:
-    use = group[["y", model]].dropna()
-    y = use["y"].to_numpy(int)
-    p = clip_prob(use[model].to_numpy(float))
-    return {
-        "model": model,
-        "n": int(len(use)),
-        "recovery_rate": float(y.mean()) if len(y) else np.nan,
-        "auc": float(roc_auc_score(y, p)) if np.unique(y).size == 2 else np.nan,
-        "pr_auc": float(average_precision_score(y, p)) if np.unique(y).size == 2 else np.nan,
-        "logloss": float(log_loss(y, p)) if len(y) else np.nan,
-        "brier": float(brier_score_loss(y, p)) if len(y) else np.nan,
-    }
+    """Return the historical probe summary schema via shared scoring."""
+
+    return binary_summary(group, model, clip=1e-6)
 
 
 def paired_delta(group: pd.DataFrame) -> dict:
@@ -198,26 +136,9 @@ def paired_delta(group: pd.DataFrame) -> dict:
 
 
 def cluster_metrics(group: pd.DataFrame, model: str) -> dict:
-    rows = []
-    for cluster_id, subset in group.dropna(subset=[model]).groupby("cluster_id"):
-        y = subset["y"].to_numpy(int)
-        p = clip_prob(subset[model].to_numpy(float))
-        rows.append(
-            {
-                "cluster_id": cluster_id,
-                "n": len(subset),
-                "logloss": float(log_loss(y, p, labels=[0, 1])),
-                "brier": float(np.mean((p - y) ** 2)),
-            }
-        )
-    detail = pd.DataFrame(rows)
-    return {
-        "model": model,
-        "n_clusters": int(len(detail)),
-        "cluster_mean_logloss": float(detail["logloss"].mean()),
-        "cluster_mean_brier": float(detail["brier"].mean()),
-        "median_cluster_size": float(detail["n"].median()),
-    }
+    """Return the historical cluster-weighted schema via shared scoring."""
+
+    return cluster_weighted_summary(group, model, clip=1e-6)
 
 
 def summarize(predictions: pd.DataFrame):
