@@ -4,30 +4,36 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from itertools import combinations
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from qpitome_qrc.baselines.logistic_offset import logit
+from qpitome_qrc.day5.protocol import (
+    D1,
+    STATIC,
+    differential_patterns,
+    eligible_rows,
+    load_frame,
+    rydberg_config,
+)
+from qpitome_qrc.evaluation.binary import (
+    fit_offset_predict,
+    fit_train_test_probability_arrays,
+    logistic_pipeline,
+)
+from qpitome_qrc.evaluation.historical_crossfit import historical_crossfit_d1_logits
+from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test
 from qpitome_qrc.qrc.local_detuning_reservoir import evolve_local_detuning_states
 from qpitome_qrc.qrc.rydberg_reservoir import precompute
-
-REPO = Path(__file__).resolve().parents[2]
-BASE_PATH = REPO / "scripts" / "modeling" / "run_day5_residualized_rydberg_crossfit_shard.py"
-SPEC = importlib.util.spec_from_file_location("day5_crossfit_base", BASE_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Could not load helpers from {BASE_PATH}")
-base = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = base
-SPEC.loader.exec_module(base)
 
 RIDGE_ALPHA = 10.0
 OFFSET_L2 = 100.0
 RNG_SEED = 20260711
+MIN_CORRECTION_TRAIN = 20
 
 
 def exact_output_blocks(states: np.ndarray, occ_bits: np.ndarray) -> dict[str, np.ndarray]:
@@ -85,9 +91,9 @@ def exact_output_blocks(states: np.ndarray, occ_bits: np.ndarray) -> dict[str, n
 
 
 def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.DataFrame:
-    config = base.base.assay.rydberg_config()
+    config = rydberg_config()
     pre = precompute(config.reservoir)
-    eligible = base.base.assay.eligible_rows(frame)
+    eligible = eligible_rows(frame)
     eligible_frame = frame.loc[eligible].copy()
     fold_groups = list(eligible_frame.groupby("cluster_start", sort=True))
     selected = [group for pos, group in enumerate(fold_groups) if pos % num_shards == shard_index]
@@ -98,27 +104,30 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
         test_indices = test_group.index.to_numpy(int)
         combined = pd.concat([train, frame.loc[test_indices]], axis=0)
 
-        patterns = base.base.assay.differential_patterns(
-            train[base.base.assay.STATIC].to_numpy(float),
-            combined[base.base.assay.STATIC].to_numpy(float),
+        patterns = differential_patterns(
+            train[STATIC].to_numpy(float),
+            combined[STATIC].to_numpy(float),
         )
         states = evolve_local_detuning_states(patterns, config)
         blocks = exact_output_blocks(states, pre.occ_bits)
 
-        d1_train = train[base.base.assay.D1].to_numpy(float)
-        d1_test = frame.loc[test_indices, base.base.assay.D1].to_numpy(float)
+        d1_train = train[D1].to_numpy(float)
+        d1_test = frame.loc[test_indices, D1].to_numpy(float)
         y_train = train["y_recovery"].to_numpy(int)
-        X_train = base.base.d1_basis(d1_train, "quadratic")
-        X_test = base.base.d1_basis(d1_test, "quadratic")
+        X_train = d1_basis(d1_train, "quadratic")
+        X_test = d1_basis(d1_test, "quadratic")
 
-        cf_positions, cf_logits = base.historical_crossfit_d1_logits(train)
-        if len(cf_positions) < base.MIN_CORRECTION_TRAIN:
+        cf_positions, cf_logits = historical_crossfit_d1_logits(train)
+        if len(cf_positions) < MIN_CORRECTION_TRAIN:
             raise RuntimeError(f"Insufficient correction rows for {cluster_start}")
 
-        d1_model = base.base.assay.logistic_pipeline(1.0)
-        d1_model.fit(d1_train, y_train)
-        p_test_d1 = d1_model.predict_proba(d1_test)[:, 1]
-        offset_test = base.base.assay.logit(p_test_d1)
+        _, p_test_d1 = fit_train_test_probability_arrays(
+            d1_train,
+            y_train,
+            d1_test,
+            C=1.0,
+        )
+        offset_test = logit(p_test_d1)
 
         predictions: dict[str, np.ndarray] = {"D1": p_test_d1}
         rng = np.random.default_rng(RNG_SEED + int(pd.Timestamp(cluster_start).value % 2**31))
@@ -126,12 +135,12 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
         for block_name, block in blocks.items():
             H_train = block[: len(train)]
             H_test = block[len(train) :]
-            R_train, R_test = base.base.residualize_train_test(
+            R_train, R_test = residualize_train_test(
                 X_train, H_train, X_test, H_test, RIDGE_ALPHA
             )
             values = []
             for row_number in range(len(test_indices)):
-                values.append(base.base.assay.fit_offset_predict(
+                values.append(fit_offset_predict(
                     R_train[cf_positions], y_train[cf_positions], R_test[[row_number]],
                     cf_logits, float(offset_test[row_number]), OFFSET_L2,
                 ))
@@ -141,7 +150,7 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
             gaussian_test = rng.normal(size=H_test.shape)
             null_values = []
             for row_number in range(len(test_indices)):
-                null_values.append(base.base.assay.fit_offset_predict(
+                null_values.append(fit_offset_predict(
                     gaussian_train[cf_positions], y_train[cf_positions], gaussian_test[[row_number]],
                     cf_logits, float(offset_test[row_number]), OFFSET_L2,
                 ))
@@ -181,7 +190,7 @@ def main() -> None:
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
-    frame = base.base.assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions = run_shard(frame, args.shard_index, args.num_shards)
     args.outdir.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(args.outdir / f"predictions_shard_{args.shard_index}.csv", index=False)
