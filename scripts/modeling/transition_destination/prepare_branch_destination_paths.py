@@ -149,7 +149,7 @@ def main() -> None:
         "--weekly-predictions",
         type=Path,
         default=Path(
-            "results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"
+            "results/modeling/weekly_regimes/weekly_regime_baselines__one_step_predictions.csv"
         ),
     )
     parser.add_argument(
