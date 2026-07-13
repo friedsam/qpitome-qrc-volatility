@@ -124,7 +124,9 @@ def evaluate(
 
     refit_number = 0
     for t in range(initial_train, len(x)):
-        must_refit = t == initial_train or (refit_every > 0 and (t - initial_train) % refit_every == 0)
+        must_refit = t == initial_train or (
+            refit_every > 0 and (t - initial_train) % refit_every == 0
+        )
         if must_refit:
             refit_number += 1
             train = x[:t]
@@ -229,7 +231,11 @@ def main() -> None:
     parser.add_argument("--refit-every", type=int, default=52)
     parser.add_argument("--n-starts", type=int, default=8)
     parser.add_argument("--max-iter", type=int, default=500)
-    parser.add_argument("--outdir", type=Path, default=Path("results/modeling/weekly_regimes/weekly_regime_baselines"))
+    parser.add_argument(
+        "--outdir",
+        type=Path,
+        default=Path("results/modeling/weekly_regimes"),
+    )
     args = parser.parse_args()
 
     weekly = load_weekly_returns(
@@ -249,13 +255,25 @@ def main() -> None:
     )
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    weekly.to_csv(args.outdir / "weekly_returns.csv", header=True)
-    predictions.to_csv(args.outdir / "one_step_predictions.csv", index=False)
-    scores.to_csv(args.outdir / "predictive_scores.csv", index=False)
-    pd.DataFrame(manifest["fit_history"]).to_csv(
-        args.outdir / "fit_history.csv", index=False
+    weekly.to_csv(
+        args.outdir / "weekly_regime_baselines__weekly_returns.csv",
+        header=True,
     )
-    (args.outdir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    predictions.to_csv(
+        args.outdir / "weekly_regime_baselines__one_step_predictions.csv",
+        index=False,
+    )
+    scores.to_csv(
+        args.outdir / "weekly_regime_baselines__predictive_scores.csv",
+        index=False,
+    )
+    pd.DataFrame(manifest["fit_history"]).to_csv(
+        args.outdir / "weekly_regime_baselines__fit_history.csv",
+        index=False,
+    )
+    (args.outdir / "weekly_regime_baselines__manifest.json").write_text(
+        json.dumps(manifest, indent=2)
+    )
 
     print("Weekly regime baseline predictive scores (higher is better)")
     print(scores.to_string(index=False, float_format=lambda value: f"{value:.5f}"))
