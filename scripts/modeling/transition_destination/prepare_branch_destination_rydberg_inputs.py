@@ -39,12 +39,12 @@ def main() -> None:
     parser.add_argument(
         "--pathdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_paths"),
+        default=Path("results/modeling/transition_destination"),
     )
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_rydberg_inputs"),
+        default=Path("results/modeling/transition_destination"),
     )
     parser.add_argument(
         "--bound-divisor",
@@ -54,9 +54,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    paths = np.load(args.pathdir / "paths.npy")
-    metadata = pd.read_csv(args.pathdir / "episode_metadata.csv")
-    standardization = pd.read_csv(args.pathdir / "standardization.csv")
+    paths = np.load(args.pathdir / "branch_destination_paths__paths.npy")
+    metadata = pd.read_csv(
+        args.pathdir / "branch_destination_paths__episode_metadata.csv"
+    )
+    standardization = pd.read_csv(
+        args.pathdir / "branch_destination_paths__standardization.csv"
+    )
     channels = standardization["channel"].tolist()
     channel_to_index = {channel: index for index, channel in enumerate(channels)}
 
@@ -81,7 +85,10 @@ def main() -> None:
     for name, selected_channels in ENCODINGS.items():
         indices = [channel_to_index[channel] for channel in selected_channels]
         tensor = smooth_bound(paths[:, :, indices], args.bound_divisor)
-        np.save(args.outdir / f"{name}.npy", tensor)
+        np.save(
+            args.outdir / f"branch_destination_rydberg_inputs__{name}.npy",
+            tensor,
+        )
         manifest["encodings"][name] = {
             "channels": selected_channels,
             "shape": list(tensor.shape),
@@ -100,9 +107,17 @@ def main() -> None:
                 "fraction_abs_above_0_95": float(np.mean(np.abs(values) > 0.95)),
             })
 
-    metadata.to_csv(args.outdir / "episode_metadata.csv", index=False)
-    pd.DataFrame(summary_rows).to_csv(args.outdir / "encoding_summary.csv", index=False)
-    (args.outdir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    metadata.to_csv(
+        args.outdir / "branch_destination_rydberg_inputs__episode_metadata.csv",
+        index=False,
+    )
+    pd.DataFrame(summary_rows).to_csv(
+        args.outdir / "branch_destination_rydberg_inputs__encoding_summary.csv",
+        index=False,
+    )
+    (args.outdir / "branch_destination_rydberg_inputs__manifest.json").write_text(
+        json.dumps(manifest, indent=2)
+    )
 
     print("Task B hardware-friendly Rydberg input encodings")
     print(json.dumps(manifest, indent=2))
