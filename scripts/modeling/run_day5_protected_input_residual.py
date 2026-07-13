@@ -4,131 +4,45 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
-from sklearn.model_selection import KFold
-from sklearn.preprocessing import StandardScaler
 
-REPO = Path(__file__).resolve().parents[2]
-
-
-def load_module(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-input_audit = load_module(
-    "day5_input_audit",
-    REPO / "scripts" / "modeling" / "run_day5_input_audit.py",
+from qpitome_qrc.baselines.logistic_offset import logit
+from qpitome_qrc.day5.features import PROTECTED_FEATURE_BLOCKS, add_path_shape_features
+from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
+from qpitome_qrc.evaluation.binary import (
+    fit_offset_predict,
+    fit_train_test_probability_arrays,
+    logistic_pipeline,
 )
-crossfit = load_module(
-    "day5_residualized_crossfit",
-    REPO / "scripts" / "modeling" / "run_day5_residualized_rydberg_crossfit_shard.py",
+from qpitome_qrc.evaluation.historical_crossfit import historical_crossfit_d1_logits
+from qpitome_qrc.evaluation.residualization import (
+    d1_basis,
+    residualize_train_test_safe,
 )
-base = crossfit.base
+from qpitome_qrc.evaluation.scoring import proper_score_deltas
 
-FEATURE_BLOCKS: dict[str, list[str]] = {
-    "path_efficiency": ["path_efficiency"],
-    "path_reversal_count": ["path_reversal_count"],
-    "path_early_late_imbalance": ["path_early_late_imbalance"],
-    "trajectory_r_d1": ["trajectory_r_d1"],
-    "compact_four": [
-        "path_efficiency",
-        "path_reversal_count",
-        "path_early_late_imbalance",
-        "trajectory_r_d1",
-    ],
-}
+FEATURE_BLOCKS = PROTECTED_FEATURE_BLOCKS
 RIDGE_ALPHA = 10.0
 OFFSET_L2 = 100.0
 RNG_SEED = 20260711
 N_SPLITS = 5
-
-
-def residualize_train_test_safe(
-    X_train: np.ndarray,
-    H_train: np.ndarray,
-    X_test: np.ndarray,
-    H_test: np.ndarray,
-    alpha: float,
-    n_splits: int = N_SPLITS,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Cross-fit residuals while preserving a 2D shape for single-output Ridge."""
-    X_train = np.asarray(X_train, dtype=float)
-    X_test = np.asarray(X_test, dtype=float)
-    H_train = np.asarray(H_train, dtype=float)
-    H_test = np.asarray(H_test, dtype=float)
-    if H_train.ndim == 1:
-        H_train = H_train.reshape(-1, 1)
-    if H_test.ndim == 1:
-        H_test = H_test.reshape(-1, 1)
-
-    def fitted_values(
-        X_fit: np.ndarray,
-        H_fit: np.ndarray,
-        X_eval: np.ndarray,
-    ) -> np.ndarray:
-        x_scaler = StandardScaler().fit(X_fit)
-        h_scaler = StandardScaler().fit(H_fit)
-        Xs = x_scaler.transform(X_fit)
-        Xes = x_scaler.transform(X_eval)
-        Hs = h_scaler.transform(H_fit)
-        model = Ridge(alpha=alpha).fit(Xs, Hs)
-        predicted = np.asarray(model.predict(Xes), dtype=float)
-        if predicted.ndim == 1:
-            predicted = predicted.reshape(-1, 1)
-        return h_scaler.inverse_transform(predicted)
-
-    splits = min(n_splits, len(X_train))
-    if splits < 2:
-        raise ValueError("At least two training rows are required")
-    predicted_train = np.empty_like(H_train, dtype=float)
-    kfold = KFold(n_splits=splits, shuffle=False)
-    for fit_idx, valid_idx in kfold.split(X_train):
-        predicted_train[valid_idx] = fitted_values(
-            X_train[fit_idx], H_train[fit_idx], X_train[valid_idx]
-        )
-    predicted_test = fitted_values(X_train, H_train, X_test)
-    return H_train - predicted_train, H_test - predicted_test
+INNER_CROSSFIT_MIN_TRAIN = 10
+MIN_CORRECTION_TRAIN = 20
 
 
 def score_deltas(predictions: pd.DataFrame, model: str) -> dict[str, float | int | str]:
-    use = predictions[["y", "D1", model, "cluster_id"]].dropna().copy()
-    y = use["y"].to_numpy(int)
-    p0 = np.clip(use["D1"].to_numpy(float), 1e-8, 1 - 1e-8)
-    p1 = np.clip(use[model].to_numpy(float), 1e-8, 1 - 1e-8)
-    ll0 = -(y * np.log(p0) + (1 - y) * np.log(1 - p0))
-    ll1 = -(y * np.log(p1) + (1 - y) * np.log(1 - p1))
-    br0 = (p0 - y) ** 2
-    br1 = (p1 - y) ** 2
-    use["dll"] = ll1 - ll0
-    use["dbr"] = br1 - br0
-    by_cluster = use.groupby("cluster_id")[["dll", "dbr"]].mean()
-    return {
-        "model": model,
-        "n": int(len(use)),
-        "n_clusters": int(use["cluster_id"].nunique()),
-        "delta_logloss": float(np.mean(ll1 - ll0)),
-        "delta_brier": float(np.mean(br1 - br0)),
-        "cluster_mean_delta_logloss": float(by_cluster["dll"].mean()),
-        "cluster_mean_delta_brier": float(by_cluster["dbr"].mean()),
-    }
+    """Return the historical protected-input delta schema via shared scoring."""
+
+    return proper_score_deltas(predictions, model, baseline="D1", clip=1e-8)
 
 
 def run(frame: pd.DataFrame) -> pd.DataFrame:
-    frame = input_audit.add_path_shape_features(frame)
-    eligible = base.assay.eligible_rows(frame)
+    frame = add_path_shape_features(frame)
+    eligible = eligible_rows(frame)
     eligible_frame = frame.loc[eligible].copy()
     fold_groups = list(eligible_frame.groupby("cluster_start", sort=True))
     records: list[dict] = []
@@ -137,21 +51,27 @@ def run(frame: pd.DataFrame) -> pd.DataFrame:
         train = frame[frame["landmark_date"] < cluster_start].copy()
         test = frame.loc[test_group.index].copy()
         y_train = train["y_recovery"].to_numpy(int)
-        d1_train = train[base.assay.D1].to_numpy(float)
-        d1_test = test[base.assay.D1].to_numpy(float)
+        d1_train = train[D1].to_numpy(float)
+        d1_test = test[D1].to_numpy(float)
 
-        X_train = base.d1_basis(d1_train, "quadratic")
-        X_test = base.d1_basis(d1_test, "quadratic")
-        cf_positions, cf_logits = crossfit.historical_crossfit_d1_logits(train)
-        if len(cf_positions) < crossfit.MIN_CORRECTION_TRAIN or np.unique(y_train[cf_positions]).size < 2:
+        X_train = d1_basis(d1_train, "quadratic")
+        X_test = d1_basis(d1_test, "quadratic")
+        cf_positions, cf_logits = historical_crossfit_d1_logits(
+            train,
+            min_train=INNER_CROSSFIT_MIN_TRAIN,
+        )
+        if len(cf_positions) < MIN_CORRECTION_TRAIN or np.unique(y_train[cf_positions]).size < 2:
             raise RuntimeError(
                 f"Insufficient cross-fitted rows for cluster {cluster_start}: {len(cf_positions)}"
             )
 
-        d1_model = base.assay.logistic_pipeline(1.0)
-        d1_model.fit(d1_train, y_train)
-        p_test_d1 = d1_model.predict_proba(d1_test)[:, 1]
-        offset_test = base.assay.logit(p_test_d1)
+        _, p_test_d1 = fit_train_test_probability_arrays(
+            d1_train,
+            y_train,
+            d1_test,
+            C=1.0,
+        )
+        offset_test = logit(p_test_d1)
         predictions: dict[str, np.ndarray] = {"D1": p_test_d1}
 
         rng = np.random.default_rng(RNG_SEED + int(pd.Timestamp(cluster_start).value % 2**31))
@@ -167,7 +87,7 @@ def run(frame: pd.DataFrame) -> pd.DataFrame:
             G_train = rng.normal(size=H_train.shape)
             G_test = rng.normal(size=H_test.shape)
             for row_number in range(len(test)):
-                corrected.append(base.assay.fit_offset_predict(
+                corrected.append(fit_offset_predict(
                     R_train[cf_positions],
                     y_train[cf_positions],
                     R_test[[row_number]],
@@ -175,7 +95,7 @@ def run(frame: pd.DataFrame) -> pd.DataFrame:
                     float(offset_test[row_number]),
                     OFFSET_L2,
                 ))
-                gaussian.append(base.assay.fit_offset_predict(
+                gaussian.append(fit_offset_predict(
                     G_train[cf_positions],
                     y_train[cf_positions],
                     G_test[[row_number]],
@@ -218,7 +138,7 @@ def main() -> None:
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
-    frame = base.assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions = run(frame)
     models = [
         column for column in predictions.columns
@@ -236,8 +156,8 @@ def main() -> None:
         "residualizer": "quadratic_D1",
         "ridge_alpha": RIDGE_ALPHA,
         "offset_l2": OFFSET_L2,
-        "inner_crossfit_min_train": crossfit.INNER_CROSSFIT_MIN_TRAIN,
-        "min_correction_train": crossfit.MIN_CORRECTION_TRAIN,
+        "inner_crossfit_min_train": INNER_CROSSFIT_MIN_TRAIN,
+        "min_correction_train": MIN_CORRECTION_TRAIN,
         "n_predictions": int(len(predictions)),
     }, indent=2))
 
