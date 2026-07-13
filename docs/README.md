@@ -5,7 +5,6 @@ This repository uses documentation as part of the experimental protocol. Durable
 ## Current scientific state
 
 - [`PROJECT_STATE.md`](PROJECT_STATE.md): concise current project state and locked decisions.
-- [`handoffs/phase3_post_d1_failure_and_track_b_rebuild_2026-07-13.md`](handoffs/phase3_post_d1_failure_and_track_b_rebuild_2026-07-13.md): full continuation handoff after the D1 failure analysis, weekly-HMM redesign, Task A audit, and preliminary Task B reservoir work.
 
 ## Protocols
 
@@ -20,17 +19,6 @@ Use `docs/experiments/` for interpretation and decision records tied to one expe
 
 - `docs/repository/layout_audit.md`: generated inventory after running the repository reorganization tool.
 - `docs/repository/modeling_reorganization_manifest.json`: machine-readable record of script moves.
-
-## Handoffs
-
-Use `docs/handoffs/` for dated continuation handoffs. A handoff must distinguish:
-
-1. established findings;
-2. failed or invalidated claims;
-3. exploratory results;
-4. unresolved questions;
-5. exact repository state and commands;
-6. next-step constraints.
 
 ## Result-directory standard
 
