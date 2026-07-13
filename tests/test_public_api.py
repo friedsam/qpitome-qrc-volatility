@@ -42,6 +42,7 @@ def test_day5_public_api_exports_locked_helpers() -> None:
         "STATIC",
         "add_extrema",
         "add_path_shape_features",
+        "attach_cluster_start",
         "differential_patterns",
         "eligible_rows",
         "feature_diagnostics",
