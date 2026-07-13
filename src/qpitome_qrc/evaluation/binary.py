@@ -22,19 +22,36 @@ def logistic_pipeline(C: float) -> Pipeline:
     ])
 
 
+def fit_train_test_probability_arrays(
+    X_train: np.ndarray,
+    y: np.ndarray,
+    X_test: np.ndarray,
+    C: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Fit a standardized logistic model and return train and test probabilities."""
+
+    model = logistic_pipeline(C)
+    model.fit(X_train, y)
+    train_probabilities = model.predict_proba(X_train)[:, 1]
+    test_probabilities = model.predict_proba(X_test)[:, 1]
+    return train_probabilities, test_probabilities
+
+
 def fit_train_test_probabilities(
     X_train: np.ndarray,
     y: np.ndarray,
     X_test: np.ndarray,
     C: float,
 ) -> tuple[np.ndarray, float]:
-    """Fit a standardized logistic model and return train and held-out probabilities."""
+    """Fit a standardized logistic model and return train and one held-out probability."""
 
-    model = logistic_pipeline(C)
-    model.fit(X_train, y)
-    train_probabilities = model.predict_proba(X_train)[:, 1]
-    test_probability = float(model.predict_proba(X_test)[0, 1])
-    return train_probabilities, test_probability
+    train_probabilities, test_probabilities = fit_train_test_probability_arrays(
+        X_train,
+        y,
+        X_test,
+        C,
+    )
+    return train_probabilities, float(test_probabilities[0])
 
 
 def transformed_logistic_pipeline(kind: str, C: float) -> Pipeline:
