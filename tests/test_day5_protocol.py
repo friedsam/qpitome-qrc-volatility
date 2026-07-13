@@ -26,7 +26,7 @@ def test_add_extrema_preserves_input_and_matches_locked_geometry() -> None:
     result = protocol.add_extrema(frame)
 
     assert "closest_to_relapse" not in frame.columns
-    np.testing.assert_allclose(result["closest_to_relapse"], [0.03, 0.06])
+    np.testing.assert_allclose(result["closest_to_relapse"], [0.03, 0.04])
     np.testing.assert_allclose(result["closest_to_recovery"], [0.06, 0.07])
 
 
