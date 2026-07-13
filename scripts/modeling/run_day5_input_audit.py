@@ -15,32 +15,10 @@ from qpitome_qrc.day5.features import PATH_SHAPE_BLOCKS, add_path_shape_features
 from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
 from qpitome_qrc.evaluation.binary import logistic_pipeline
 from qpitome_qrc.evaluation.residualization import ridge_pipeline
+from qpitome_qrc.evaluation.scoring import proper_score_deltas
 
 # Backward-compatible historical name used by manifests and downstream checks.
 BLOCKS = PATH_SHAPE_BLOCKS
-
-
-def proper_score_deltas(frame: pd.DataFrame, model: str) -> dict[str, float | int | str]:
-    use = frame[["y", "D1", model, "cluster_id"]].dropna().copy()
-    y = use["y"].to_numpy(int)
-    p0 = np.clip(use["D1"].to_numpy(float), 1e-8, 1 - 1e-8)
-    p1 = np.clip(use[model].to_numpy(float), 1e-8, 1 - 1e-8)
-    ll0 = -(y * np.log(p0) + (1 - y) * np.log(1 - p0))
-    ll1 = -(y * np.log(p1) + (1 - y) * np.log(1 - p1))
-    br0 = (p0 - y) ** 2
-    br1 = (p1 - y) ** 2
-    use["dll"] = ll1 - ll0
-    use["dbr"] = br1 - br0
-    by_cluster = use.groupby("cluster_id")[["dll", "dbr"]].mean()
-    return {
-        "model": model,
-        "n": int(len(use)),
-        "n_clusters": int(use["cluster_id"].nunique()),
-        "delta_logloss": float(np.mean(ll1 - ll0)),
-        "delta_brier": float(np.mean(br1 - br0)),
-        "cluster_mean_delta_logloss": float(by_cluster["dll"].mean()),
-        "cluster_mean_delta_brier": float(by_cluster["dbr"].mean()),
-    }
 
 
 def run_audit(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
