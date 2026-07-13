@@ -3,6 +3,7 @@ from __future__ import annotations
 import qpitome_qrc.baselines as baselines
 import qpitome_qrc.day5 as day5
 import qpitome_qrc.evaluation as evaluation
+import qpitome_qrc.qrc as qrc
 
 
 def test_baseline_public_api_exports_reusable_components() -> None:
@@ -19,6 +20,17 @@ def test_baseline_public_api_exports_reusable_components() -> None:
     assert set(baselines.__all__) == expected
     for name in expected:
         assert hasattr(baselines, name)
+
+
+def test_qrc_public_api_exports_feature_maps() -> None:
+    expected = {
+        "quantum_features",
+        "rydberg_features",
+    }
+
+    assert set(qrc.__all__) == expected
+    for name in expected:
+        assert hasattr(qrc, name)
 
 
 def test_day5_public_api_exports_locked_helpers() -> None:
