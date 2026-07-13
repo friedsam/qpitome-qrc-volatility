@@ -1,0 +1,40 @@
+name: Repository maintenance audit
+
+on:
+  pull_request:
+    paths:
+      - "AGENTS.md"
+      - "docs/result_migration_manifest.csv"
+      - "docs/results_layout_and_provenance.md"
+      - "results/**"
+      - "scripts/**"
+      - ".github/workflows/repo-maintenance.yml"
+  push:
+    branches:
+      - main
+      - phase3-refactor
+    paths:
+      - "AGENTS.md"
+      - "docs/result_migration_manifest.csv"
+      - "docs/results_layout_and_provenance.md"
+      - "results/**"
+      - "scripts/**"
+      - ".github/workflows/repo-maintenance.yml"
+
+jobs:
+  maintenance-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Audit repository maintenance metadata
+        run: python scripts/maintenance/audit_repo_maintenance.py
+
+      - name: Compile Python sources
+        run: python -m compileall -q scripts src
