@@ -4,14 +4,12 @@ import numpy as np
 import pandas as pd
 
 from qpitome_qrc.day5.protocol import D1, MIN_TRAIN
-from qpitome_qrc.evaluation.binary import (
-    fit_transformed_predict,
-    transformed_logistic_pipeline,
-)
+from qpitome_qrc.evaluation.binary import fit_transformed_predict, transformed_logistic_pipeline
 from qpitome_qrc.evaluation.scoring import binary_summary
 
-BASE = Path("results/modeling/day5_branching/baseline/cross_market_day5_direction_v1")
-OUT = Path("results/modeling/day5_branching/baseline/cross_market_day5_regularized_controls_v1")
+BASE = Path("results/modeling/day5_branching/baseline")
+LANDMARK = BASE / "cross_market_day5_direction_v1__day5_landmark_frame.csv"
+PREFIX = "cross_market_day5_regularized_controls_v1__"
 
 G = D1
 S = [
@@ -32,7 +30,6 @@ MODELS = {
     "L4_state_rbf32_c005": {"cols": G + D + S, "kind": "rbf32", "c": 0.05},
 }
 
-# Backward-compatible historical names.
 make_model = transformed_logistic_pipeline
 
 
@@ -53,8 +50,8 @@ def metrics(preds):
 
 
 def main():
-    OUT.mkdir(parents=True, exist_ok=True)
-    frame = pd.read_csv(BASE / "day5_landmark_frame.csv", parse_dates=["landmark_date"])
+    BASE.mkdir(parents=True, exist_ok=True)
+    frame = pd.read_csv(LANDMARK, parse_dates=["landmark_date"])
     all_cols = sorted(set(sum([spec["cols"] for spec in MODELS.values()], [])))
     frame = frame.dropna(
         subset=all_cols + ["y_recovery", "landmark_date"]
@@ -79,12 +76,12 @@ def main():
         rows.append(out)
     preds = pd.DataFrame(rows)
     summary = metrics(preds)
-    preds.to_csv(OUT / "calendar_prequential_predictions.csv", index=False)
-    summary.to_csv(OUT / "summary_metrics.csv", index=False)
+    preds.to_csv(BASE / f"{PREFIX}calendar_prequential_predictions.csv", index=False)
+    summary.to_csv(BASE / f"{PREFIX}summary_metrics.csv", index=False)
     print("Cross-market day-5 regularized controls")
     print("Rows:", len(frame), "Predictions:", len(preds))
     print(summary.to_string(index=False))
-    print(f"Saved: {OUT}")
+    print(f"Saved: {BASE}")
 
 
 if __name__ == "__main__":
