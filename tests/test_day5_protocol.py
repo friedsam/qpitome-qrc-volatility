@@ -7,6 +7,15 @@ import numpy as np
 import pandas as pd
 
 from qpitome_qrc.day5 import protocol
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+
+
+def load_script(name: str, path: str):
+    spec = importlib.util.spec_from_file_location(name, Path(path))
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_add_extrema_preserves_input_and_matches_locked_geometry() -> None:
@@ -61,11 +70,10 @@ def test_eligible_rows_uses_cluster_start_and_two_class_history() -> None:
 
 
 def test_spatial_runner_reexports_protocol_symbols() -> None:
-    script = Path("scripts/modeling/run_day5_spatial_rydberg_assay_shard.py")
-    spec = importlib.util.spec_from_file_location("day5_spatial_runner", script)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = load_script(
+        "day5_spatial_runner",
+        "scripts/modeling/run_day5_spatial_rydberg_assay_shard.py",
+    )
 
     assert module.load_frame is protocol.load_frame
     assert module.add_extrema is protocol.add_extrema
@@ -74,3 +82,15 @@ def test_spatial_runner_reexports_protocol_symbols() -> None:
     assert module.rydberg_config is protocol.rydberg_config
     assert module.D1 == protocol.D1
     assert module.STATIC == protocol.STATIC
+
+
+def test_input_audit_uses_package_helpers_directly() -> None:
+    module = load_script(
+        "day5_input_audit",
+        "scripts/modeling/run_day5_input_audit.py",
+    )
+
+    assert module.load_frame is protocol.load_frame
+    assert module.eligible_rows is protocol.eligible_rows
+    assert module.D1 == protocol.D1
+    assert module.logistic_pipeline is logistic_pipeline
