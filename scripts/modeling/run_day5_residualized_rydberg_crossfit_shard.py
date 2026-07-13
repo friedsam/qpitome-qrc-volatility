@@ -4,22 +4,25 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-REPO = Path(__file__).resolve().parents[2]
-BASE_PATH = REPO / "scripts" / "modeling" / "run_day5_residualized_rydberg_shard.py"
-SPEC = importlib.util.spec_from_file_location("day5_residualized_base", BASE_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Could not load helpers from {BASE_PATH}")
-base = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = base
-SPEC.loader.exec_module(base)
+from qpitome_qrc.baselines.logistic_offset import logit
+from qpitome_qrc.day5.features import split_blocks
+from qpitome_qrc.day5.protocol import (
+    D1,
+    STATIC,
+    differential_patterns,
+    eligible_rows,
+    load_frame,
+    rydberg_config,
+)
+from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test
+from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
 
 BLOCK = "occupations"
 RESIDUALIZER = "quadratic"
@@ -37,17 +40,17 @@ def historical_crossfit_d1_logits(train: pd.DataFrame) -> tuple[np.ndarray, np.n
         prior = train[train["landmark_date"] < cluster_start]
         if len(prior) < INNER_CROSSFIT_MIN_TRAIN or prior["y_recovery"].nunique() < 2:
             continue
-        model = base.assay.logistic_pipeline(1.0)
-        model.fit(prior[base.assay.D1].to_numpy(float), prior["y_recovery"].to_numpy(int))
-        p = model.predict_proba(group[base.assay.D1].to_numpy(float))[:, 1]
-        logits[valid_positions] = base.assay.logit(p)
+        model = logistic_pipeline(1.0)
+        model.fit(prior[D1].to_numpy(float), prior["y_recovery"].to_numpy(int))
+        p = model.predict_proba(group[D1].to_numpy(float))[:, 1]
+        logits[valid_positions] = logit(p)
     valid = np.isfinite(logits)
     return np.flatnonzero(valid), logits[valid]
 
 
 def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.DataFrame:
-    config = base.assay.rydberg_config()
-    eligible = base.assay.eligible_rows(frame)
+    config = rydberg_config()
+    eligible = eligible_rows(frame)
     eligible_frame = frame.loc[eligible].copy()
     fold_groups = list(eligible_frame.groupby("cluster_start", sort=True))
     selected = [group for pos, group in enumerate(fold_groups) if pos % num_shards == shard_index]
@@ -58,22 +61,22 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
         test_indices = test_group.index.to_numpy(int)
         combined = pd.concat([train, frame.loc[test_indices]], axis=0)
 
-        patterns = base.assay.differential_patterns(
-            train[base.assay.STATIC].to_numpy(float),
-            combined[base.assay.STATIC].to_numpy(float),
+        patterns = differential_patterns(
+            train[STATIC].to_numpy(float),
+            combined[STATIC].to_numpy(float),
         )
-        features = base.assay.build_local_detuning_feature_matrix(patterns, config)
-        blocks = base.assay.split_blocks(features)
+        features = build_local_detuning_feature_matrix(patterns, config)
+        blocks = split_blocks(features)
         H_train = blocks[BLOCK][: len(train)]
         H_test = blocks[BLOCK][len(train) :]
 
-        d1_train = train[base.assay.D1].to_numpy(float)
-        d1_test = frame.loc[test_indices, base.assay.D1].to_numpy(float)
+        d1_train = train[D1].to_numpy(float)
+        d1_test = frame.loc[test_indices, D1].to_numpy(float)
         y_train = train["y_recovery"].to_numpy(int)
 
-        X_train = base.d1_basis(d1_train, RESIDUALIZER)
-        X_test = base.d1_basis(d1_test, RESIDUALIZER)
-        R_train, R_test = base.residualize_train_test(
+        X_train = d1_basis(d1_train, RESIDUALIZER)
+        X_test = d1_basis(d1_test, RESIDUALIZER)
+        R_train, R_test = residualize_train_test(
             X_train, H_train, X_test, H_test, RIDGE_ALPHA
         )
 
@@ -84,15 +87,15 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
                 f"got {len(cf_positions)}, need {MIN_CORRECTION_TRAIN}"
             )
 
-        full_d1 = base.assay.logistic_pipeline(1.0)
+        full_d1 = logistic_pipeline(1.0)
         full_d1.fit(d1_train, y_train)
         p_test_d1 = full_d1.predict_proba(d1_test)[:, 1]
-        offset_test = base.assay.logit(p_test_d1)
+        offset_test = logit(p_test_d1)
 
         p_test_corrected = []
         for row_number in range(len(test_indices)):
             p_test_corrected.append(
-                base.assay.fit_offset_predict(
+                fit_offset_predict(
                     R_train[cf_positions],
                     y_train[cf_positions],
                     R_test[[row_number]],
@@ -137,7 +140,7 @@ def main() -> None:
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
-    frame = base.assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions = run_shard(frame, args.shard_index, args.num_shards)
     args.outdir.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(args.outdir / f"predictions_shard_{args.shard_index}.csv", index=False)
