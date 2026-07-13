@@ -21,6 +21,7 @@ from .residualization import (
     fit_residualizer,
     residual_diagnostics,
     residualize_train_test,
+    residualize_train_test_safe,
     ridge_pipeline,
 )
 from .scoring import binary_summary, cluster_weighted_summary, proper_score_deltas
@@ -46,6 +47,7 @@ __all__ = [
     "proper_score_deltas",
     "residual_diagnostics",
     "residualize_train_test",
+    "residualize_train_test_safe",
     "ridge_pipeline",
     "transformed_logistic_pipeline",
 ]
