@@ -19,9 +19,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
-from sklearn.model_selection import KFold
-from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from qpitome_qrc.baselines.logistic_offset import logit
 from qpitome_qrc.day5.features import split_blocks
@@ -34,94 +31,20 @@ from qpitome_qrc.day5.protocol import (
     rydberg_config,
 )
 from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.residualization import (
+    DEFAULT_N_SPLITS,
+    d1_basis,
+    fit_residualizer,
+    residual_diagnostics,
+    residualize_train_test,
+)
 from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
 
 BLOCKS = ("occupations", "all_raw", "occ_plus_connected")
 RESIDUALIZERS = ("linear", "quadratic")
 RIDGE_ALPHAS = (1.0, 10.0)
 OFFSET_L2 = (100.0, 1000.0)
-N_SPLITS = 5
-
-
-def d1_basis(X: np.ndarray, kind: str) -> np.ndarray:
-    X = np.asarray(X, dtype=float)
-    if kind == "linear":
-        return X
-    if kind == "quadratic":
-        return PolynomialFeatures(degree=2, include_bias=False).fit_transform(X)
-    raise ValueError(f"Unknown residualizer kind: {kind}")
-
-
-def fit_residualizer(
-    X_train: np.ndarray,
-    H_train: np.ndarray,
-    X_test: np.ndarray,
-    alpha: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return fitted values for train and test from a standardized multioutput Ridge."""
-    x_scaler = StandardScaler().fit(X_train)
-    h_scaler = StandardScaler().fit(H_train)
-    Xs = x_scaler.transform(X_train)
-    Xts = x_scaler.transform(X_test)
-    Hs = h_scaler.transform(H_train)
-    model = Ridge(alpha=alpha).fit(Xs, Hs)
-    fitted_train = h_scaler.inverse_transform(model.predict(Xs))
-    fitted_test = h_scaler.inverse_transform(model.predict(Xts))
-    return fitted_train, fitted_test
-
-
-def cross_fitted_residuals(
-    X_train: np.ndarray,
-    H_train: np.ndarray,
-    X_test: np.ndarray,
-    alpha: float,
-    n_splits: int = N_SPLITS,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Cross-fit train residuals and fit the held-out residual with the full training set."""
-    n = len(X_train)
-    splits = min(n_splits, n)
-    if splits < 2:
-        raise ValueError("At least two training rows are required")
-    predicted_train = np.empty_like(H_train, dtype=float)
-    kfold = KFold(n_splits=splits, shuffle=False)
-    for fit_idx, valid_idx in kfold.split(X_train):
-        _, predicted_valid = fit_residualizer(
-            X_train[fit_idx], H_train[fit_idx], X_train[valid_idx], alpha
-        )
-        predicted_train[valid_idx] = predicted_valid
-    _, predicted_test = fit_residualizer(X_train, H_train, X_test, alpha)
-    return H_train - predicted_train, H_train[:0] if len(X_test) == 0 else None
-
-
-def residualize_train_test(
-    X_train: np.ndarray,
-    H_train: np.ndarray,
-    X_test: np.ndarray,
-    H_test: np.ndarray,
-    alpha: float,
-    n_splits: int = N_SPLITS,
-) -> tuple[np.ndarray, np.ndarray]:
-    n = len(X_train)
-    splits = min(n_splits, n)
-    predicted_train = np.empty_like(H_train, dtype=float)
-    kfold = KFold(n_splits=splits, shuffle=False)
-    for fit_idx, valid_idx in kfold.split(X_train):
-        _, predicted_valid = fit_residualizer(
-            X_train[fit_idx], H_train[fit_idx], X_train[valid_idx], alpha
-        )
-        predicted_train[valid_idx] = predicted_valid
-    _, predicted_test = fit_residualizer(X_train, H_train, X_test, alpha)
-    return H_train - predicted_train, H_test - predicted_test
-
-
-def residual_diagnostics(H: np.ndarray, R: np.ndarray) -> dict[str, float]:
-    total = float(np.sum((H - H.mean(axis=0, keepdims=True)) ** 2))
-    residual = float(np.sum(R**2))
-    explained = 1.0 - residual / total if total > 1e-15 else float("nan")
-    return {
-        "fraction_output_variance_removed": float(explained),
-        "residual_rms": float(np.sqrt(np.mean(R**2))),
-    }
+N_SPLITS = DEFAULT_N_SPLITS
 
 
 def run_shard(
