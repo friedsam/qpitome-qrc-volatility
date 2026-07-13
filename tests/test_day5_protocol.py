@@ -9,6 +9,7 @@ import pandas as pd
 from qpitome_qrc.day5 import protocol
 from qpitome_qrc.day5.features import split_blocks
 from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test
 
 
 def load_script(name: str, path: str):
@@ -74,6 +75,20 @@ def test_split_blocks_constructs_connected_pairs() -> None:
     )
 
 
+def test_residualize_train_test_shapes_and_finite_values() -> None:
+    X_train = np.arange(24, dtype=float).reshape(6, 4)
+    H_train = np.column_stack([X_train[:, 0] + 0.5 * X_train[:, 1], X_train[:, 2] - X_train[:, 3]])
+    X_test = np.array([[24.0, 25.0, 26.0, 27.0]])
+    H_test = np.array([[36.5, -1.0]])
+
+    R_train, R_test = residualize_train_test(X_train, H_train, X_test, H_test, alpha=1.0, n_splits=3)
+
+    assert R_train.shape == H_train.shape
+    assert R_test.shape == H_test.shape
+    assert np.isfinite(R_train).all()
+    assert np.isfinite(R_test).all()
+
+
 def test_eligible_rows_uses_cluster_start_and_two_class_history() -> None:
     dates = pd.date_range("1989-01-01", periods=33, freq="YS")
     frame = pd.DataFrame(
@@ -132,3 +147,24 @@ def test_residualized_shard_uses_package_helpers_directly() -> None:
     assert module.split_blocks is split_blocks
     assert module.fit_offset_predict is fit_offset_predict
     assert module.logistic_pipeline is logistic_pipeline
+    assert module.d1_basis is d1_basis
+    assert module.residualize_train_test is residualize_train_test
+
+
+def test_crossfit_shard_uses_package_helpers_directly() -> None:
+    module = load_script(
+        "day5_residualized_crossfit_shard",
+        "scripts/modeling/run_day5_residualized_rydberg_crossfit_shard.py",
+    )
+
+    assert module.load_frame is protocol.load_frame
+    assert module.eligible_rows is protocol.eligible_rows
+    assert module.differential_patterns is protocol.differential_patterns
+    assert module.rydberg_config is protocol.rydberg_config
+    assert module.D1 == protocol.D1
+    assert module.STATIC == protocol.STATIC
+    assert module.split_blocks is split_blocks
+    assert module.fit_offset_predict is fit_offset_predict
+    assert module.logistic_pipeline is logistic_pipeline
+    assert module.d1_basis is d1_basis
+    assert module.residualize_train_test is residualize_train_test
