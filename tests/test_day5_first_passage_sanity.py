@@ -9,8 +9,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+
 REPO = Path(__file__).resolve().parents[1]
-SCRIPT = REPO / "scripts/modeling" / "run_day5_first_passage_sanity.py"
+SCRIPT = REPO / "scripts" / "modeling" / "run_day5_first_passage_sanity.py"
 SPEC = importlib.util.spec_from_file_location("day5_first_passage_sanity", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 module = importlib.util.module_from_spec(SPEC)
@@ -50,3 +53,12 @@ def test_metric_row_identical_predictions_are_finite() -> None:
     assert np.isfinite(result["logloss"])
     assert np.isfinite(result["brier"])
     assert np.isfinite(result["auc"])
+
+
+def test_first_passage_runner_uses_package_helpers_directly() -> None:
+    assert module.D1 == D1
+    assert module.eligible_rows is eligible_rows
+    assert module.load_frame is load_frame
+    assert module.logistic_pipeline is logistic_pipeline
+    assert not hasattr(module, "protected")
+    assert not hasattr(module, "base")
