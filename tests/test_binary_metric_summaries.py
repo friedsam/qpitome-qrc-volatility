@@ -6,7 +6,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
+from qpitome_qrc.evaluation.scoring import (
+    binary_summary,
+    cluster_weighted_summary,
+    proper_score_deltas,
+)
 
 
 def load_script(name: str, path: str):
@@ -59,4 +63,37 @@ def test_fixed_rydberg_baseline_reexports_scoring_helpers() -> None:
 
     assert module.score is binary_summary
     assert module.binary_summary is binary_summary
+    assert module.cluster_weighted_summary is cluster_weighted_summary
+
+
+def test_spatial_merge_uses_all_shared_scoring_helpers() -> None:
+    module = load_script(
+        "spatial_rydberg_merge_scoring",
+        "scripts/modeling/merge_day5_spatial_rydberg_assay.py",
+    )
+    frame = pd.DataFrame({
+        "y": [0, 1, 1, 0],
+        "D1": [0.2, 0.6, 0.7, 0.4],
+        "candidate": [0.1, 0.8, 0.6, 0.3],
+        "cluster_id": ["a", "a", "b", "b"],
+    })
+
+    assert module.score(frame, "candidate") == binary_summary(
+        frame,
+        "candidate",
+        clip=1e-6,
+    )
+    assert module.paired_delta(frame, "candidate") == proper_score_deltas(
+        frame,
+        "candidate",
+        baseline="D1",
+        clip=1e-6,
+    )
+    assert module.cluster_metrics(frame, "candidate") == cluster_weighted_summary(
+        frame,
+        "candidate",
+        clip=1e-6,
+    )
+    assert module.binary_summary is binary_summary
+    assert module.proper_score_deltas is proper_score_deltas
     assert module.cluster_weighted_summary is cluster_weighted_summary
