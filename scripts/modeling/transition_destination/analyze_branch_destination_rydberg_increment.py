@@ -44,13 +44,15 @@ def main() -> None:
     parser.add_argument(
         "--predictions",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_rydberg_simulator/predictions.csv"),
+        default=Path(
+            "results/modeling/transition_destination/branch_destination_rydberg_simulator__predictions.csv"
+        ),
     )
     parser.add_argument("--n-bootstrap", type=int, default=10000)
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_rydberg_increment"),
+        default=Path("results/modeling/transition_destination"),
     )
     args = parser.parse_args()
 
@@ -126,10 +128,22 @@ def main() -> None:
     correction_summary = pd.DataFrame(correction_rows)
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    paired.to_csv(args.outdir / "paired_episode_comparison.csv", index=False)
-    paired_summary.to_csv(args.outdir / "paired_loss_summary.csv", index=False)
-    threshold_table.to_csv(args.outdir / "threshold_tradeoff.csv", index=False)
-    correction_summary.to_csv(args.outdir / "class_probability_shift.csv", index=False)
+    paired.to_csv(
+        args.outdir / "branch_destination_rydberg_increment__paired_episode_comparison.csv",
+        index=False,
+    )
+    paired_summary.to_csv(
+        args.outdir / "branch_destination_rydberg_increment__paired_loss_summary.csv",
+        index=False,
+    )
+    threshold_table.to_csv(
+        args.outdir / "branch_destination_rydberg_increment__threshold_tradeoff.csv",
+        index=False,
+    )
+    correction_summary.to_csv(
+        args.outdir / "branch_destination_rydberg_increment__class_probability_shift.csv",
+        index=False,
+    )
 
     print("Paired Rydberg incremental-loss diagnostic")
     print(paired_summary.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
