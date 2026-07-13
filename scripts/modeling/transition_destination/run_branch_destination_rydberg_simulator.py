@@ -264,7 +264,7 @@ def main() -> None:
     parser.add_argument(
         "--inputdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_rydberg_inputs"),
+        default=Path("results/modeling/transition_destination"),
     )
     parser.add_argument(
         "--encodings",
@@ -285,11 +285,13 @@ def main() -> None:
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_rydberg_simulator"),
+        default=Path("results/modeling/transition_destination"),
     )
     args = parser.parse_args()
 
-    metadata = pd.read_csv(args.inputdir / "episode_metadata.csv")
+    metadata = pd.read_csv(
+        args.inputdir / "branch_destination_rydberg_inputs__episode_metadata.csv"
+    )
     metadata["date"] = pd.to_datetime(metadata["date"])
     metadata["outcome_available_date"] = pd.to_datetime(metadata["outcome_available_date"])
     split_date = pd.Timestamp(args.split_date)
@@ -299,7 +301,10 @@ def main() -> None:
     feature_frames = []
 
     for encoding_name in args.encodings:
-        encoded = np.load(args.inputdir / f"{encoding_name}.npy")
+        encoded = np.load(
+            args.inputdir
+            / f"branch_destination_rydberg_inputs__{encoding_name}.npy"
+        )
         unitaries, grid = precompute_unitaries(
             encoded,
             drive,
@@ -313,7 +318,12 @@ def main() -> None:
             quantization_levels=args.quantization_levels,
         )
         features = reservoir_features(encoded, n_ops, pair_ops, unitaries, grid)
-        feature_frames.append(pd.DataFrame(features).assign(encoding=encoding_name, episode_index=np.arange(len(features))))
+        feature_frames.append(
+            pd.DataFrame(features).assign(
+                encoding=encoding_name,
+                episode_index=np.arange(len(features)),
+            )
+        )
         prediction_frames.append(
             evaluate_encoding(
                 encoding_name,
@@ -334,9 +344,18 @@ def main() -> None:
     ]).sort_values("log_loss")
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    predictions.to_csv(args.outdir / "predictions.csv", index=False)
-    metrics.to_csv(args.outdir / "metrics.csv", index=False)
-    feature_table.to_csv(args.outdir / "reservoir_features.csv", index=False)
+    predictions.to_csv(
+        args.outdir / "branch_destination_rydberg_simulator__predictions.csv",
+        index=False,
+    )
+    metrics.to_csv(
+        args.outdir / "branch_destination_rydberg_simulator__metrics.csv",
+        index=False,
+    )
+    feature_table.to_csv(
+        args.outdir / "branch_destination_rydberg_simulator__reservoir_features.csv",
+        index=False,
+    )
     pd.DataFrame([{
         "n_atoms": args.n_atoms,
         "hilbert_dimension": 2 ** args.n_atoms,
@@ -351,7 +370,10 @@ def main() -> None:
         "feature_definition": "final and temporal-mean occupations plus nearest-neighbor pair occupations",
         "evaluation": "prequential; outcome-maturity aware; protected momentum offset",
         "claim_limit": "exact simulator only; not hardware calibrated; no quantum advantage claim",
-    }]).to_csv(args.outdir / "manifest.csv", index=False)
+    }]).to_csv(
+        args.outdir / "branch_destination_rydberg_simulator__manifest.csv",
+        index=False,
+    )
 
     print("Task B exact-statevector Rydberg reservoir metrics")
     print(metrics.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
