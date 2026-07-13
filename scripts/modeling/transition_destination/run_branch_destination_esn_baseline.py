@@ -133,7 +133,11 @@ def metrics(model: str, part: pd.DataFrame) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pathdir", type=Path, default=Path("results/modeling/transition_destination/branch_destination_paths"))
+    parser.add_argument(
+        "--pathdir",
+        type=Path,
+        default=Path("results/modeling/transition_destination"),
+    )
     parser.add_argument("--split-date", default="1999-12-17")
     parser.add_argument("--n-units", type=int, default=24)
     parser.add_argument("--spectral-radius", type=float, default=0.9)
@@ -141,11 +145,15 @@ def main() -> None:
     parser.add_argument("--leak", type=float, default=0.5)
     parser.add_argument("--penalty", type=float, default=10.0)
     parser.add_argument("--minimum-train", type=int, default=60)
-    parser.add_argument("--outdir", type=Path, default=Path("results/modeling/transition_destination/branch_destination_esn_baseline"))
+    parser.add_argument(
+        "--outdir",
+        type=Path,
+        default=Path("results/modeling/transition_destination"),
+    )
     args = parser.parse_args()
 
-    paths = np.load(args.pathdir / "paths.npy")
-    metadata = pd.read_csv(args.pathdir / "episode_metadata.csv")
+    paths = np.load(args.pathdir / "branch_destination_paths__paths.npy")
+    metadata = pd.read_csv(args.pathdir / "branch_destination_paths__episode_metadata.csv")
     metadata["date"] = pd.to_datetime(metadata["date"])
     metadata["outcome_available_date"] = pd.to_datetime(metadata["outcome_available_date"])
     if len(paths) != len(metadata):
@@ -189,8 +197,14 @@ def main() -> None:
     ]).sort_values("log_loss")
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    predictions.to_csv(args.outdir / "predictions.csv", index=False)
-    summary.to_csv(args.outdir / "metrics.csv", index=False)
+    predictions.to_csv(
+        args.outdir / "branch_destination_esn_baseline__predictions.csv",
+        index=False,
+    )
+    summary.to_csv(
+        args.outdir / "branch_destination_esn_baseline__metrics.csv",
+        index=False,
+    )
     pd.DataFrame([{
         "n_units": args.n_units,
         "feature_dimension": 2 * args.n_units,
@@ -200,7 +214,10 @@ def main() -> None:
         "ridge_penalty": args.penalty,
         "seed": SEED,
         "evaluation": "prequential; outcome-maturity aware; same paths reserved for Rydberg",
-    }]).to_csv(args.outdir / "manifest.csv", index=False)
+    }]).to_csv(
+        args.outdir / "branch_destination_esn_baseline__manifest.csv",
+        index=False,
+    )
 
     print("Task B matched classical reservoir metrics")
     print(summary.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
