@@ -68,6 +68,7 @@ def test_evaluation_public_api_exports_shared_helpers() -> None:
         "fit_joint_predict",
         "fit_offset_predict",
         "fit_residualizer",
+        "fit_train_test_probabilities",
         "fit_transformed_predict",
         "historical_crossfit_d1_logits",
         "logistic_pipeline",
