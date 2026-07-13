@@ -76,6 +76,54 @@ def residualize_train_test(
     return H_train - predicted_train, H_test - predicted_test
 
 
+def residualize_train_test_safe(
+    X_train: np.ndarray,
+    H_train: np.ndarray,
+    X_test: np.ndarray,
+    H_test: np.ndarray,
+    alpha: float,
+    n_splits: int = DEFAULT_N_SPLITS,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Residualize while preserving two-dimensional single-output feature blocks."""
+
+    X_train = np.asarray(X_train, dtype=float)
+    X_test = np.asarray(X_test, dtype=float)
+    H_train = np.asarray(H_train, dtype=float)
+    H_test = np.asarray(H_test, dtype=float)
+    if H_train.ndim == 1:
+        H_train = H_train.reshape(-1, 1)
+    if H_test.ndim == 1:
+        H_test = H_test.reshape(-1, 1)
+
+    def fitted_values(
+        X_fit: np.ndarray,
+        H_fit: np.ndarray,
+        X_eval: np.ndarray,
+    ) -> np.ndarray:
+        x_scaler = StandardScaler().fit(X_fit)
+        h_scaler = StandardScaler().fit(H_fit)
+        Xs = x_scaler.transform(X_fit)
+        Xes = x_scaler.transform(X_eval)
+        Hs = h_scaler.transform(H_fit)
+        model = Ridge(alpha=alpha).fit(Xs, Hs)
+        predicted = np.asarray(model.predict(Xes), dtype=float)
+        if predicted.ndim == 1:
+            predicted = predicted.reshape(-1, 1)
+        return h_scaler.inverse_transform(predicted)
+
+    splits = min(n_splits, len(X_train))
+    if splits < 2:
+        raise ValueError("At least two training rows are required")
+    predicted_train = np.empty_like(H_train, dtype=float)
+    kfold = KFold(n_splits=splits, shuffle=False)
+    for fit_idx, valid_idx in kfold.split(X_train):
+        predicted_train[valid_idx] = fitted_values(
+            X_train[fit_idx], H_train[fit_idx], X_train[valid_idx]
+        )
+    predicted_test = fitted_values(X_train, H_train, X_test)
+    return H_train - predicted_train, H_test - predicted_test
+
+
 def residual_diagnostics(H: np.ndarray, R: np.ndarray) -> dict[str, float]:
     """Summarize variance removed and residual scale."""
 
