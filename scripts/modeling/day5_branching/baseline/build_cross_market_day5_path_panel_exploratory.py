@@ -28,6 +28,10 @@ INPUTS = {
     "russell_2000": Path("data/raw/portability/russell_2000_raw.csv"),
 }
 DEFAULT_OUT = Path("scratch/path_panel_day0_5.csv")
+LANDMARK_INPUT = Path(
+    "results/modeling/day5_branching/baseline/"
+    "cross_market_day5_direction_v1__day5_landmark_frame.csv"
+)
 
 
 def complete(episodes: pd.DataFrame, n_rows: int) -> pd.DataFrame:
@@ -118,9 +122,7 @@ def main(out: Path = DEFAULT_OUT) -> None:
     print("spy", len(spy_frame))
 
     panel = pd.concat(frames, ignore_index=True)
-    landmark = pd.read_csv(
-        "results/modeling/day5_branching/baseline/cross_market_day5_direction_v1/day5_landmark_frame.csv"
-    )
+    landmark = pd.read_csv(LANDMARK_INPUT)
     merged = landmark.merge(
         panel,
         on=["market_key", "episode_id"],
