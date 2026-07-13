@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .binary import (
+    fit_feature_map_predict,
     fit_feature_only_predict,
     fit_joint_predict,
     fit_offset_predict,
@@ -28,6 +29,7 @@ __all__ = [
     "binary_summary",
     "cluster_weighted_summary",
     "d1_basis",
+    "fit_feature_map_predict",
     "fit_feature_only_predict",
     "fit_joint_predict",
     "fit_offset_predict",
