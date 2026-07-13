@@ -8,6 +8,19 @@ from pathlib import Path
 
 import numpy as np
 
+from qpitome_qrc.day5.features import split_blocks
+from qpitome_qrc.day5.protocol import (
+    D1,
+    MIN_TRAIN,
+    STATIC,
+    differential_patterns,
+    eligible_rows,
+    load_frame,
+    rydberg_config,
+)
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "modeling" / "run_day5_rydberg_pca_reconstruction.py"
 SPEC = importlib.util.spec_from_file_location("day5_pca_reconstruction", SCRIPT)
@@ -43,3 +56,17 @@ def test_summarize_reports_componentwise_r2() -> None:
     assert len(summary) == 1
     assert summary.iloc[0]["r2"] == 1.0
     assert summary.iloc[0]["rmse"] == 0.0
+
+
+def test_pca_reconstruction_uses_package_helpers_directly() -> None:
+    assert module.D1 == D1
+    assert module.STATIC == STATIC
+    assert module.MIN_TRAIN == MIN_TRAIN
+    assert module.rydberg_config is rydberg_config
+    assert module.eligible_rows is eligible_rows
+    assert module.differential_patterns is differential_patterns
+    assert module.load_frame is load_frame
+    assert module.split_blocks is split_blocks
+    assert module.logistic_pipeline is logistic_pipeline
+    assert module.build_local_detuning_feature_matrix is build_local_detuning_feature_matrix
+    assert not hasattr(module, "assay")
