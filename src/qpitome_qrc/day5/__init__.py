@@ -2,6 +2,7 @@
 
 from .features import (
     PATH_SHAPE_BLOCKS,
+    PROTECTED_FEATURE_BLOCKS,
     add_path_shape_features,
     feature_diagnostics,
     pca_block,
@@ -25,6 +26,7 @@ __all__ = [
     "EVAL_START",
     "MIN_TRAIN",
     "PATH_SHAPE_BLOCKS",
+    "PROTECTED_FEATURE_BLOCKS",
     "STATIC",
     "add_extrema",
     "add_path_shape_features",
