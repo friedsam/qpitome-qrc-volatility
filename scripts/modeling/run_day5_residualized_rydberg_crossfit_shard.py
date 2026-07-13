@@ -21,6 +21,7 @@ from qpitome_qrc.day5.protocol import (
     rydberg_config,
 )
 from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.historical_crossfit import historical_crossfit_d1_logits
 from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test
 from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
 
@@ -30,22 +31,6 @@ RIDGE_ALPHA = 10.0
 OFFSET_L2 = 100.0
 INNER_CROSSFIT_MIN_TRAIN = 10
 MIN_CORRECTION_TRAIN = 20
-
-
-def historical_crossfit_d1_logits(train: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """Return indices and strictly historical out-of-fold D1 logits for train rows."""
-    logits = np.full(len(train), np.nan, dtype=float)
-    for cluster_start, group in train.groupby("cluster_start", sort=True):
-        valid_positions = train.index.get_indexer(group.index)
-        prior = train[train["landmark_date"] < cluster_start]
-        if len(prior) < INNER_CROSSFIT_MIN_TRAIN or prior["y_recovery"].nunique() < 2:
-            continue
-        model = logistic_pipeline(1.0)
-        model.fit(prior[D1].to_numpy(float), prior["y_recovery"].to_numpy(int))
-        p = model.predict_proba(group[D1].to_numpy(float))[:, 1]
-        logits[valid_positions] = logit(p)
-    valid = np.isfinite(logits)
-    return np.flatnonzero(valid), logits[valid]
 
 
 def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.DataFrame:
@@ -80,7 +65,10 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
             X_train, H_train, X_test, H_test, RIDGE_ALPHA
         )
 
-        cf_positions, cf_logits = historical_crossfit_d1_logits(train)
+        cf_positions, cf_logits = historical_crossfit_d1_logits(
+            train,
+            min_train=INNER_CROSSFIT_MIN_TRAIN,
+        )
         if len(cf_positions) < MIN_CORRECTION_TRAIN or np.unique(y_train[cf_positions]).size < 2:
             raise RuntimeError(
                 f"Insufficient cross-fitted rows for cluster {cluster_start}: "
