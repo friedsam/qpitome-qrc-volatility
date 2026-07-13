@@ -240,7 +240,10 @@ def maybe_plot(summary: pd.DataFrame, thresholds: dict[str, float], path: Path) 
         ax.set_title(f"Task A event-time trajectory: {score.replace('_', ' ')}")
         ax.legend()
         fig.tight_layout()
-        fig.savefig(path / f"trajectory_{score}.png", dpi=180)
+        fig.savefig(
+            path / f"branch_onset_trajectory__trajectory_{score}.png",
+            dpi=180,
+        )
         plt.close(fig)
 
 
@@ -260,7 +263,7 @@ def main() -> None:
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_onset/branch_onset_trajectory"),
+        default=Path("results/modeling/transition_onset"),
     )
     args = parser.parse_args()
 
@@ -320,12 +323,30 @@ def main() -> None:
     ])
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    long.to_csv(args.outdir / "event_time_scores_long.csv", index=False)
-    trajectory.to_csv(args.outdir / "event_time_trajectory_summary.csv", index=False)
-    episode.to_csv(args.outdir / "episode_detection_summary.csv", index=False)
-    false_alarms.to_csv(args.outdir / "non_event_false_alarm_summary.csv", index=False)
-    threshold_frame.to_csv(args.outdir / "frozen_thresholds.csv", index=False)
-    event_frame.to_csv(args.outdir / "holdout_events.csv", index=False)
+    long.to_csv(
+        args.outdir / "branch_onset_trajectory__event_time_scores_long.csv",
+        index=False,
+    )
+    trajectory.to_csv(
+        args.outdir / "branch_onset_trajectory__event_time_trajectory_summary.csv",
+        index=False,
+    )
+    episode.to_csv(
+        args.outdir / "branch_onset_trajectory__episode_detection_summary.csv",
+        index=False,
+    )
+    false_alarms.to_csv(
+        args.outdir / "branch_onset_trajectory__non_event_false_alarm_summary.csv",
+        index=False,
+    )
+    threshold_frame.to_csv(
+        args.outdir / "branch_onset_trajectory__frozen_thresholds.csv",
+        index=False,
+    )
+    event_frame.to_csv(
+        args.outdir / "branch_onset_trajectory__holdout_events.csv",
+        index=False,
+    )
     maybe_plot(trajectory, thresholds, args.outdir)
 
     print("Frozen training thresholds")
