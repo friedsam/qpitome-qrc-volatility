@@ -223,7 +223,9 @@ def main() -> None:
     parser.add_argument(
         "--episodes",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_target_audit/episodes.csv"),
+        default=Path(
+            "results/modeling/transition_destination/branch_destination_target_audit__episodes.csv"
+        ),
     )
     parser.add_argument("--horizon", type=int, default=8)
     parser.add_argument("--neutral-zone", type=float, default=1.0)
@@ -233,7 +235,7 @@ def main() -> None:
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_classical_baselines"),
+        default=Path("results/modeling/transition_destination"),
     )
     args = parser.parse_args()
 
@@ -259,10 +261,22 @@ def main() -> None:
     }])
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    manifest.to_csv(args.outdir / "manifest.csv", index=False)
-    predictions.to_csv(args.outdir / "predictions.csv", index=False)
-    coefficients.to_csv(args.outdir / "coefficient_history.csv", index=False)
-    metrics.to_csv(args.outdir / "metrics.csv", index=False)
+    manifest.to_csv(
+        args.outdir / "branch_destination_classical_baselines__manifest.csv",
+        index=False,
+    )
+    predictions.to_csv(
+        args.outdir / "branch_destination_classical_baselines__predictions.csv",
+        index=False,
+    )
+    coefficients.to_csv(
+        args.outdir / "branch_destination_classical_baselines__coefficient_history.csv",
+        index=False,
+    )
+    metrics.to_csv(
+        args.outdir / "branch_destination_classical_baselines__metrics.csv",
+        index=False,
+    )
 
     print("Task B compact classical baseline manifest")
     print(manifest.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
