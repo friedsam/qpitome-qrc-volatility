@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
+from sklearn.kernel_approximation import RBFSampler
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 from qpitome_qrc.baselines.logistic_offset import fit_offset_logistic, sigmoid
 
@@ -19,6 +20,41 @@ def logistic_pipeline(C: float) -> Pipeline:
         ("scale", StandardScaler()),
         ("logit", LogisticRegression(C=C, max_iter=5000, solver="lbfgs")),
     ])
+
+
+def transformed_logistic_pipeline(kind: str, C: float) -> Pipeline:
+    """Return the locked linear, quadratic, or random-RBF logistic control."""
+
+    steps: list[tuple[str, object]] = [("scale", StandardScaler())]
+    if kind == "poly2":
+        steps.append(("poly", PolynomialFeatures(degree=2, include_bias=False)))
+    elif kind == "rbf32":
+        steps.append((
+            "rbf",
+            RBFSampler(gamma=0.25, n_components=32, random_state=17),
+        ))
+    elif kind != "linear":
+        raise ValueError(kind)
+    steps.append((
+        "logit",
+        LogisticRegression(C=C, max_iter=5000, solver="lbfgs"),
+    ))
+    return Pipeline(steps)
+
+
+def fit_transformed_predict(
+    X_train: np.ndarray,
+    y: np.ndarray,
+    X_test: np.ndarray,
+    *,
+    kind: str,
+    C: float,
+) -> float:
+    """Fit one locked transformed logistic control and predict one held-out row."""
+
+    model = transformed_logistic_pipeline(kind, C)
+    model.fit(X_train, y)
+    return float(model.predict_proba(X_test)[0, 1])
 
 
 def fit_feature_map_predict(
