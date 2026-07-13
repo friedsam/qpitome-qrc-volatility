@@ -3,11 +3,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, brier_score_loss, log_loss, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.day5.protocol import D1, EVAL_START, MIN_TRAIN
 from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
 
 BASE = Path("results/baselines/cross_market_day5_direction_v1")
 CLUSTERS = Path("results/diagnostics/cross_market_crisis_clusters_v2/branch_sync_cluster_detail.csv")
@@ -17,6 +17,9 @@ N_STATE = 2 ** N_QUBITS
 OMEGA = 1.0
 EVOLVE_TIME = 1.35
 POSITIONS = np.array([0.0, 1.0, 2.15, 3.6])
+
+# Backward-compatible historical name.
+score = binary_summary
 
 
 def bit_value(index, qubit):
@@ -76,21 +79,6 @@ def rydberg_features(x):
     return np.asarray(feats, dtype=float)
 
 
-def score(group, model):
-    use = group[["y", model]].dropna()
-    y = use["y"].to_numpy(int)
-    p = np.clip(use[model].to_numpy(float), 1e-6, 1 - 1e-6)
-    return {
-        "model": model,
-        "n": len(use),
-        "recovery_rate": float(y.mean()) if len(y) else np.nan,
-        "auc": float(roc_auc_score(y, p)) if len(np.unique(y)) == 2 else np.nan,
-        "pr_auc": float(average_precision_score(y, p)) if len(np.unique(y)) == 2 else np.nan,
-        "logloss": float(log_loss(y, p)) if len(y) else np.nan,
-        "brier": float(brier_score_loss(y, p)) if len(y) else np.nan,
-    }
-
-
 def fit_linear(train, test):
     model = logistic_pipeline(1.0)
     model.fit(train[D1].to_numpy(float), train["y_recovery"].to_numpy(int))
@@ -139,18 +127,10 @@ def main():
         })
     preds = pd.DataFrame(rows)
     models = ["D0_prior", "D1_geometry", "QR1_fixed_rydberg_feature"]
-    metrics = pd.DataFrame([score(preds, m) for m in models])
-
-    cluster_rows = []
-    for model in models:
-        losses = []
-        for cid, g in preds.dropna(subset=[model]).groupby("cluster_id"):
-            y = g["y"].to_numpy(int)
-            p = np.clip(g[model].to_numpy(float), 1e-6, 1 - 1e-6)
-            losses.append({"cluster_id": cid, "n": len(g), "mean_logloss": float(log_loss(y, p, labels=[0, 1])), "mean_brier": float(np.mean((p - y) ** 2))})
-        loss = pd.DataFrame(losses)
-        cluster_rows.append({"model": model, "n_clusters": int(loss["cluster_id"].nunique()), "cluster_mean_logloss": float(loss["mean_logloss"].mean()), "cluster_mean_brier": float(loss["mean_brier"].mean()), "median_cluster_size": float(loss["n"].median())})
-    cluster_metrics = pd.DataFrame(cluster_rows)
+    metrics = pd.DataFrame([binary_summary(preds, model) for model in models])
+    cluster_metrics = pd.DataFrame([
+        cluster_weighted_summary(preds, model) for model in models
+    ])
 
     preds.to_csv(OUT / "purged_calendar_prequential_predictions.csv", index=False)
     metrics.to_csv(OUT / "summary_metrics.csv", index=False)
