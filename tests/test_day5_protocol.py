@@ -9,7 +9,7 @@ import pandas as pd
 from qpitome_qrc.day5 import protocol
 from qpitome_qrc.day5.features import split_blocks
 from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
-from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test
+from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test, ridge_pipeline
 
 
 def load_script(name: str, path: str):
@@ -130,6 +130,7 @@ def test_input_audit_uses_package_helpers_directly() -> None:
     assert module.eligible_rows is protocol.eligible_rows
     assert module.D1 == protocol.D1
     assert module.logistic_pipeline is logistic_pipeline
+    assert module.ridge_pipeline is ridge_pipeline
 
 
 def test_residualized_shard_uses_package_helpers_directly() -> None:
