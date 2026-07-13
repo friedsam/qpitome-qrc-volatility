@@ -174,7 +174,7 @@ def main() -> None:
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_onset/branch_onset_triviality_audit"),
+        default=Path("results/modeling/transition_onset"),
     )
     args = parser.parse_args()
     if not 0.4 <= args.train_fraction <= 0.8:
@@ -217,9 +217,18 @@ def main() -> None:
     }])
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(args.outdir / "labeled_weeks.csv", index=False)
-    summary.to_csv(args.outdir / "summary.csv", index=False)
-    results.to_csv(args.outdir / "trivial_detector_results.csv", index=False)
+    frame.to_csv(
+        args.outdir / "branch_onset_triviality_audit__labeled_weeks.csv",
+        index=False,
+    )
+    summary.to_csv(
+        args.outdir / "branch_onset_triviality_audit__summary.csv",
+        index=False,
+    )
+    results.to_csv(
+        args.outdir / "branch_onset_triviality_audit__trivial_detector_results.csv",
+        index=False,
+    )
 
     print("Branch-onset audit summary")
     print(summary.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
