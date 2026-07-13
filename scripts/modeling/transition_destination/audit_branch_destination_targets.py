@@ -218,7 +218,9 @@ def main() -> None:
     parser.add_argument(
         "--predictions",
         type=Path,
-        default=Path("results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"),
+        default=Path(
+            "results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"
+        ),
     )
     parser.add_argument("--train-fraction", type=float, default=0.60)
     parser.add_argument("--reset-threshold", type=float, default=0.35)
@@ -230,7 +232,7 @@ def main() -> None:
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_target_audit"),
+        default=Path("results/modeling/transition_destination"),
     )
     args = parser.parse_args()
 
@@ -270,10 +272,22 @@ def main() -> None:
     }])
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    metadata.to_csv(args.outdir / "metadata.csv", index=False)
-    episodes.to_csv(args.outdir / "episodes.csv", index=False)
-    summaries.to_csv(args.outdir / "target_summary.csv", index=False)
-    trivial.to_csv(args.outdir / "trivial_predictability.csv", index=False)
+    metadata.to_csv(
+        args.outdir / "branch_destination_target_audit__metadata.csv",
+        index=False,
+    )
+    episodes.to_csv(
+        args.outdir / "branch_destination_target_audit__episodes.csv",
+        index=False,
+    )
+    summaries.to_csv(
+        args.outdir / "branch_destination_target_audit__target_summary.csv",
+        index=False,
+    )
+    trivial.to_csv(
+        args.outdir / "branch_destination_target_audit__trivial_predictability.csv",
+        index=False,
+    )
 
     print("Task B target audit metadata")
     print(metadata.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
