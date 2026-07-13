@@ -8,17 +8,12 @@ This repository uses documentation as part of the experimental protocol. Durable
 
 ## Protocols
 
-- [`protocols/track_b_destination_protocol.md`](protocols/track_b_destination_protocol.md): current Task B target, evaluation protocol, baseline ladder, and evidence status.
+- [`protocols/track_b_destination_protocol.md`](protocols/track_b_destination_protocol.md): current Track B target, evaluation protocol, baseline ladder, and evidence status.
 - [`experiments/weekly_regime_transition_redesign.md`](experiments/weekly_regime_transition_redesign.md): rationale and evidence for replacing the barrier-defined primary task with weekly regime-transition Tasks A and B.
 
 ## Experiment notes
 
 Use `docs/experiments/` for interpretation and decision records tied to one experiment family. These files may describe exploratory work but must label it as such.
-
-## Repository documentation
-
-- `docs/repository/layout_audit.md`: generated inventory after running the repository reorganization tool.
-- `docs/repository/modeling_reorganization_manifest.json`: machine-readable record of script moves.
 
 ## Result-directory standard
 
@@ -32,18 +27,13 @@ Every durable result directory should contain, where applicable:
 
 Temporary `/tmp` outputs are acceptable during exploration but are not durable evidence.
 
-## Naming standard
+## Script organization
 
-Scripts are organized by scientific role rather than model buzzword:
+Follow [`repo_organization.md`](repo_organization.md): organize by purpose, not by model family.
 
-```text
-scripts/modeling/day5_barrier/
-scripts/modeling/weekly_regimes/
-scripts/modeling/task_a_onset/
-scripts/modeling/task_b_destination/
-scripts/modeling/classical_models/
-scripts/modeling/quantum_models/
-scripts/modeling/legacy_unclassified/
-```
+- current operational runners remain at `scripts/` root until superseded;
+- model-development work belongs in `scripts/exploratory/`;
+- mechanism, falsification, and ablation work belongs in `scripts/diagnostics/`;
+- historical comparison runners belong in `scripts/reference/`.
 
-New files should be placed directly into the correct subdirectory. Do not recreate a flat `scripts/modeling` directory.
+Do not create new model-family directories such as `classical_models/` or `quantum_models/`. Do not add one-off maintenance scripts to the repository.
