@@ -10,10 +10,10 @@ from sklearn.metrics import roc_auc_score, average_precision_score, log_loss, br
 from qpitome_qrc.regimes.branch_intermediate_dynamics import IntermediateProbeConfig, build_first_passage_episode_table
 from qpitome_qrc.regimes.branch_transition_path import add_transition_path_channels
 from qpitome_qrc.regimes.market_portability import DEFAULT_MARKETS, audit_market_portability
-from qpitome_qrc.regimes.crisis_clusters import attach_event_dates, build_resolved_episode_intervals
-from qpitome_qrc.regimes.branch_sync_clusters import cluster_branch_dates
+from qpitome_qrc.regimes.crisis_clusters import build_resolved_episode_intervals
 
-OUT = Path("results/modeling/day5_branching/baseline/cross_market_day5_direction_v1")
+OUT = Path("results/modeling/day5_branching/baseline")
+PREFIX = "cross_market_day5_direction_v1__"
 FOLLOWUP = 120
 LANDMARK = 5
 MIN_TRAIN = 30
@@ -148,10 +148,10 @@ def main():
     frame = pd.concat(frames, ignore_index=True)
     frame, preds = prequential_scores(frame)
     m = metrics(preds)
-    frame.to_csv(OUT / "day5_landmark_frame.csv", index=False)
-    preds.to_csv(OUT / "calendar_prequential_predictions.csv", index=False)
-    m.to_csv(OUT / "summary_metrics.csv", index=False)
-    (OUT / "run_manifest.json").write_text(json.dumps({"landmark_day": LANDMARK, "min_train": MIN_TRAIN, "evaluation": "calendar-prequential, train landmark_date < test landmark_date"}, indent=2) + "\n")
+    frame.to_csv(OUT / f"{PREFIX}day5_landmark_frame.csv", index=False)
+    preds.to_csv(OUT / f"{PREFIX}calendar_prequential_predictions.csv", index=False)
+    m.to_csv(OUT / f"{PREFIX}summary_metrics.csv", index=False)
+    (OUT / f"{PREFIX}run_manifest.json").write_text(json.dumps({"landmark_day": LANDMARK, "min_train": MIN_TRAIN, "evaluation": "calendar-prequential, train landmark_date < test landmark_date"}, indent=2) + "\n")
     print("Cross-market day-5 direction baselines")
     print("Landmark rows:", len(frame))
     print("Predicted rows:", len(preds))
