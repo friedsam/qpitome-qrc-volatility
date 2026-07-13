@@ -1,17 +1,17 @@
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, brier_score_loss, log_loss, roc_auc_score
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+
+from qpitome_qrc.day5.protocol import D1, EVAL_START, MIN_TRAIN
+from qpitome_qrc.evaluation.binary import logistic_pipeline
 
 BASE = Path("results/baselines/cross_market_day5_direction_v1")
 CLUSTERS = Path("results/diagnostics/cross_market_crisis_clusters_v2/branch_sync_cluster_detail.csv")
 OUT = Path("results/qrc/cross_market_day5_fixed_rydberg_feature_v1")
-MIN_TRAIN = 30
-EVAL_START = pd.Timestamp("1990-01-01")
-D1 = ["current_return_5d_from_branch", "distance_to_recovery_barrier", "distance_to_relapse_barrier", "barrier_width"]
 N_QUBITS = 4
 N_STATE = 2 ** N_QUBITS
 OMEGA = 1.0
@@ -92,10 +92,7 @@ def score(group, model):
 
 
 def fit_linear(train, test):
-    model = Pipeline([
-        ("scale", StandardScaler()),
-        ("logit", LogisticRegression(C=1.0, max_iter=5000, solver="lbfgs")),
-    ])
+    model = logistic_pipeline(1.0)
     model.fit(train[D1].to_numpy(float), train["y_recovery"].to_numpy(int))
     return float(model.predict_proba(test[D1].to_numpy(float))[0, 1])
 
