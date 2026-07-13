@@ -8,75 +8,27 @@ from sklearn.preprocessing import StandardScaler
 from qpitome_qrc.day5.protocol import D1, EVAL_START, MIN_TRAIN
 from qpitome_qrc.evaluation.binary import logistic_pipeline
 from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
+from qpitome_qrc.qrc.fixed_rydberg_feature import (
+    EVOLVE_TIME,
+    N_OPS,
+    N_QUBITS,
+    N_STATE,
+    NN_OPS,
+    OMEGA,
+    PAIR_V,
+    POSITIONS,
+    X_OPS,
+    bit_value,
+    build_operators,
+    rydberg_features,
+)
 
 BASE = Path("results/baselines/cross_market_day5_direction_v1")
 CLUSTERS = Path("results/diagnostics/cross_market_crisis_clusters_v2/branch_sync_cluster_detail.csv")
 OUT = Path("results/qrc/cross_market_day5_fixed_rydberg_feature_v1")
-N_QUBITS = 4
-N_STATE = 2 ** N_QUBITS
-OMEGA = 1.0
-EVOLVE_TIME = 1.35
-POSITIONS = np.array([0.0, 1.0, 2.15, 3.6])
 
 # Backward-compatible historical name.
 score = binary_summary
-
-
-def bit_value(index, qubit):
-    return 1 if (index & (1 << qubit)) else 0
-
-
-def build_operators():
-    x_ops = []
-    n_ops = []
-    nn_ops = []
-    for q in range(N_QUBITS):
-        x = np.zeros((N_STATE, N_STATE), dtype=complex)
-        n = np.zeros((N_STATE, N_STATE), dtype=complex)
-        for i in range(N_STATE):
-            x[i ^ (1 << q), i] = 1.0
-            n[i, i] = bit_value(i, q)
-        x_ops.append(x)
-        n_ops.append(n)
-    for i in range(N_QUBITS):
-        for j in range(i + 1, N_QUBITS):
-            nn_ops.append((i, j, n_ops[i] @ n_ops[j]))
-    return x_ops, n_ops, nn_ops
-
-
-X_OPS, N_OPS, NN_OPS = build_operators()
-PAIR_V = {}
-for i in range(N_QUBITS):
-    for j in range(i + 1, N_QUBITS):
-        r = abs(POSITIONS[i] - POSITIONS[j])
-        PAIR_V[(i, j)] = 0.85 / (r ** 6)
-
-
-def rydberg_features(x):
-    x = np.clip(np.asarray(x, dtype=float), -3.0, 3.0)
-    deltas = 0.65 * x
-    h = np.zeros((N_STATE, N_STATE), dtype=complex)
-    for q in range(N_QUBITS):
-        h += 0.5 * OMEGA * X_OPS[q]
-        h += -deltas[q] * N_OPS[q]
-    for i, j, nn in NN_OPS:
-        h += PAIR_V[(i, j)] * nn
-    eigvals, eigvecs = np.linalg.eigh(h)
-    psi0 = np.zeros(N_STATE, dtype=complex)
-    psi0[0] = 1.0
-    coeff = eigvecs.conj().T @ psi0
-    psi = eigvecs @ (np.exp(-1j * eigvals * EVOLVE_TIME) * coeff)
-    feats = []
-    for q in range(N_QUBITS):
-        feats.append(float(np.real(np.vdot(psi, N_OPS[q] @ psi))))
-    for i, j, nn in NN_OPS:
-        feats.append(float(np.real(np.vdot(psi, nn @ psi))))
-    # Add final-state probability entropy and excitation count as fixed observables.
-    probs = np.abs(psi) ** 2
-    entropy = -float(np.sum(probs * np.log(np.clip(probs, 1e-12, 1.0))))
-    excitation_count = sum(feats[:N_QUBITS])
-    feats.extend([entropy, excitation_count])
-    return np.asarray(feats, dtype=float)
 
 
 def fit_linear(train, test):
