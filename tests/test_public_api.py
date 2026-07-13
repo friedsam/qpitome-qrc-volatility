@@ -30,6 +30,8 @@ def test_day5_public_api_exports_locked_helpers() -> None:
 def test_evaluation_public_api_exports_shared_helpers() -> None:
     expected = {
         "DEFAULT_N_SPLITS",
+        "binary_summary",
+        "cluster_weighted_summary",
         "d1_basis",
         "fit_feature_only_predict",
         "fit_joint_predict",
