@@ -18,6 +18,7 @@ from .residualization import (
     residualize_train_test,
     ridge_pipeline,
 )
+from .scoring import proper_score_deltas
 
 if TYPE_CHECKING:
     from .historical_crossfit import historical_crossfit_d1_logits
@@ -31,6 +32,7 @@ __all__ = [
     "fit_residualizer",
     "historical_crossfit_d1_logits",
     "logistic_pipeline",
+    "proper_score_deltas",
     "residual_diagnostics",
     "residualize_train_test",
     "ridge_pipeline",
