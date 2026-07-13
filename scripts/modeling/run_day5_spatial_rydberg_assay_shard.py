@@ -28,6 +28,7 @@ from qpitome_qrc.evaluation.binary import (
     fit_feature_only_predict,
     fit_joint_predict,
     fit_offset_predict,
+    fit_train_test_probabilities,
     logistic_pipeline,
 )
 from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
@@ -56,10 +57,12 @@ def evaluate_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> tu
         d1_train = train[D1].to_numpy(float)
         d1_test = frame.loc[[i], D1].to_numpy(float)
 
-        d1_model = logistic_pipeline(1.0)
-        d1_model.fit(d1_train, y_train)
-        p_train_d1 = d1_model.predict_proba(d1_train)[:, 1]
-        p_test_d1 = float(d1_model.predict_proba(d1_test)[0, 1])
+        p_train_d1, p_test_d1 = fit_train_test_probabilities(
+            d1_train,
+            y_train,
+            d1_test,
+            C=1.0,
+        )
         offset_train = logit(p_train_d1)
         offset_test = float(logit(p_test_d1))
 
