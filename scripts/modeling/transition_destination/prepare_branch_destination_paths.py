@@ -148,12 +148,16 @@ def main() -> None:
     parser.add_argument(
         "--weekly-predictions",
         type=Path,
-        default=Path("results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"),
+        default=Path(
+            "results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"
+        ),
     )
     parser.add_argument(
         "--episodes",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_target_audit/episodes.csv"),
+        default=Path(
+            "results/modeling/transition_destination/branch_destination_target_audit__episodes.csv"
+        ),
     )
     parser.add_argument("--horizon", type=int, default=8)
     parser.add_argument("--neutral-zone", type=float, default=1.0)
@@ -163,7 +167,7 @@ def main() -> None:
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_paths"),
+        default=Path("results/modeling/transition_destination"),
     )
     args = parser.parse_args()
 
@@ -184,11 +188,18 @@ def main() -> None:
     )
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    np.save(args.outdir / "paths.npy", paths)
-    metadata.to_csv(args.outdir / "episode_metadata.csv", index=False)
-    long.to_csv(args.outdir / "paths_long.csv", index=False)
+    np.save(args.outdir / "branch_destination_paths__paths.npy", paths)
+    metadata.to_csv(
+        args.outdir / "branch_destination_paths__episode_metadata.csv",
+        index=False,
+    )
+    long.to_csv(
+        args.outdir / "branch_destination_paths__paths_long.csv",
+        index=False,
+    )
     pd.DataFrame({"channel": args.channels, "mean": mean, "scale": scale}).to_csv(
-        args.outdir / "standardization.csv", index=False
+        args.outdir / "branch_destination_paths__standardization.csv",
+        index=False,
     )
     manifest = {
         "n_episodes": int(len(metadata)),
@@ -204,7 +215,9 @@ def main() -> None:
         "standardization": "fixed mean and scale from weekly observations before split date",
         "causality": "each path ends at episode date and includes no future observations",
     }
-    (args.outdir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    (args.outdir / "branch_destination_paths__manifest.json").write_text(
+        json.dumps(manifest, indent=2)
+    )
 
     print("Task B reservoir path dataset")
     print(json.dumps(manifest, indent=2))
