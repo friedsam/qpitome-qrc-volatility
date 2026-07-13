@@ -37,6 +37,7 @@ def test_evaluation_public_api_exports_shared_helpers() -> None:
         "logistic_pipeline",
         "residual_diagnostics",
         "residualize_train_test",
+        "ridge_pipeline",
     }
 
     assert set(evaluation.__all__) == expected
