@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from qpitome_qrc.evaluation.scoring import proper_score_deltas
+from qpitome_qrc.evaluation.scoring import binary_summary, proper_score_deltas
 
 
 def load_script(name: str, path: str):
@@ -57,4 +57,35 @@ def test_input_audit_reexports_proper_score_helper() -> None:
         "scripts/modeling/run_day5_input_audit.py",
     )
 
+    assert module.proper_score_deltas is proper_score_deltas
+
+
+def test_residualized_merge_uses_shared_scoring_with_historical_schema() -> None:
+    module = load_script(
+        "day5_residualized_merge_scoring",
+        "scripts/modeling/merge_day5_residualized_rydberg.py",
+    )
+    frame = pd.DataFrame({
+        "y": [0, 1, 1, 0],
+        "D1": [0.2, 0.6, 0.7, 0.4],
+        "candidate": [0.1, 0.8, 0.6, 0.3],
+        "cluster_id": ["a", "a", "b", "b"],
+    })
+
+    expected_summary = binary_summary(frame, "candidate", clip=1e-6)
+    actual_summary = module.metrics(frame, "candidate")
+    assert actual_summary == {
+        key: expected_summary[key]
+        for key in ("model", "n", "auc", "pr_auc", "logloss", "brier")
+    }
+    assert "recovery_rate" not in actual_summary
+
+    expected_delta = proper_score_deltas(
+        frame,
+        "candidate",
+        baseline="D1",
+        clip=1e-6,
+    )
+    assert module.deltas(frame, "candidate") == expected_delta
+    assert module.binary_summary is binary_summary
     assert module.proper_score_deltas is proper_score_deltas
