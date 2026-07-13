@@ -14,9 +14,7 @@ same Rydberg simulation and residualizer.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -25,14 +23,18 @@ from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
-REPO = Path(__file__).resolve().parents[2]
-ASSAY_PATH = REPO / "scripts" / "modeling" / "run_day5_spatial_rydberg_assay_shard.py"
-SPEC = importlib.util.spec_from_file_location("day5_spatial_assay", ASSAY_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Could not load assay helpers from {ASSAY_PATH}")
-assay = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = assay
-SPEC.loader.exec_module(assay)
+from qpitome_qrc.baselines.logistic_offset import logit
+from qpitome_qrc.day5.features import split_blocks
+from qpitome_qrc.day5.protocol import (
+    D1,
+    STATIC,
+    differential_patterns,
+    eligible_rows,
+    load_frame,
+    rydberg_config,
+)
+from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
 
 BLOCKS = ("occupations", "all_raw", "occ_plus_connected")
 RESIDUALIZERS = ("linear", "quadratic")
@@ -127,8 +129,8 @@ def run_shard(
     shard_index: int,
     num_shards: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    config = assay.rydberg_config()
-    eligible = assay.eligible_rows(frame)
+    config = rydberg_config()
+    eligible = eligible_rows(frame)
     eligible_frame = frame.loc[eligible].copy()
     fold_groups = list(eligible_frame.groupby("cluster_start", sort=True))
     selected = [group for position, group in enumerate(fold_groups) if position % num_shards == shard_index]
@@ -141,22 +143,22 @@ def run_shard(
         test_indices = test_group.index.to_numpy(int)
         combined = pd.concat([train, frame.loc[test_indices]], axis=0)
 
-        patterns = assay.differential_patterns(
-            train[assay.STATIC].to_numpy(float),
-            combined[assay.STATIC].to_numpy(float),
+        patterns = differential_patterns(
+            train[STATIC].to_numpy(float),
+            combined[STATIC].to_numpy(float),
         )
-        features = assay.build_local_detuning_feature_matrix(patterns, config)
-        blocks = assay.split_blocks(features)
+        features = build_local_detuning_feature_matrix(patterns, config)
+        blocks = split_blocks(features)
 
-        d1_train = train[assay.D1].to_numpy(float)
-        d1_test = frame.loc[test_indices, assay.D1].to_numpy(float)
+        d1_train = train[D1].to_numpy(float)
+        d1_test = frame.loc[test_indices, D1].to_numpy(float)
         y_train = train["y_recovery"].to_numpy(int)
-        d1_model = assay.logistic_pipeline(1.0)
+        d1_model = logistic_pipeline(1.0)
         d1_model.fit(d1_train, y_train)
         p_train = d1_model.predict_proba(d1_train)[:, 1]
         p_test = d1_model.predict_proba(d1_test)[:, 1]
-        offset_train = assay.logit(p_train)
-        offset_test = assay.logit(p_test)
+        offset_train = logit(p_train)
+        offset_test = logit(p_test)
 
         fold_predictions: dict[str, np.ndarray] = {"D1": p_test}
 
@@ -186,7 +188,7 @@ def run_shard(
                         values = []
                         for row_number in range(len(test_indices)):
                             values.append(
-                                assay.fit_offset_predict(
+                                fit_offset_predict(
                                     R_train,
                                     y_train,
                                     R_test[[row_number]],
@@ -233,7 +235,7 @@ def main() -> None:
     if not 0 <= args.shard_index < args.num_shards:
         raise ValueError("shard-index must satisfy 0 <= shard-index < num-shards")
 
-    frame = assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions, diagnostics = run_shard(frame, args.shard_index, args.num_shards)
     args.outdir.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(args.outdir / f"predictions_shard_{args.shard_index}.csv", index=False)
