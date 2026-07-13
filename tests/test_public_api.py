@@ -37,6 +37,7 @@ def test_evaluation_public_api_exports_shared_helpers() -> None:
         "fit_residualizer",
         "historical_crossfit_d1_logits",
         "logistic_pipeline",
+        "proper_score_deltas",
         "residual_diagnostics",
         "residualize_train_test",
         "ridge_pipeline",
