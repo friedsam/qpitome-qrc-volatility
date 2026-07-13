@@ -9,73 +9,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import brier_score_loss, log_loss, r2_score
+from sklearn.metrics import r2_score
 
+from qpitome_qrc.day5.features import PATH_SHAPE_BLOCKS, add_path_shape_features
 from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
 from qpitome_qrc.evaluation.binary import logistic_pipeline
 from qpitome_qrc.evaluation.residualization import ridge_pipeline
 
-EPS = 1e-9
-
-
-def add_path_shape_features(frame: pd.DataFrame) -> pd.DataFrame:
-    out = frame.copy()
-    path = np.column_stack([
-        np.zeros(len(out), dtype=float),
-        *[out[f"r_d{day}"].to_numpy(float) for day in range(1, 6)],
-    ])
-    increments = np.diff(path, axis=1)
-    second = np.diff(path, n=2, axis=1)
-
-    endpoint = out["current_return_5d_from_branch"].to_numpy(float)
-    lower = endpoint - out["distance_to_relapse_barrier"].to_numpy(float)
-    upper = endpoint + out["distance_to_recovery_barrier"].to_numpy(float)
-    width = np.maximum(out["barrier_width"].to_numpy(float), EPS)
-    running = path[:, 1:]
-
-    out["path_total_variation"] = np.sum(np.abs(increments), axis=1)
-    out["path_efficiency"] = np.abs(endpoint) / np.maximum(out["path_total_variation"].to_numpy(float), EPS)
-    out["path_curvature_l1"] = np.sum(np.abs(second), axis=1)
-    out["path_reversal_count"] = np.sum(increments[:, 1:] * increments[:, :-1] < 0, axis=1)
-    out["path_argmin_day"] = np.argmin(running, axis=1) + 1
-    out["path_argmax_day"] = np.argmax(running, axis=1) + 1
-    out["path_early_late_imbalance"] = np.sum(np.abs(increments[:, :2]), axis=1) - np.sum(np.abs(increments[:, 3:]), axis=1)
-
-    relapse_dist = (running - lower[:, None]) / width[:, None]
-    recovery_dist = (upper[:, None] - running) / width[:, None]
-    out["path_min_relapse_distance_scaled"] = relapse_dist.min(axis=1)
-    out["path_min_recovery_distance_scaled"] = recovery_dist.min(axis=1)
-    out["path_relapse_dwell25"] = np.sum(relapse_dist <= 0.25, axis=1)
-    out["path_recovery_dwell25"] = np.sum(recovery_dist <= 0.25, axis=1)
-    out["path_relapse_first_day"] = np.argmin(relapse_dist, axis=1) + 1
-    out["path_recovery_first_day"] = np.argmin(recovery_dist, axis=1) + 1
-
-    for day in range(1, 5):
-        out[f"trajectory_r_d{day}"] = out[f"r_d{day}"].to_numpy(float)
-    return out
-
-
-BLOCKS: dict[str, list[str]] = {
-    "trajectory": [f"trajectory_r_d{day}" for day in range(1, 5)],
-    "shape": [
-        "path_total_variation",
-        "path_efficiency",
-        "path_curvature_l1",
-        "path_reversal_count",
-        "path_argmin_day",
-        "path_argmax_day",
-        "path_early_late_imbalance",
-    ],
-    "barrier_path": [
-        "path_min_relapse_distance_scaled",
-        "path_min_recovery_distance_scaled",
-        "path_relapse_dwell25",
-        "path_recovery_dwell25",
-        "path_relapse_first_day",
-        "path_recovery_first_day",
-    ],
-}
-BLOCKS["all_path_shape"] = BLOCKS["trajectory"] + BLOCKS["shape"] + BLOCKS["barrier_path"]
+# Backward-compatible historical name used by manifests and downstream checks.
+BLOCKS = PATH_SHAPE_BLOCKS
 
 
 def proper_score_deltas(frame: pd.DataFrame, model: str) -> dict[str, float | int | str]:
