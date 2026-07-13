@@ -10,6 +10,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from qpitome_qrc.day5.features import add_path_shape_features
+from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
+from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test_safe
+from qpitome_qrc.evaluation.scoring import proper_score_deltas
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts/modeling/run_day5_standard_feature_assay.py"
 SPEC = importlib.util.spec_from_file_location("day5_standard_feature_assay", SCRIPT)
@@ -31,7 +37,7 @@ def test_leave_one_out_spec_excludes_tested_feature() -> None:
 def test_path_shape_spec_uses_full_d1_baseline() -> None:
     spec = json.loads((REPO / "configs/day5_feature_tests/path_shape_selected.json").read_text())
     assert spec["preparation"] == "path_shape"
-    expected = set(module.base.assay.D1)
+    expected = set(D1)
     for block in spec["blocks"].values():
         assert set(block["baseline_features"]) == expected
 
@@ -56,3 +62,18 @@ def test_score_delta_zero_for_identical_predictions() -> None:
     result = module.score_deltas(frame, "baseline", "model")
     assert np.isclose(result["delta_logloss"], 0.0)
     assert np.isclose(result["cluster_mean_delta_logloss"], 0.0)
+    assert result["baseline"] == "baseline"
+
+
+def test_standard_feature_assay_uses_package_helpers_directly() -> None:
+    assert module.add_path_shape_features is add_path_shape_features
+    assert module.eligible_rows is eligible_rows
+    assert module.load_frame is load_frame
+    assert module.logistic_pipeline is logistic_pipeline
+    assert module.fit_offset_predict is fit_offset_predict
+    assert module.d1_basis is d1_basis
+    assert module.residualize_train_test_safe is residualize_train_test_safe
+    assert module.proper_score_deltas is proper_score_deltas
+    assert not hasattr(module, "base")
+    assert not hasattr(module, "protected")
+    assert not hasattr(module, "input_audit")
