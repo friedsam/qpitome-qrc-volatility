@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
@@ -17,6 +19,25 @@ def logistic_pipeline(C: float) -> Pipeline:
         ("scale", StandardScaler()),
         ("logit", LogisticRegression(C=C, max_iter=5000, solver="lbfgs")),
     ])
+
+
+def fit_feature_map_predict(
+    X_train: np.ndarray,
+    y: np.ndarray,
+    X_test: np.ndarray,
+    feature_map: Callable[[np.ndarray], np.ndarray],
+    C: float,
+) -> float:
+    """Standardize inputs, apply a deterministic feature map, and predict one row."""
+
+    scaler = StandardScaler()
+    scaled_train = scaler.fit_transform(X_train)
+    scaled_test = scaler.transform(X_test)
+    mapped_train = np.vstack([feature_map(row) for row in scaled_train])
+    mapped_test = np.vstack([feature_map(row) for row in scaled_test])
+    model = LogisticRegression(C=C, max_iter=5000, solver="lbfgs")
+    model.fit(mapped_train, y)
+    return float(model.predict_proba(mapped_test)[0, 1])
 
 
 def fit_joint_predict(
