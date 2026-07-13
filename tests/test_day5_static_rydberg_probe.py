@@ -9,6 +9,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from qpitome_qrc.day5.protocol import (
+    D1,
+    EVAL_START,
+    MIN_TRAIN,
+    STATIC,
+    add_extrema,
+    load_frame,
+)
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
 from qpitome_qrc.qrc.local_detuning_reservoir import (
     LocalDetuningConfig,
     build_local_detuning_feature_matrix,
@@ -93,3 +103,15 @@ def test_add_extrema_matches_manual_geometry() -> None:
     out = probe.add_extrema(frame)
     assert out.loc[0, "closest_to_relapse"] == (-0.03 - (0.015 - 0.055))
     assert out.loc[0, "closest_to_recovery"] == ((0.015 + 0.035) - 0.02)
+
+
+def test_static_rydberg_probe_uses_package_helpers_directly() -> None:
+    assert probe.D1 == D1
+    assert probe.STATIC == STATIC
+    assert probe.MIN_TRAIN == MIN_TRAIN
+    assert probe.EVAL_START == EVAL_START
+    assert probe.add_extrema is add_extrema
+    assert probe.load_frame is load_frame
+    assert probe.logistic_pipeline is logistic_pipeline
+    assert probe.binary_summary is binary_summary
+    assert probe.cluster_weighted_summary is cluster_weighted_summary
