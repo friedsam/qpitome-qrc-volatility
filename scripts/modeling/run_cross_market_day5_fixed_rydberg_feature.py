@@ -2,11 +2,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.day5.protocol import D1, EVAL_START, MIN_TRAIN
-from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.evaluation.binary import fit_feature_map_predict, logistic_pipeline
 from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
 from qpitome_qrc.qrc.fixed_rydberg_feature import (
     EVOLVE_TIME,
@@ -38,14 +36,13 @@ def fit_linear(train, test):
 
 
 def fit_rydberg(train, test):
-    scaler = StandardScaler()
-    x_train = scaler.fit_transform(train[D1].to_numpy(float))
-    x_test = scaler.transform(test[D1].to_numpy(float))
-    r_train = np.vstack([rydberg_features(x) for x in x_train])
-    r_test = np.vstack([rydberg_features(x) for x in x_test])
-    model = LogisticRegression(C=0.1, max_iter=5000, solver="lbfgs")
-    model.fit(r_train, train["y_recovery"].to_numpy(int))
-    return float(model.predict_proba(r_test)[0, 1])
+    return fit_feature_map_predict(
+        train[D1].to_numpy(float),
+        train["y_recovery"].to_numpy(int),
+        test[D1].to_numpy(float),
+        rydberg_features,
+        C=0.1,
+    )
 
 
 def main():
