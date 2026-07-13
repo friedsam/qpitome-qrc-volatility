@@ -8,6 +8,15 @@ from pathlib import Path
 
 import numpy as np
 
+from qpitome_qrc.day5.protocol import rydberg_config
+from qpitome_qrc.evaluation.binary import (
+    fit_offset_predict,
+    fit_train_test_probability_arrays,
+    logistic_pipeline,
+)
+from qpitome_qrc.evaluation.historical_crossfit import historical_crossfit_d1_logits
+from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "modeling" / "run_day5_higher_order_output_shard.py"
 SPEC = importlib.util.spec_from_file_location("day5_higher_order", SCRIPT)
@@ -52,8 +61,19 @@ def test_zero_state_has_expected_collective_statistics() -> None:
 
 
 def test_exact_state_evolution_is_normalized() -> None:
-    config = module.base.base.assay.rydberg_config()
+    config = rydberg_config()
     patterns = np.full((3, 10), 0.5)
     states = module.evolve_local_detuning_states(patterns, config)
     assert states.shape == (3, 2**10)
     assert np.allclose(np.sum(np.abs(states) ** 2, axis=1), 1.0, atol=1e-10)
+
+
+def test_higher_order_shard_uses_package_helpers_directly() -> None:
+    assert module.rydberg_config is rydberg_config
+    assert module.d1_basis is d1_basis
+    assert module.residualize_train_test is residualize_train_test
+    assert module.historical_crossfit_d1_logits is historical_crossfit_d1_logits
+    assert module.fit_offset_predict is fit_offset_predict
+    assert module.fit_train_test_probability_arrays is fit_train_test_probability_arrays
+    assert module.logistic_pipeline is logistic_pipeline
+    assert not hasattr(module, "base")
