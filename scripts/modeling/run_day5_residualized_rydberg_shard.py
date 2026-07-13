@@ -33,6 +33,7 @@ from qpitome_qrc.day5.protocol import (
 from qpitome_qrc.evaluation.binary import (
     fit_offset_predict,
     fit_train_test_probability_arrays,
+    logistic_pipeline,
 )
 from qpitome_qrc.evaluation.residualization import (
     DEFAULT_N_SPLITS,
