@@ -5,9 +5,19 @@ from __future__ import annotations
 import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 DEFAULT_N_SPLITS = 5
+
+
+def ridge_pipeline(alpha: float = 10.0) -> Pipeline:
+    """Return the standardized multi-output Ridge model used by Day-5 audits."""
+
+    return Pipeline([
+        ("scale", StandardScaler()),
+        ("ridge", Ridge(alpha=alpha)),
+    ])
 
 
 def d1_basis(X: np.ndarray, kind: str) -> np.ndarray:
