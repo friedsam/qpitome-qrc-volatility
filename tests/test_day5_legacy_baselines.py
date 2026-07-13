@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 
 from qpitome_qrc.day5 import protocol
-from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.evaluation.binary import fit_feature_only_predict, logistic_pipeline
 
 
 def load_script(name: str, path: str):
@@ -25,3 +25,4 @@ def test_fixed_rydberg_baseline_uses_shared_day5_protocol() -> None:
     assert module.MIN_TRAIN == protocol.MIN_TRAIN
     assert module.EVAL_START == protocol.EVAL_START
     assert module.logistic_pipeline is logistic_pipeline
+    assert module.fit_feature_only_predict is fit_feature_only_predict
