@@ -151,7 +151,6 @@ def baseline_scores(frame: pd.DataFrame) -> pd.DataFrame:
         },
     ]
 
-    # Causal expanding prior: before each holdout episode use all prior labeled episodes.
     history = list(y_train.astype(float))
     probabilities = []
     for value in y_test:
@@ -226,7 +225,9 @@ def main() -> None:
     parser.add_argument(
         "--episodes",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_target_audit/episodes.csv"),
+        default=Path(
+            "results/modeling/transition_destination/branch_destination_target_audit__episodes.csv"
+        ),
     )
     parser.add_argument("--horizon", type=int, default=8)
     parser.add_argument("--neutral-zone", type=float, default=1.0)
@@ -235,7 +236,7 @@ def main() -> None:
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/transition_destination/branch_destination_structure"),
+        default=Path("results/modeling/transition_destination"),
     )
     args = parser.parse_args()
 
@@ -248,12 +249,30 @@ def main() -> None:
     clusters = cluster_summary(frame, args.cluster_gap_weeks)
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(args.outdir / "task_b_binary_episodes.csv", index=False)
-    comp.to_csv(args.outdir / "origin_partition_summary.csv", index=False)
-    decades.to_csv(args.outdir / "decade_summary.csv", index=False)
-    baselines.to_csv(args.outdir / "prior_baselines.csv", index=False)
-    aucs.to_csv(args.outdir / "feature_auc_by_origin.csv", index=False)
-    clusters.to_csv(args.outdir / "episode_clusters.csv", index=False)
+    frame.to_csv(
+        args.outdir / "branch_destination_structure__task_b_binary_episodes.csv",
+        index=False,
+    )
+    comp.to_csv(
+        args.outdir / "branch_destination_structure__origin_partition_summary.csv",
+        index=False,
+    )
+    decades.to_csv(
+        args.outdir / "branch_destination_structure__decade_summary.csv",
+        index=False,
+    )
+    baselines.to_csv(
+        args.outdir / "branch_destination_structure__prior_baselines.csv",
+        index=False,
+    )
+    aucs.to_csv(
+        args.outdir / "branch_destination_structure__feature_auc_by_origin.csv",
+        index=False,
+    )
+    clusters.to_csv(
+        args.outdir / "branch_destination_structure__episode_clusters.csv",
+        index=False,
+    )
 
     print("Task B origin and partition summary")
     print(comp.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
