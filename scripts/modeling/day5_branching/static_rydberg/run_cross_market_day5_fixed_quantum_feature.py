@@ -21,11 +21,11 @@ from qpitome_qrc.qrc.fixed_quantum_feature import (
     quantum_features,
 )
 
-BASE = Path("results/modeling/day5_branching/baseline/cross_market_day5_direction_v1")
+BASE = Path("results/modeling/day5_branching/baseline")
+LANDMARK = BASE / "cross_market_day5_direction_v1__day5_landmark_frame.csv"
 CLUSTERS = Path("results/diagnostics/cross_market_crisis_clusters_v2/branch_sync_cluster_detail.csv")
 OUT = Path("results/modeling/day5_branching/static_rydberg/cross_market_day5_fixed_quantum_feature_v1")
 
-# Backward-compatible historical name.
 score = binary_summary
 
 
@@ -51,7 +51,7 @@ def fit_quantum(train, test):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     frame = pd.read_csv(
-        BASE / "day5_landmark_frame.csv",
+        LANDMARK,
         parse_dates=["branch_date", "landmark_date"],
     )
     clusters = pd.read_csv(CLUSTERS)
