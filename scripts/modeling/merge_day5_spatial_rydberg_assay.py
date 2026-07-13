@@ -7,70 +7,31 @@ import argparse
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score, brier_score_loss, log_loss, roc_auc_score
 
-from qpitome_qrc.baselines.logistic_offset import clip_prob
+from qpitome_qrc.evaluation.scoring import (
+    binary_summary,
+    cluster_weighted_summary,
+    proper_score_deltas,
+)
 
 
 def score(group: pd.DataFrame, model: str) -> dict:
-    use = group[["y", model]].dropna()
-    y = use["y"].to_numpy(int)
-    p = clip_prob(use[model].to_numpy(float))
-    return {
-        "model": model,
-        "n": int(len(use)),
-        "recovery_rate": float(y.mean()) if len(y) else np.nan,
-        "auc": float(roc_auc_score(y, p)) if np.unique(y).size == 2 else np.nan,
-        "pr_auc": float(average_precision_score(y, p)) if np.unique(y).size == 2 else np.nan,
-        "logloss": float(log_loss(y, p)) if len(y) else np.nan,
-        "brier": float(brier_score_loss(y, p)) if len(y) else np.nan,
-    }
+    """Return the historical assay summary schema via shared scoring."""
+
+    return binary_summary(group, model, clip=1e-6)
 
 
 def paired_delta(group: pd.DataFrame, model: str) -> dict:
-    use = group[["y", "D1", model, "cluster_id"]].dropna().copy()
-    y = use["y"].to_numpy(int)
-    p0 = clip_prob(use["D1"].to_numpy(float))
-    p1 = clip_prob(use[model].to_numpy(float))
-    ll0 = -(y * np.log(p0) + (1 - y) * np.log(1 - p0))
-    ll1 = -(y * np.log(p1) + (1 - y) * np.log(1 - p1))
-    br0 = (p0 - y) ** 2
-    br1 = (p1 - y) ** 2
-    use["dll"] = ll1 - ll0
-    use["dbr"] = br1 - br0
-    cluster = use.groupby("cluster_id")[["dll", "dbr"]].mean()
-    return {
-        "model": model,
-        "n": int(len(use)),
-        "n_clusters": int(use["cluster_id"].nunique()),
-        "delta_logloss": float((ll1 - ll0).mean()),
-        "delta_brier": float((br1 - br0).mean()),
-        "cluster_mean_delta_logloss": float(cluster["dll"].mean()),
-        "cluster_mean_delta_brier": float(cluster["dbr"].mean()),
-    }
+    """Return matched D1 deltas via shared proper-score scoring."""
+
+    return proper_score_deltas(group, model, baseline="D1", clip=1e-6)
 
 
 def cluster_metrics(group: pd.DataFrame, model: str) -> dict:
-    rows = []
-    for cluster_id, subset in group.dropna(subset=[model]).groupby("cluster_id"):
-        y = subset["y"].to_numpy(int)
-        p = clip_prob(subset[model].to_numpy(float))
-        rows.append({
-            "cluster_id": cluster_id,
-            "n": len(subset),
-            "logloss": float(log_loss(y, p, labels=[0, 1])),
-            "brier": float(np.mean((p - y) ** 2)),
-        })
-    detail = pd.DataFrame(rows)
-    return {
-        "model": model,
-        "n_clusters": int(len(detail)),
-        "cluster_mean_logloss": float(detail["logloss"].mean()),
-        "cluster_mean_brier": float(detail["brier"].mean()),
-        "median_cluster_size": float(detail["n"].median()),
-    }
+    """Return the historical cluster-weighted schema via shared scoring."""
+
+    return cluster_weighted_summary(group, model, clip=1e-6)
 
 
 def collect_files(inputs: list[Path], pattern: str) -> list[Path]:
