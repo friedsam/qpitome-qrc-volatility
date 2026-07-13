@@ -57,8 +57,6 @@ def average_precision(y: np.ndarray, score: np.ndarray) -> float:
 def choose_uncertainty_threshold(frame: pd.DataFrame, train_fraction: float) -> tuple[float, int]:
     split = int(len(frame) * train_fraction)
     train = frame.iloc[:split]
-    # Freeze a simple high-uncertainty threshold from early history. Using the
-    # 75th percentile avoids importing future destination information.
     threshold = float(train["long_regime_uncertainty"].quantile(0.75))
     return threshold, split
 
@@ -219,7 +217,7 @@ def main() -> None:
         "--predictions",
         type=Path,
         default=Path(
-            "results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"
+            "results/modeling/weekly_regimes/weekly_regime_baselines__one_step_predictions.csv"
         ),
     )
     parser.add_argument("--train-fraction", type=float, default=0.60)
