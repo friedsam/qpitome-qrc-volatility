@@ -10,9 +10,7 @@ row in that cluster.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -22,14 +20,18 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 
-REPO = Path(__file__).resolve().parents[2]
-ASSAY_PATH = REPO / "scripts" / "modeling" / "run_day5_spatial_rydberg_assay_shard.py"
-SPEC = importlib.util.spec_from_file_location("day5_spatial_assay", ASSAY_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Could not load assay helpers from {ASSAY_PATH}")
-assay = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = assay
-SPEC.loader.exec_module(assay)
+from qpitome_qrc.day5.features import split_blocks
+from qpitome_qrc.day5.protocol import (
+    D1,
+    MIN_TRAIN,
+    STATIC,
+    differential_patterns,
+    eligible_rows,
+    load_frame,
+    rydberg_config,
+)
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
 
 BLOCKS = ("occupations", "all_raw", "occ_plus_connected")
 RIDGE_ALPHA = 10.0
@@ -63,8 +65,8 @@ def run_diagnostic(
     max_components: int,
     ridge_alpha: float,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    config = assay.rydberg_config()
-    eligible = assay.eligible_rows(frame)
+    config = rydberg_config()
+    eligible = eligible_rows(frame)
     eligible_frame = frame.loc[eligible].copy()
     fold_groups = list(eligible_frame.groupby("cluster_start", sort=True))
 
@@ -74,27 +76,27 @@ def run_diagnostic(
 
     for fold_number, (cluster_start, test_group) in enumerate(fold_groups, start=1):
         train = frame[frame["landmark_date"] < cluster_start]
-        if len(train) < assay.MIN_TRAIN or train["y_recovery"].nunique() < 2:
+        if len(train) < MIN_TRAIN or train["y_recovery"].nunique() < 2:
             continue
 
         test_indices = test_group.index.to_numpy(int)
         combined = pd.concat([train, frame.loc[test_indices]], axis=0)
-        patterns = assay.differential_patterns(
-            train[assay.STATIC].to_numpy(float),
-            combined[assay.STATIC].to_numpy(float),
+        patterns = differential_patterns(
+            train[STATIC].to_numpy(float),
+            combined[STATIC].to_numpy(float),
         )
-        features = assay.build_local_detuning_feature_matrix(patterns, config)
-        blocks = assay.split_blocks(features)
+        features = build_local_detuning_feature_matrix(patterns, config)
+        blocks = split_blocks(features)
 
-        d1_train = train[assay.D1].to_numpy(float)
-        d1_test = frame.loc[test_indices, assay.D1].to_numpy(float)
-        d1_model = assay.logistic_pipeline(1.0)
+        d1_train = train[D1].to_numpy(float)
+        d1_test = frame.loc[test_indices, D1].to_numpy(float)
+        d1_model = logistic_pipeline(1.0)
         d1_model.fit(d1_train, train["y_recovery"].to_numpy(int))
         d1_logit_train = d1_model.decision_function(d1_train)
         d1_logit_test = d1_model.decision_function(d1_test)
         targets_train = np.column_stack([d1_train, d1_logit_train])
         targets_test = np.column_stack([d1_test, d1_logit_test])
-        target_names = [*assay.D1, "D1_logit"]
+        target_names = [*D1, "D1_logit"]
 
         for block_name in BLOCKS:
             block = blocks[block_name]
@@ -203,7 +205,7 @@ def main() -> None:
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
-    frame = assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions, variance, loadings = run_diagnostic(frame, args.max_components, args.ridge_alpha)
     summary = summarize(predictions)
     loading_summary = summarize_loadings(loadings)
