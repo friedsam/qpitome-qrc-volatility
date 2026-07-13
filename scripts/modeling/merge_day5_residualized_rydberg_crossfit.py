@@ -6,45 +6,41 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score, brier_score_loss, log_loss, roc_auc_score
 
-from qpitome_qrc.baselines.logistic_offset import clip_prob
+from qpitome_qrc.evaluation.scoring import binary_summary, proper_score_deltas
 
 
 def score(group: pd.DataFrame, model: str) -> dict[str, float | int | str]:
-    y = group["y"].to_numpy(int)
-    p = clip_prob(group[model].to_numpy(float))
+    """Return the historical crossfit summary schema via shared scoring."""
+
+    summary = binary_summary(group, model, clip=1e-6)
     return {
-        "model": model,
-        "n": int(len(group)),
-        "auc": float(roc_auc_score(y, p)),
-        "pr_auc": float(average_precision_score(y, p)),
-        "logloss": float(log_loss(y, p, labels=[0, 1])),
-        "brier": float(brier_score_loss(y, p)),
+        "model": summary["model"],
+        "n": summary["n"],
+        "auc": summary["auc"],
+        "pr_auc": summary["pr_auc"],
+        "logloss": summary["logloss"],
+        "brier": summary["brier"],
     }
 
 
 def paired(group: pd.DataFrame) -> dict[str, float | int]:
-    y = group["y"].to_numpy(int)
-    p0 = clip_prob(group["D1"].to_numpy(float))
-    p1 = clip_prob(group["crossfit_resid_occupations"].to_numpy(float))
-    ll0 = -(y * np.log(p0) + (1 - y) * np.log(1 - p0))
-    ll1 = -(y * np.log(p1) + (1 - y) * np.log(1 - p1))
-    br0 = (p0 - y) ** 2
-    br1 = (p1 - y) ** 2
-    temp = group[["cluster_id"]].copy()
-    temp["dll"] = ll1 - ll0
-    temp["dbr"] = br1 - br0
-    cluster = temp.groupby("cluster_id")[["dll", "dbr"]].mean()
+    """Return the historical paired-delta schema via shared scoring."""
+
+    result = proper_score_deltas(
+        group,
+        "crossfit_resid_occupations",
+        baseline="D1",
+        clip=1e-6,
+    )
     return {
-        "n": int(len(group)),
-        "n_clusters": int(group["cluster_id"].nunique()),
-        "delta_logloss": float(np.mean(ll1 - ll0)),
-        "delta_brier": float(np.mean(br1 - br0)),
-        "cluster_mean_delta_logloss": float(cluster["dll"].mean()),
-        "cluster_mean_delta_brier": float(cluster["dbr"].mean()),
+        "n": result["n"],
+        "n_clusters": result["n_clusters"],
+        "delta_logloss": result["delta_logloss"],
+        "delta_brier": result["delta_brier"],
+        "cluster_mean_delta_logloss": result["cluster_mean_delta_logloss"],
+        "cluster_mean_delta_brier": result["cluster_mean_delta_brier"],
     }
 
 
