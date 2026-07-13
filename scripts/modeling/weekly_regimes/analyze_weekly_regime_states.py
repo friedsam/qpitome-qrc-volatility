@@ -3,7 +3,7 @@
 
 Uses the completed one-step prediction export to summarize each model's
 causal filtered states by return sign, magnitude, volatility proxy, occupancy,
-persistence, and dominant-state transitions.  This is an exploratory
+persistence, and dominant-state transitions. This is an exploratory
 interpretability check, not a test of parameter stability across refits.
 """
 
@@ -144,12 +144,14 @@ def main() -> None:
     parser.add_argument(
         "--predictions",
         type=Path,
-        default=Path("results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"),
+        default=Path(
+            "results/modeling/weekly_regimes/weekly_regime_baselines__one_step_predictions.csv"
+        ),
     )
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/weekly_regimes/weekly_regime_state_diagnostics"),
+        default=Path("results/modeling/weekly_regimes"),
     )
     args = parser.parse_args()
 
@@ -160,11 +162,26 @@ def main() -> None:
     checks = sanity_checks(frame)
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    profiles.to_csv(args.outdir / "state_profiles.csv", index=False)
-    transitions.to_csv(args.outdir / "dominant_state_transitions.csv", index=False)
-    persistence.to_csv(args.outdir / "state_persistence.csv", index=False)
-    occupancy.to_csv(args.outdir / "state_occupancy_by_decade.csv", index=False)
-    checks.to_csv(args.outdir / "sanity_checks.csv", index=False)
+    profiles.to_csv(
+        args.outdir / "weekly_regime_state_diagnostics__state_profiles.csv",
+        index=False,
+    )
+    transitions.to_csv(
+        args.outdir / "weekly_regime_state_diagnostics__dominant_state_transitions.csv",
+        index=False,
+    )
+    persistence.to_csv(
+        args.outdir / "weekly_regime_state_diagnostics__state_persistence.csv",
+        index=False,
+    )
+    occupancy.to_csv(
+        args.outdir / "weekly_regime_state_diagnostics__state_occupancy_by_decade.csv",
+        index=False,
+    )
+    checks.to_csv(
+        args.outdir / "weekly_regime_state_diagnostics__sanity_checks.csv",
+        index=False,
+    )
 
     print("Probability sanity checks")
     print(checks.to_string(index=False, float_format=lambda x: f"{x:.5f}"))
