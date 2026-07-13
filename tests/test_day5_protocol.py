@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 
 from qpitome_qrc.day5 import protocol
-from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.day5.features import split_blocks
+from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
 
 
 def load_script(name: str, path: str):
@@ -56,6 +57,23 @@ def test_differential_patterns_are_complementary_pairs() -> None:
     assert np.all((patterns >= 0.0) & (patterns <= 1.0))
 
 
+def test_split_blocks_constructs_connected_pairs() -> None:
+    occupations = np.linspace(0.1, 1.0, 10)[None, :]
+    raw_pairs = np.arange(45, dtype=float)[None, :] / 100.0
+    features = np.column_stack([occupations, raw_pairs])
+
+    blocks = split_blocks(features)
+
+    assert blocks["occupations"].shape == (1, 10)
+    assert blocks["raw_pairs"].shape == (1, 45)
+    assert blocks["connected_pairs"].shape == (1, 45)
+    assert blocks["occ_plus_connected"].shape == (1, 55)
+    np.testing.assert_allclose(
+        blocks["connected_pairs"][0, 0],
+        raw_pairs[0, 0] - occupations[0, 0] * occupations[0, 1],
+    )
+
+
 def test_eligible_rows_uses_cluster_start_and_two_class_history() -> None:
     dates = pd.date_range("1989-01-01", periods=33, freq="YS")
     frame = pd.DataFrame(
@@ -82,6 +100,9 @@ def test_spatial_runner_reexports_protocol_symbols() -> None:
     assert module.rydberg_config is protocol.rydberg_config
     assert module.D1 == protocol.D1
     assert module.STATIC == protocol.STATIC
+    assert module.split_blocks is split_blocks
+    assert module.fit_offset_predict is fit_offset_predict
+    assert module.logistic_pipeline is logistic_pipeline
 
 
 def test_input_audit_uses_package_helpers_directly() -> None:
@@ -93,4 +114,21 @@ def test_input_audit_uses_package_helpers_directly() -> None:
     assert module.load_frame is protocol.load_frame
     assert module.eligible_rows is protocol.eligible_rows
     assert module.D1 == protocol.D1
+    assert module.logistic_pipeline is logistic_pipeline
+
+
+def test_residualized_shard_uses_package_helpers_directly() -> None:
+    module = load_script(
+        "day5_residualized_shard",
+        "scripts/modeling/run_day5_residualized_rydberg_shard.py",
+    )
+
+    assert module.load_frame is protocol.load_frame
+    assert module.eligible_rows is protocol.eligible_rows
+    assert module.differential_patterns is protocol.differential_patterns
+    assert module.rydberg_config is protocol.rydberg_config
+    assert module.D1 == protocol.D1
+    assert module.STATIC == protocol.STATIC
+    assert module.split_blocks is split_blocks
+    assert module.fit_offset_predict is fit_offset_predict
     assert module.logistic_pipeline is logistic_pipeline
