@@ -9,7 +9,9 @@ from qpitome_qrc.day5 import protocol
 from qpitome_qrc.evaluation.binary import (
     fit_feature_map_predict,
     fit_feature_only_predict,
+    fit_transformed_predict,
     logistic_pipeline,
+    transformed_logistic_pipeline,
 )
 from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
 
@@ -81,3 +83,16 @@ def test_confirmatory_baseline_uses_shared_components() -> None:
     assert module.score is binary_summary
     assert module.binary_summary is binary_summary
     assert module.cluster_weighted_summary is cluster_weighted_summary
+
+
+def test_regularized_controls_use_shared_components() -> None:
+    module = load_script(
+        "cross_market_day5_regularized_controls",
+        "scripts/modeling/run_cross_market_day5_regularized_controls.py",
+    )
+
+    assert module.G is protocol.D1
+    assert module.MIN_TRAIN == protocol.MIN_TRAIN
+    assert module.make_model is transformed_logistic_pipeline
+    assert module.fit_transformed_predict is fit_transformed_predict
+    assert module.binary_summary is binary_summary
