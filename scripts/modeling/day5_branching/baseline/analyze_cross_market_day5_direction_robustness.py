@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss, brier_score_loss
 
-BASE = Path("results/modeling/day5_branching/baseline/cross_market_day5_direction_v1")
+BASE = Path("results/modeling/day5_branching/baseline")
+PREDICTIONS = BASE / "cross_market_day5_direction_v1__calendar_prequential_predictions.csv"
 CLUSTERS = Path("results/diagnostics/cross_market_crisis_clusters_v2/branch_sync_cluster_detail.csv")
-OUT = BASE / "robustness"
 MODELS = ["D0_prior", "D1_geometry", "D2_geometry_downside", "D3_compact_quadratic"]
 
 
@@ -50,8 +50,8 @@ def cluster_weighted(group, model):
 
 
 def main():
-    OUT.mkdir(parents=True, exist_ok=True)
-    preds = pd.read_csv(BASE / "calendar_prequential_predictions.csv", parse_dates=["landmark_date"])
+    BASE.mkdir(parents=True, exist_ok=True)
+    preds = pd.read_csv(PREDICTIONS, parse_dates=["landmark_date"])
     if CLUSTERS.exists():
         clusters = pd.read_csv(CLUSTERS, parse_dates=["branch_date"])
         clusters = clusters[["market_key", "episode_id", "cluster_id"]]
@@ -73,15 +73,15 @@ def main():
     cluster_summary = pd.DataFrame(cluster_rows)
     cluster_detail = pd.concat(cluster_details, ignore_index=True) if cluster_details else pd.DataFrame()
 
-    by_group.to_csv(OUT / "metrics_by_market.csv", index=False)
-    cluster_summary.to_csv(OUT / "cluster_weighted_metrics.csv", index=False)
-    cluster_detail.to_csv(OUT / "cluster_loss_detail.csv", index=False)
+    by_group.to_csv(BASE / "cross_market_day5_direction_v1__robustness__metrics_by_market.csv", index=False)
+    cluster_summary.to_csv(BASE / "cross_market_day5_direction_v1__robustness__cluster_weighted_metrics.csv", index=False)
+    cluster_detail.to_csv(BASE / "cross_market_day5_direction_v1__robustness__cluster_loss_detail.csv", index=False)
     print("Cross-market day-5 robustness")
     print("\nBy market:")
     print(by_group.to_string(index=False))
     print("\nCluster-weighted:")
     print(cluster_summary.to_string(index=False))
-    print(f"\nSaved: {OUT}")
+    print(f"\nSaved: {BASE}")
 
 
 if __name__ == "__main__":
