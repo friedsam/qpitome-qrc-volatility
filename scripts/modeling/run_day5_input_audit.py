@@ -4,9 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -16,14 +14,8 @@ from sklearn.metrics import brier_score_loss, log_loss, r2_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-REPO = Path(__file__).resolve().parents[2]
-ASSAY_PATH = REPO / "scripts" / "modeling" / "run_day5_spatial_rydberg_assay_shard.py"
-SPEC = importlib.util.spec_from_file_location("day5_spatial_assay", ASSAY_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Could not load helpers from {ASSAY_PATH}")
-assay = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = assay
-SPEC.loader.exec_module(assay)
+from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
+from qpitome_qrc.evaluation.binary import logistic_pipeline
 
 EPS = 1e-9
 
@@ -120,7 +112,7 @@ def proper_score_deltas(frame: pd.DataFrame, model: str) -> dict[str, float | in
 
 def run_audit(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     frame = add_path_shape_features(frame)
-    eligible = assay.eligible_rows(frame)
+    eligible = eligible_rows(frame)
     eligible_frame = frame.loc[eligible].copy()
     fold_groups = list(eligible_frame.groupby("cluster_start", sort=True))
 
@@ -131,10 +123,10 @@ def run_audit(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
         train = frame[frame["landmark_date"] < cluster_start]
         test = frame.loc[test_group.index]
         y_train = train["y_recovery"].to_numpy(int)
-        d1_train = train[assay.D1].to_numpy(float)
-        d1_test = test[assay.D1].to_numpy(float)
+        d1_train = train[D1].to_numpy(float)
+        d1_test = test[D1].to_numpy(float)
 
-        d1_model = assay.logistic_pipeline(1.0)
+        d1_model = logistic_pipeline(1.0)
         d1_model.fit(d1_train, y_train)
         predictions: dict[str, np.ndarray] = {
             "D1": d1_model.predict_proba(d1_test)[:, 1]
@@ -144,7 +136,7 @@ def run_audit(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
             H_train = train[columns].to_numpy(float)
             H_test = test[columns].to_numpy(float)
 
-            augmented = assay.logistic_pipeline(1.0)
+            augmented = logistic_pipeline(1.0)
             augmented.fit(np.column_stack([d1_train, H_train]), y_train)
             predictions[f"D1_plus_{block_name}"] = augmented.predict_proba(
                 np.column_stack([d1_test, H_test])
@@ -211,7 +203,7 @@ def main() -> None:
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
-    frame = assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions, reconstruction, recon_summary = run_audit(frame)
 
     delta_rows = []
