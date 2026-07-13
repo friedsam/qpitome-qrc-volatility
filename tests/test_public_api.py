@@ -39,6 +39,7 @@ def test_day5_public_api_exports_locked_helpers() -> None:
         "EVAL_START",
         "MIN_TRAIN",
         "PATH_SHAPE_BLOCKS",
+        "PROTECTED_FEATURE_BLOCKS",
         "STATIC",
         "add_extrema",
         "add_path_shape_features",
@@ -76,6 +77,7 @@ def test_evaluation_public_api_exports_shared_helpers() -> None:
         "proper_score_deltas",
         "residual_diagnostics",
         "residualize_train_test",
+        "residualize_train_test_safe",
         "ridge_pipeline",
         "transformed_logistic_pipeline",
     }
