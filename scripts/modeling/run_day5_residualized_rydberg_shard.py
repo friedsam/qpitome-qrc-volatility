@@ -30,7 +30,10 @@ from qpitome_qrc.day5.protocol import (
     load_frame,
     rydberg_config,
 )
-from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.binary import (
+    fit_offset_predict,
+    fit_train_test_probability_arrays,
+)
 from qpitome_qrc.evaluation.residualization import (
     DEFAULT_N_SPLITS,
     d1_basis,
@@ -76,10 +79,12 @@ def run_shard(
         d1_train = train[D1].to_numpy(float)
         d1_test = frame.loc[test_indices, D1].to_numpy(float)
         y_train = train["y_recovery"].to_numpy(int)
-        d1_model = logistic_pipeline(1.0)
-        d1_model.fit(d1_train, y_train)
-        p_train = d1_model.predict_proba(d1_train)[:, 1]
-        p_test = d1_model.predict_proba(d1_test)[:, 1]
+        p_train, p_test = fit_train_test_probability_arrays(
+            d1_train,
+            y_train,
+            d1_test,
+            C=1.0,
+        )
         offset_train = logit(p_train)
         offset_test = logit(p_test)
 
