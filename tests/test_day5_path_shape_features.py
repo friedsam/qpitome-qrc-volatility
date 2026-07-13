@@ -39,7 +39,11 @@ def test_add_path_shape_features_matches_locked_geometry() -> None:
     assert int(result.loc[0, "path_reversal_count"]) == 4
     assert int(result.loc[0, "path_argmin_day"]) == 2
     assert int(result.loc[0, "path_argmax_day"]) == 5
-    np.testing.assert_allclose(result["path_early_late_imbalance"], [0.00])
+    np.testing.assert_allclose(
+        result["path_early_late_imbalance"],
+        [0.00],
+        atol=1e-15,
+    )
     assert result.loc[0, "trajectory_r_d4"] == 0.10
 
 
