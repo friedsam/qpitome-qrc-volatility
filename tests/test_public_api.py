@@ -1,7 +1,24 @@
 from __future__ import annotations
 
+import qpitome_qrc.baselines as baselines
 import qpitome_qrc.day5 as day5
 import qpitome_qrc.evaluation as evaluation
+
+
+def test_baseline_public_api_exports_reusable_components() -> None:
+    expected = {
+        "DEFAULT_RESERVOIR_SIZE",
+        "DEFAULT_SEED",
+        "SPECTRAL_RADIUS",
+        "esn_state",
+        "fit_esn_predict",
+        "fixed_esn_weights",
+        "predict_empirical_prior",
+    }
+
+    assert set(baselines.__all__) == expected
+    for name in expected:
+        assert hasattr(baselines, name)
 
 
 def test_day5_public_api_exports_locked_helpers() -> None:
