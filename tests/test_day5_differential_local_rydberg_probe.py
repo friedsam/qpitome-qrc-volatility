@@ -8,6 +8,19 @@ from pathlib import Path
 
 import numpy as np
 
+from qpitome_qrc.day5.protocol import (
+    D1,
+    EVAL_START,
+    MIN_TRAIN,
+    STATIC,
+    add_extrema,
+    differential_patterns,
+    load_frame,
+    rydberg_config,
+)
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "modeling" / "run_cross_market_day5_differential_local_rydberg_probe.py"
 SPEC = importlib.util.spec_from_file_location("day5_diff_rydberg_probe", SCRIPT)
@@ -47,3 +60,17 @@ def test_frozen_feature_dimension_is_55() -> None:
 
     assert features.shape == (3, 55)
     assert np.all(np.isfinite(features))
+
+
+def test_differential_probe_uses_package_helpers_directly() -> None:
+    assert probe.D1 == D1
+    assert probe.STATIC == STATIC
+    assert probe.MIN_TRAIN == MIN_TRAIN
+    assert probe.EVAL_START == EVAL_START
+    assert probe.add_extrema is add_extrema
+    assert probe.load_frame is load_frame
+    assert probe.differential_patterns is differential_patterns
+    assert probe.rydberg_config is rydberg_config
+    assert probe.logistic_pipeline is logistic_pipeline
+    assert probe.binary_summary is binary_summary
+    assert probe.cluster_weighted_summary is cluster_weighted_summary
