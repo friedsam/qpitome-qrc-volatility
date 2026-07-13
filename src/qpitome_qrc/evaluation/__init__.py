@@ -16,6 +16,7 @@ from .residualization import (
     fit_residualizer,
     residual_diagnostics,
     residualize_train_test,
+    ridge_pipeline,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ __all__ = [
     "logistic_pipeline",
     "residual_diagnostics",
     "residualize_train_test",
+    "ridge_pipeline",
 ]
 
 
