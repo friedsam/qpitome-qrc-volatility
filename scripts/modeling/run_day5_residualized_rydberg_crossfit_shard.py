@@ -20,7 +20,11 @@ from qpitome_qrc.day5.protocol import (
     load_frame,
     rydberg_config,
 )
-from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.binary import (
+    fit_offset_predict,
+    fit_train_test_probability_arrays,
+    logistic_pipeline,
+)
 from qpitome_qrc.evaluation.historical_crossfit import historical_crossfit_d1_logits
 from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_test
 from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
@@ -75,9 +79,12 @@ def run_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> pd.Data
                 f"got {len(cf_positions)}, need {MIN_CORRECTION_TRAIN}"
             )
 
-        full_d1 = logistic_pipeline(1.0)
-        full_d1.fit(d1_train, y_train)
-        p_test_d1 = full_d1.predict_proba(d1_test)[:, 1]
+        _, p_test_d1 = fit_train_test_probability_arrays(
+            d1_train,
+            y_train,
+            d1_test,
+            C=1.0,
+        )
         offset_test = logit(p_test_d1)
 
         p_test_corrected = []
