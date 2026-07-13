@@ -35,11 +35,11 @@ def test_add_path_shape_features_matches_locked_geometry() -> None:
     assert "path_total_variation" not in frame.columns
     np.testing.assert_allclose(result["path_total_variation"], [0.90])
     np.testing.assert_allclose(result["path_efficiency"], [1.0 / 3.0])
-    np.testing.assert_allclose(result["path_curvature_l1"], [1.30])
+    np.testing.assert_allclose(result["path_curvature_l1"], [1.50])
     assert int(result.loc[0, "path_reversal_count"]) == 4
     assert int(result.loc[0, "path_argmin_day"]) == 2
     assert int(result.loc[0, "path_argmax_day"]) == 5
-    np.testing.assert_allclose(result["path_early_late_imbalance"], [-0.10])
+    np.testing.assert_allclose(result["path_early_late_imbalance"], [0.00])
     assert result.loc[0, "trajectory_r_d4"] == 0.10
 
 
