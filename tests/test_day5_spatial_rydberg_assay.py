@@ -8,6 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
+from qpitome_qrc.evaluation.binary import fit_train_test_probabilities, logistic_pipeline
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "modeling" / "run_day5_spatial_rydberg_assay_shard.py"
 SPEC = importlib.util.spec_from_file_location("day5_spatial_assay", SCRIPT)
@@ -76,3 +78,32 @@ def test_six_shards_partition_positions_without_overlap() -> None:
     merged = [value for shard in shards for value in shard]
     assert sorted(merged) == positions
     assert max(map(len, shards)) - min(map(len, shards)) <= 1
+
+
+def test_train_test_probability_helper_matches_locked_sequence() -> None:
+    X_train = np.array([
+        [-2.0, 0.0],
+        [-1.0, 1.0],
+        [0.0, -1.0],
+        [1.0, 0.5],
+        [2.0, 1.5],
+        [3.0, -0.5],
+    ])
+    y = np.array([0, 0, 0, 1, 1, 1])
+    X_test = np.array([[0.75, 0.25]])
+
+    train_probabilities, test_probability = fit_train_test_probabilities(
+        X_train,
+        y,
+        X_test,
+        C=1.0,
+    )
+
+    model = logistic_pipeline(1.0)
+    model.fit(X_train, y)
+    expected_train = model.predict_proba(X_train)[:, 1]
+    expected_test = float(model.predict_proba(X_test)[0, 1])
+
+    np.testing.assert_allclose(train_probabilities, expected_train)
+    np.testing.assert_allclose(test_probability, expected_test)
+    assert assay.fit_train_test_probabilities is fit_train_test_probabilities
