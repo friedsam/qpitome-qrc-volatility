@@ -8,6 +8,11 @@ from pathlib import Path
 
 import numpy as np
 
+from qpitome_qrc.evaluation.binary import (
+    fit_train_test_probability_arrays,
+    logistic_pipeline,
+)
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "modeling" / "run_day5_residualized_rydberg_shard.py"
 SPEC = importlib.util.spec_from_file_location("day5_residualized_rydberg", SCRIPT)
@@ -55,3 +60,39 @@ def test_residual_diagnostics_reports_removed_variance() -> None:
     diagnostic = module.residual_diagnostics(H, R)
     assert diagnostic["fraction_output_variance_removed"] == 1.0
     assert diagnostic["residual_rms"] == 0.0
+
+
+def test_grouped_probability_helper_matches_locked_sequence() -> None:
+    X_train = np.array([
+        [-2.0, 0.0],
+        [-1.0, 1.0],
+        [0.0, -1.0],
+        [1.0, 0.5],
+        [2.0, 1.5],
+        [3.0, -0.5],
+    ])
+    y = np.array([0, 0, 0, 1, 1, 1])
+    X_test = np.array([
+        [0.75, 0.25],
+        [1.25, -0.25],
+        [2.25, 0.75],
+    ])
+
+    train_probabilities, test_probabilities = fit_train_test_probability_arrays(
+        X_train,
+        y,
+        X_test,
+        C=1.0,
+    )
+
+    model = logistic_pipeline(1.0)
+    model.fit(X_train, y)
+    np.testing.assert_allclose(
+        train_probabilities,
+        model.predict_proba(X_train)[:, 1],
+    )
+    np.testing.assert_allclose(
+        test_probabilities,
+        model.predict_proba(X_test)[:, 1],
+    )
+    assert module.fit_train_test_probability_arrays is fit_train_test_probability_arrays
