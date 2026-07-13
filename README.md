@@ -19,6 +19,18 @@ Build a reproducible prototype for financial time-series intelligence using comp
 9. Mechanism and falsification diagnostics
 10. Reproducible result manifests and documentation
 
+## Repository maintenance contract
+
+All repository-maintenance work must follow [`AGENTS.md`](AGENTS.md). Result moves, renames, flattening, archival, deletion, and provenance changes must be recorded in [`docs/result_migration_manifest.csv`](docs/result_migration_manifest.csv).
+
+Required audit:
+
+```bash
+python scripts/maintenance/audit_repo_maintenance.py
+```
+
+The same audit runs in GitHub Actions when maintenance-sensitive paths change.
+
 ## Repository status
 
 The project is currently consolidating Phase 3 results and repository structure on branch `phase3-refactor`.
@@ -36,6 +48,8 @@ The Day 5 static Rydberg outputs remain present but have not yet been flattened.
 
 ## Documentation
 
+- [Repository maintenance rules](AGENTS.md)
+- [Result migration manifest](docs/result_migration_manifest.csv)
 - [Project milestones](docs/milestones.md)
 - [Results layout, provenance, and known missing artifacts](docs/results_layout_and_provenance.md)
 - [Phase 3 Rydberg results summary](docs/phase3/results/phase3_rydberg_results_summary.md)
