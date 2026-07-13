@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 
 from qpitome_qrc.baselines.fixed_esn import fit_esn_predict
+from qpitome_qrc.baselines.priors import predict_empirical_prior
 from qpitome_qrc.day5 import protocol
 from qpitome_qrc.evaluation.binary import (
     fit_feature_map_predict,
@@ -61,6 +62,22 @@ def test_fixed_esn_baseline_uses_shared_components() -> None:
     assert module.EVAL_START == protocol.EVAL_START
     assert module.fit_feature_only_predict is fit_feature_only_predict
     assert module.fit_esn_predict is fit_esn_predict
+    assert module.score is binary_summary
+    assert module.binary_summary is binary_summary
+    assert module.cluster_weighted_summary is cluster_weighted_summary
+
+
+def test_confirmatory_baseline_uses_shared_components() -> None:
+    module = load_script(
+        "cross_market_day5_confirmatory_baselines",
+        "scripts/modeling/run_cross_market_day5_confirmatory_baselines.py",
+    )
+
+    assert module.D1 is protocol.D1
+    assert module.MIN_TRAIN == protocol.MIN_TRAIN
+    assert module.EVAL_START == protocol.EVAL_START
+    assert module.predict_empirical_prior is predict_empirical_prior
+    assert module.fit_feature_only_predict is fit_feature_only_predict
     assert module.score is binary_summary
     assert module.binary_summary is binary_summary
     assert module.cluster_weighted_summary is cluster_weighted_summary
