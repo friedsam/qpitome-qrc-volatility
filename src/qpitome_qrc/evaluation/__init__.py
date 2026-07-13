@@ -18,13 +18,15 @@ from .residualization import (
     residualize_train_test,
     ridge_pipeline,
 )
-from .scoring import proper_score_deltas
+from .scoring import binary_summary, cluster_weighted_summary, proper_score_deltas
 
 if TYPE_CHECKING:
     from .historical_crossfit import historical_crossfit_d1_logits
 
 __all__ = [
     "DEFAULT_N_SPLITS",
+    "binary_summary",
+    "cluster_weighted_summary",
     "d1_basis",
     "fit_feature_only_predict",
     "fit_joint_predict",
