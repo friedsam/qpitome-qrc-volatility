@@ -6,16 +6,14 @@ The test asks whether the zero-parameter corridor-position probability
     p_upper = distance_to_relapse / barrier_width
 
 already explains the locked Day-5 recovery label nearly as well as the fitted
-four-column D1 logistic model.  It also verifies the exact feature identities
+four-column D1 logistic model. It also verifies the exact feature identities
 and reports the effective numerical dimension of D1.
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -23,25 +21,10 @@ import pandas as pd
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
-REPO = Path(__file__).resolve().parents[2]
+from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
+from qpitome_qrc.evaluation.binary import logistic_pipeline
+
 EPS = 1e-8
-
-
-def load_module(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Could not load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-protected = load_module(
-    "day5_protected_input",
-    REPO / "scripts" / "modeling" / "run_day5_protected_input_residual.py",
-)
-base = protected.base
 
 
 def corridor_position(frame: pd.DataFrame) -> np.ndarray:
@@ -73,7 +56,7 @@ def metric_row(name: str, y: np.ndarray, p: np.ndarray, cluster_id: np.ndarray) 
 
 
 def run(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    eligible = base.assay.eligible_rows(frame)
+    eligible = eligible_rows(frame)
     eval_frame = frame.loc[eligible].copy()
     records: list[dict] = []
 
@@ -89,13 +72,15 @@ def run(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         p_null = np.clip(corridor_position(test), EPS, 1.0 - EPS)
         p_prior = np.full(len(test), np.clip(y_train.mean(), EPS, 1.0 - EPS))
 
-        lambda_model = base.assay.logistic_pipeline(1.0)
+        lambda_model = logistic_pipeline(1.0)
         lambda_model.fit(corridor_position(train).reshape(-1, 1), y_train)
-        p_lambda_cal = lambda_model.predict_proba(corridor_position(test).reshape(-1, 1))[:, 1]
+        p_lambda_cal = lambda_model.predict_proba(
+            corridor_position(test).reshape(-1, 1)
+        )[:, 1]
 
-        d1_model = base.assay.logistic_pipeline(1.0)
-        d1_model.fit(train[base.assay.D1].to_numpy(float), y_train)
-        p_d1 = d1_model.predict_proba(test[base.assay.D1].to_numpy(float))[:, 1]
+        d1_model = logistic_pipeline(1.0)
+        d1_model.fit(train[D1].to_numpy(float), y_train)
+        p_d1 = d1_model.predict_proba(test[D1].to_numpy(float))[:, 1]
 
         for local_row, row_index in enumerate(test.index):
             row = test.loc[row_index]
@@ -127,7 +112,7 @@ def run(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         for name in ["prior", "first_passage_null", "calibrated_lambda", "D1"]
     ]).sort_values("logloss").reset_index(drop=True)
 
-    d1 = frame.loc[eligible, base.assay.D1].to_numpy(float)
+    d1 = frame.loc[eligible, D1].to_numpy(float)
     z = StandardScaler().fit_transform(d1)
     singular_values = np.linalg.svd(z, full_matrices=False, compute_uv=False)
     variance = singular_values**2
@@ -176,7 +161,7 @@ def main() -> None:
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
-    frame = base.assay.load_frame(args.path_panel, args.clusters)
+    frame = load_frame(args.path_panel, args.clusters)
     predictions, summary, diagnostics = run(frame)
 
     args.outdir.mkdir(parents=True, exist_ok=True)
