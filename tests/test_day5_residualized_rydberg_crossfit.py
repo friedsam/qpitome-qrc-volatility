@@ -9,6 +9,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from qpitome_qrc.day5.protocol import D1
+from qpitome_qrc.evaluation.binary import fit_train_test_probability_arrays
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "modeling" / "run_day5_residualized_rydberg_crossfit_shard.py"
 SPEC = importlib.util.spec_from_file_location("day5_residualized_crossfit", SCRIPT)
@@ -28,10 +31,10 @@ def test_historical_crossfit_uses_only_prior_rows() -> None:
                 "cluster_start": cluster_start,
                 "landmark_date": cluster_start,
                 "y_recovery": (cluster + j) % 2,
-                module.base.assay.D1[0]: x,
-                module.base.assay.D1[1]: x + 1,
-                module.base.assay.D1[2]: x + 2,
-                module.base.assay.D1[3]: x + 3,
+                D1[0]: x,
+                D1[1]: x + 1,
+                D1[2]: x + 2,
+                D1[3]: x + 3,
             })
     frame = pd.DataFrame(rows)
     positions, logits = module.historical_crossfit_d1_logits(frame)
@@ -40,3 +43,7 @@ def test_historical_crossfit_uses_only_prior_rows() -> None:
     assert np.all(np.isfinite(logits))
     assert positions.min() >= 12
     assert len(positions) >= module.MIN_CORRECTION_TRAIN
+
+
+def test_crossfit_shard_uses_grouped_probability_helper() -> None:
+    assert module.fit_train_test_probability_arrays is fit_train_test_probability_arrays
