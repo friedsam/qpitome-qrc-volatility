@@ -33,6 +33,7 @@ def test_evaluation_public_api_exports_shared_helpers() -> None:
         "binary_summary",
         "cluster_weighted_summary",
         "d1_basis",
+        "fit_feature_map_predict",
         "fit_feature_only_predict",
         "fit_joint_predict",
         "fit_offset_predict",
