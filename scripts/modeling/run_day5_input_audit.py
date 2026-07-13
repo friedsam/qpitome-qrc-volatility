@@ -9,13 +9,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
 from sklearn.metrics import brier_score_loss, log_loss, r2_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.day5.protocol import D1, eligible_rows, load_frame
 from qpitome_qrc.evaluation.binary import logistic_pipeline
+from qpitome_qrc.evaluation.residualization import ridge_pipeline
 
 EPS = 1e-9
 
@@ -78,13 +76,6 @@ BLOCKS: dict[str, list[str]] = {
     ],
 }
 BLOCKS["all_path_shape"] = BLOCKS["trajectory"] + BLOCKS["shape"] + BLOCKS["barrier_path"]
-
-
-def ridge_pipeline(alpha: float = 10.0) -> Pipeline:
-    return Pipeline([
-        ("scale", StandardScaler()),
-        ("ridge", Ridge(alpha=alpha)),
-    ])
 
 
 def proper_score_deltas(frame: pd.DataFrame, model: str) -> dict[str, float | int | str]:
