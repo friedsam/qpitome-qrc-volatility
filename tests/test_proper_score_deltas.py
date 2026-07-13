@@ -89,3 +89,46 @@ def test_residualized_merge_uses_shared_scoring_with_historical_schema() -> None
     assert module.deltas(frame, "candidate") == expected_delta
     assert module.binary_summary is binary_summary
     assert module.proper_score_deltas is proper_score_deltas
+
+
+def test_crossfit_merge_uses_shared_scoring_with_historical_schemas() -> None:
+    module = load_script(
+        "day5_crossfit_merge_scoring",
+        "scripts/modeling/merge_day5_residualized_rydberg_crossfit.py",
+    )
+    frame = pd.DataFrame({
+        "y": [0, 1, 1, 0],
+        "D1": [0.2, 0.6, 0.7, 0.4],
+        "crossfit_resid_occupations": [0.1, 0.8, 0.6, 0.3],
+        "cluster_id": ["a", "a", "b", "b"],
+    })
+
+    expected_summary = binary_summary(frame, "D1", clip=1e-6)
+    actual_summary = module.score(frame, "D1")
+    assert actual_summary == {
+        key: expected_summary[key]
+        for key in ("model", "n", "auc", "pr_auc", "logloss", "brier")
+    }
+    assert "recovery_rate" not in actual_summary
+
+    expected_delta = proper_score_deltas(
+        frame,
+        "crossfit_resid_occupations",
+        baseline="D1",
+        clip=1e-6,
+    )
+    actual_delta = module.paired(frame)
+    assert actual_delta == {
+        key: expected_delta[key]
+        for key in (
+            "n",
+            "n_clusters",
+            "delta_logloss",
+            "delta_brier",
+            "cluster_mean_delta_logloss",
+            "cluster_mean_delta_brier",
+        )
+    }
+    assert "model" not in actual_delta
+    assert module.binary_summary is binary_summary
+    assert module.proper_score_deltas is proper_score_deltas
