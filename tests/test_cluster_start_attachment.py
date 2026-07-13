@@ -61,3 +61,12 @@ def test_fixed_quantum_script_reexports_cluster_attachment() -> None:
     )
 
     assert module.attach_cluster_start is attach_cluster_start
+
+
+def test_fixed_rydberg_script_reexports_cluster_attachment() -> None:
+    module = load_script(
+        "fixed_rydberg_cluster_attachment",
+        "scripts/modeling/run_cross_market_day5_fixed_rydberg_feature.py",
+    )
+
+    assert module.attach_cluster_start is attach_cluster_start
