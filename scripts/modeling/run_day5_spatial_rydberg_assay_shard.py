@@ -9,11 +9,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 from qpitome_qrc.baselines.logistic_offset import logit
-from qpitome_qrc.day5.features import split_blocks
+from qpitome_qrc.day5.features import feature_diagnostics, pca_block, split_blocks
 from qpitome_qrc.day5.protocol import (
     D1,
     EVAL_START,
@@ -25,7 +24,12 @@ from qpitome_qrc.day5.protocol import (
     load_frame,
     rydberg_config,
 )
-from qpitome_qrc.evaluation.binary import fit_offset_predict, logistic_pipeline
+from qpitome_qrc.evaluation.binary import (
+    fit_feature_only_predict,
+    fit_joint_predict,
+    fit_offset_predict,
+    logistic_pipeline,
+)
 from qpitome_qrc.qrc.local_detuning_reservoir import build_local_detuning_feature_matrix
 
 RNG_SEED = 20260711
@@ -33,54 +37,8 @@ JOINT_CS = (0.001, 0.01, 0.1)
 OFFSET_L2 = (10.0, 100.0, 1000.0)
 PCA_RANKS = (3, 5, 9)
 
-
-def feature_diagnostics(X: np.ndarray) -> dict[str, float]:
-    X = np.asarray(X, dtype=float)
-    centered = X - X.mean(axis=0, keepdims=True)
-    singular = np.linalg.svd(centered, compute_uv=False)
-    variance = singular**2
-    total = float(variance.sum())
-    if total <= 1e-15:
-        return {
-            "n_features": int(X.shape[1]),
-            "participation_ratio": 0.0,
-            "n95": 0,
-            "condition_number": np.inf,
-            "near_constant": int(X.shape[1]),
-        }
-    participation = total**2 / float(np.sum(variance**2))
-    n95 = int(np.searchsorted(np.cumsum(variance) / total, 0.95) + 1)
-    nonzero = singular[singular > 1e-12]
-    condition = float(nonzero[0] / nonzero[-1]) if len(nonzero) else np.inf
-    near_constant = int(np.sum(np.std(X, axis=0) < 1e-8))
-    return {
-        "n_features": int(X.shape[1]),
-        "participation_ratio": float(participation),
-        "n95": n95,
-        "condition_number": condition,
-        "near_constant": near_constant,
-    }
-
-
-def fit_joint_predict(d1_train: np.ndarray, H_train: np.ndarray, y: np.ndarray, d1_test: np.ndarray, H_test: np.ndarray, C: float) -> float:
-    model = logistic_pipeline(C)
-    model.fit(np.column_stack([d1_train, H_train]), y)
-    return float(model.predict_proba(np.column_stack([d1_test, H_test]))[0, 1])
-
-
-def fit_rydberg_only_predict(H_train: np.ndarray, y: np.ndarray, H_test: np.ndarray, C: float) -> float:
-    model = logistic_pipeline(C)
-    model.fit(H_train, y)
-    return float(model.predict_proba(H_test)[0, 1])
-
-
-def pca_block(H_train: np.ndarray, H_test: np.ndarray, rank: int) -> tuple[np.ndarray, np.ndarray]:
-    scaler = StandardScaler().fit(H_train)
-    train_scaled = scaler.transform(H_train)
-    test_scaled = scaler.transform(H_test)
-    actual_rank = min(rank, train_scaled.shape[0] - 1, train_scaled.shape[1])
-    pca = PCA(n_components=actual_rank, svd_solver="full").fit(train_scaled)
-    return pca.transform(train_scaled), pca.transform(test_scaled)
+# Backward-compatible historical name used by downstream scripts.
+fit_rydberg_only_predict = fit_feature_only_predict
 
 
 def evaluate_shard(frame: pd.DataFrame, shard_index: int, num_shards: int) -> tuple[pd.DataFrame, pd.DataFrame]:
