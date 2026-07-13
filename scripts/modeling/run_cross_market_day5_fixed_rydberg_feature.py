@@ -4,7 +4,11 @@ import numpy as np
 import pandas as pd
 
 from qpitome_qrc.day5.protocol import D1, EVAL_START, MIN_TRAIN
-from qpitome_qrc.evaluation.binary import fit_feature_map_predict, logistic_pipeline
+from qpitome_qrc.evaluation.binary import (
+    fit_feature_map_predict,
+    fit_feature_only_predict,
+    logistic_pipeline,
+)
 from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
 from qpitome_qrc.qrc.fixed_rydberg_feature import (
     EVOLVE_TIME,
@@ -30,9 +34,12 @@ score = binary_summary
 
 
 def fit_linear(train, test):
-    model = logistic_pipeline(1.0)
-    model.fit(train[D1].to_numpy(float), train["y_recovery"].to_numpy(int))
-    return float(model.predict_proba(test[D1].to_numpy(float))[0, 1])
+    return fit_feature_only_predict(
+        train[D1].to_numpy(float),
+        train["y_recovery"].to_numpy(int),
+        test[D1].to_numpy(float),
+        C=1.0,
+    )
 
 
 def fit_rydberg(train, test):
