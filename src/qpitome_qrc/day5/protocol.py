@@ -36,6 +36,32 @@ STATIC = [
 ]
 
 
+def attach_cluster_start(
+    frame: pd.DataFrame,
+    clusters: pd.DataFrame,
+    *,
+    require_complete: bool = False,
+) -> pd.DataFrame:
+    """Attach synchronized cluster ids and their earliest branch dates."""
+
+    cluster_keys = clusters[["market_key", "episode_id", "cluster_id"]].drop_duplicates()
+    out = frame.merge(
+        cluster_keys,
+        on=["market_key", "episode_id"],
+        how="left",
+        validate="many_to_one",
+    )
+    if require_complete and out["cluster_id"].isna().any():
+        raise ValueError("path-panel rows are missing cluster ids")
+
+    starts = (
+        out.groupby("cluster_id", as_index=False)["branch_date"]
+        .min()
+        .rename(columns={"branch_date": "cluster_start"})
+    )
+    return out.merge(starts, on="cluster_id", how="left", validate="many_to_one")
+
+
 def add_extrema(frame: pd.DataFrame) -> pd.DataFrame:
     """Add locked closest-barrier path features without mutating ``frame``."""
 
@@ -53,17 +79,8 @@ def load_frame(path_panel: Path, clusters_path: Path) -> pd.DataFrame:
     """Load the locked day-5 panel and attach synchronized crisis clusters."""
 
     frame = pd.read_csv(path_panel, parse_dates=["branch_date", "landmark_date"])
-    clusters = pd.read_csv(clusters_path)[["market_key", "episode_id", "cluster_id"]].drop_duplicates()
-    frame = frame.merge(clusters, on=["market_key", "episode_id"], how="left", validate="many_to_one")
-    if frame["cluster_id"].isna().any():
-        raise ValueError("path-panel rows are missing cluster ids")
-
-    starts = (
-        frame.groupby("cluster_id", as_index=False)["branch_date"]
-        .min()
-        .rename(columns={"branch_date": "cluster_start"})
-    )
-    frame = frame.merge(starts, on="cluster_id", how="left", validate="many_to_one")
+    clusters = pd.read_csv(clusters_path)
+    frame = attach_cluster_start(frame, clusters, require_complete=True)
     frame = add_extrema(frame)
 
     needed = D1 + STATIC + [f"r_d{day}" for day in range(1, 6)] + [
