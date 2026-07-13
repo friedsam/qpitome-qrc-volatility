@@ -22,10 +22,9 @@ def make_frame() -> pd.DataFrame:
     rows = []
     for i in range(12):
         cluster_start = pd.Timestamp("2000-01-01") + pd.DateOffset(years=i // 3)
-        landmark_date = cluster_start - pd.Timedelta(days=30)
         row = {
             "cluster_start": cluster_start,
-            "landmark_date": landmark_date,
+            "landmark_date": cluster_start,
             "y_recovery": i % 2,
         }
         for j, column in enumerate(D1):
