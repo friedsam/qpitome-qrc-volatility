@@ -165,7 +165,9 @@ def main() -> None:
     parser.add_argument(
         "--predictions",
         type=Path,
-        default=Path("results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"),
+        default=Path(
+            "results/modeling/weekly_regimes/weekly_regime_baselines__one_step_predictions.csv"
+        ),
     )
     parser.add_argument("--horizon", type=int, default=4)
     parser.add_argument("--persist-window", type=int, default=4)
