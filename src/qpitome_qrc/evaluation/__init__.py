@@ -9,7 +9,6 @@ from .binary import (
     fit_feature_only_predict,
     fit_joint_predict,
     fit_offset_predict,
-    fit_residualizer,
     fit_transformed_predict,
     logistic_pipeline,
     transformed_logistic_pipeline,
@@ -17,6 +16,7 @@ from .binary import (
 from .residualization import (
     DEFAULT_N_SPLITS,
     d1_basis,
+    fit_residualizer,
     residual_diagnostics,
     residualize_train_test,
     ridge_pipeline,
