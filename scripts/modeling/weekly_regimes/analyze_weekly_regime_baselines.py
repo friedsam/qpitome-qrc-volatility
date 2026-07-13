@@ -3,7 +3,7 @@
 
 This script requires only ``one_step_predictions.csv`` from a completed run.
 It decomposes predictive-density gains by decade, return-tail bucket, and a
-small set of named crisis windows.  No HMM refitting is performed.
+small set of named crisis windows. No HMM refitting is performed.
 """
 
 from __future__ import annotations
@@ -146,12 +146,14 @@ def main() -> None:
     parser.add_argument(
         "--predictions",
         type=Path,
-        default=Path("results/modeling/weekly_regimes/weekly_regime_baselines/one_step_predictions.csv"),
+        default=Path(
+            "results/modeling/weekly_regimes/weekly_regime_baselines__one_step_predictions.csv"
+        ),
     )
     parser.add_argument(
         "--outdir",
         type=Path,
-        default=Path("results/modeling/weekly_regimes/weekly_regime_baseline_diagnostics"),
+        default=Path("results/modeling/weekly_regimes"),
     )
     args = parser.parse_args()
 
@@ -163,11 +165,25 @@ def main() -> None:
     checks = sanity_checks(frame)
 
     args.outdir.mkdir(parents=True, exist_ok=True)
-    decade.to_csv(args.outdir / "gain_by_decade.csv", index=False)
-    tails.to_csv(args.outdir / "gain_by_return_tail.csv", index=False)
-    crises.to_csv(args.outdir / "gain_by_crisis_window.csv", index=False)
-    concentration.to_csv(args.outdir / "gain_concentration.csv", index=False)
-    (args.outdir / "sanity_checks.json").write_text(json.dumps(checks, indent=2))
+    decade.to_csv(
+        args.outdir / "weekly_regime_baseline_diagnostics__gain_by_decade.csv",
+        index=False,
+    )
+    tails.to_csv(
+        args.outdir / "weekly_regime_baseline_diagnostics__gain_by_return_tail.csv",
+        index=False,
+    )
+    crises.to_csv(
+        args.outdir / "weekly_regime_baseline_diagnostics__gain_by_crisis_window.csv",
+        index=False,
+    )
+    concentration.to_csv(
+        args.outdir / "weekly_regime_baseline_diagnostics__gain_concentration.csv",
+        index=False,
+    )
+    (
+        args.outdir / "weekly_regime_baseline_diagnostics__sanity_checks.json"
+    ).write_text(json.dumps(checks, indent=2))
 
     print("Sanity checks")
     print(json.dumps(checks, indent=2))
