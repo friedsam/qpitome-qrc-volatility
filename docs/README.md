@@ -27,13 +27,27 @@ Every durable result directory should contain, where applicable:
 
 Temporary `/tmp` outputs are acceptable during exploration but are not durable evidence.
 
-## Script organization
+## Modeling workbench
 
-Follow [`repo_organization.md`](repo_organization.md): organize by purpose, not by model family.
+The modeling scripts remain under `scripts/modeling/`, but the directory is subdivided by scientific purpose:
 
-- current operational runners remain at `scripts/` root until superseded;
-- model-development work belongs in `scripts/exploratory/`;
-- mechanism, falsification, and ablation work belongs in `scripts/diagnostics/`;
-- historical comparison runners belong in `scripts/reference/`.
+```text
+scripts/modeling/regimes/
+scripts/modeling/branching_day5/
+scripts/modeling/track_a_onset/
+scripts/modeling/track_b_destination/
+scripts/modeling/shared/
+scripts/modeling/archive/
+```
 
-Do not create new model-family directories such as `classical_models/` or `quantum_models/`. Do not add one-off maintenance scripts to the repository.
+See [`repo_organization.md`](repo_organization.md) for folder responsibilities and migration rules. See `scripts/modeling/README.md` for the script-to-question-to-result index.
+
+Every nontrivial modeling script or tightly coupled script group must be referenced from:
+
+1. `scripts/modeling/README.md`;
+2. the relevant protocol or experiment note;
+3. the durable result directory, when durable results exist.
+
+The documentation must identify the scientific question, script or `src/` implementation, inputs, outputs, evaluation safeguards, result status, and whether the work is active, diagnostic, retired, or archived.
+
+Do not add one-off maintenance scripts to the repository. Repository cleanup should be performed with `git mv` and committed together with reference repairs and documentation updates.
