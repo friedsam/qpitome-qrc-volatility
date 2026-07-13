@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from qpitome_qrc.day5.protocol import D1, EVAL_START, MIN_TRAIN
+from qpitome_qrc.day5.protocol import D1, EVAL_START, MIN_TRAIN, attach_cluster_start
 from qpitome_qrc.evaluation.binary import fit_feature_map_predict, fit_feature_only_predict
 from qpitome_qrc.evaluation.scoring import binary_summary, cluster_weighted_summary
 from qpitome_qrc.qrc.fixed_quantum_feature import (
@@ -50,12 +50,17 @@ def fit_quantum(train, test):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    frame = pd.read_csv(BASE / "day5_landmark_frame.csv", parse_dates=["branch_date", "landmark_date"])
-    clusters = pd.read_csv(CLUSTERS)[["market_key", "episode_id", "cluster_id"]]
-    frame = frame.merge(clusters, on=["market_key", "episode_id"], how="left")
-    cluster_start = frame.groupby("cluster_id", as_index=False)["branch_date"].min().rename(columns={"branch_date": "cluster_start"})
-    frame = frame.merge(cluster_start, on="cluster_id", how="left")
-    frame = frame.dropna(subset=D1 + ["y_recovery", "landmark_date", "cluster_start"]).sort_values(["landmark_date", "market_key", "episode_id"]).reset_index(drop=True)
+    frame = pd.read_csv(
+        BASE / "day5_landmark_frame.csv",
+        parse_dates=["branch_date", "landmark_date"],
+    )
+    clusters = pd.read_csv(CLUSTERS)
+    frame = attach_cluster_start(frame, clusters)
+    frame = frame.dropna(
+        subset=D1 + ["y_recovery", "landmark_date", "cluster_start"]
+    ).sort_values(
+        ["landmark_date", "market_key", "episode_id"]
+    ).reset_index(drop=True)
 
     rows = []
     for i, row in frame.iterrows():
