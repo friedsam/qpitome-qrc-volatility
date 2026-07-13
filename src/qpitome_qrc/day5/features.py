@@ -34,6 +34,19 @@ PATH_SHAPE_BLOCKS["all_path_shape"] = (
     + PATH_SHAPE_BLOCKS["barrier_path"]
 )
 
+PROTECTED_FEATURE_BLOCKS: dict[str, list[str]] = {
+    "path_efficiency": ["path_efficiency"],
+    "path_reversal_count": ["path_reversal_count"],
+    "path_early_late_imbalance": ["path_early_late_imbalance"],
+    "trajectory_r_d1": ["trajectory_r_d1"],
+    "compact_four": [
+        "path_efficiency",
+        "path_reversal_count",
+        "path_early_late_imbalance",
+        "trajectory_r_d1",
+    ],
+}
+
 
 def add_path_shape_features(frame: pd.DataFrame) -> pd.DataFrame:
     """Add the locked trajectory, shape, and barrier-path audit features."""
