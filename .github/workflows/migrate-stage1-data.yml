@@ -1,0 +1,59 @@
+name: Migrate Stage 1 data
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage1-dev
+          fetch-depth: 0
+
+      - name: Migrate canonical data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin phase3-refactor
+          rm -rf /tmp/qpitome-source
+          mkdir -p /tmp/qpitome-source
+          git archive origin/phase3-refactor data | tar -x -C /tmp/qpitome-source
+
+          rm -rf data/phase1_2 data/phase3
+          mkdir -p data/phase1_2/raw
+          mkdir -p data/phase1_2/processed/reference
+          mkdir -p data/phase1_2/processed/rebuilt
+          mkdir -p data/phase1_2/manifests
+          mkdir -p data/phase3/raw
+          mkdir -p data/phase3/processed/reference
+          mkdir -p data/phase3/processed/rebuilt
+          mkdir -p data/phase3/manifests
+
+          cp -a /tmp/qpitome-source/data/raw/kaggle_market_ohlcv data/phase1_2/raw/
+          cp -a /tmp/qpitome-source/data/raw/vix data/phase1_2/raw/
+          cp /tmp/qpitome-source/data/processed/phase2_spy_vix_volatility.csv data/phase1_2/processed/reference/
+          cp /tmp/qpitome-source/data/processed/phase3_spy_vix_volatility_extended.csv data/phase1_2/processed/reference/spy_vix_volatility_extended.csv
+          cp -a /tmp/qpitome-source/data/raw/paper_monthly data/phase3/raw/
+          cp -a /tmp/qpitome-source/data/raw/portability data/phase3/raw/
+          cp -a /tmp/qpitome-source/data/processed/paper_monthly data/phase3/processed/reference/
+
+          find data -name '.DS_Store' -delete
+          find data -type f -name '* 2.csv' -delete
+          touch data/phase1_2/processed/rebuilt/.gitkeep
+          touch data/phase3/processed/rebuilt/.gitkeep
+          rm -rf data/raw data/processed
+
+          python scripts/data/validate_stage1_data.py --dataset data/phase1_2/processed/reference/phase2_spy_vix_volatility.csv
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A data
+          git commit -m "Organize shared canonical data by project stage"
+          git push origin HEAD:stage1-dev
