@@ -4,17 +4,24 @@ __pycache__/
 .venv/
 .env
 .DS_Store
+*.pyc
 
+data/legacy_classifier_branch/*
 data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/legacy_classifier_branch/raw/.gitkeep
+!data/legacy_classifier_branch/processed/.gitkeep
 
+# Keep bulky run artifacts and generated figures local, but version compact
+# machine-readable result tables and summaries so experiments are portable.
 results/runs/*
 results/figures/*
-results/tables/*
 !results/runs/.gitkeep
 !results/figures/.gitkeep
-!results/tables/.gitkeep
+
+scratch/
 
 *.log
+*.egg-info/
