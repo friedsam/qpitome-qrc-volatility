@@ -1,0 +1,25 @@
+{
+  "data": "data/processed/phase3_spy_vix_volatility_extended.csv",
+  "episodes": "results/regimes/branching_extractor_audit_v1/mid_grid_episodes.csv",
+  "har_features": "results/baselines/branch_har_front_v1/har_episode_features.csv",
+  "models": {
+    "har": "causal episode-specific canonical HAR forecast from branch_har_front_v1",
+    "persistence": "current rv_20d at branch point"
+  },
+  "groups": [
+    "all_complete",
+    "binary",
+    "mixed",
+    "recovery",
+    "relapse"
+  ],
+  "metrics": [
+    "RMSE",
+    "MAE",
+    "QLIKE",
+    "Mincer-Zarnowitz intercept",
+    "Mincer-Zarnowitz slope",
+    "innovation R2 versus persistence"
+  ],
+  "status": "diagnostic; small branch-conditioned samples"
+}

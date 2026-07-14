@@ -1,0 +1,5 @@
+interpretation,question,numerator,denominator,fraction,threshold,verdict
+label_rule_artifact,Do >=1/3 of mixed episodes already resolve by first passage within 40 days?,7,18,0.3888888888888889,0.3333333333333333,YES
+threshold_artifact,"Among original-barrier unresolved episodes, do >=1/3 resolve within 40 days when both barriers move 20% closer?",5,11,0.45454545454545453,0.3333333333333333,YES
+forty_day_censoring,"Among original-barrier unresolved episodes, do >=1/2 first escape during days 41-120?",11,11,1.0,0.5,YES
+persistent_metastable_region,"Among original-barrier unresolved episodes, do >=1/3 remain unescaped through 120 days and spend >=1/2 of days 41-120 in high-stress persistent damage?",0,11,0.0,0.3333333333333333,NO

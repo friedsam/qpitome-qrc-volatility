@@ -1,0 +1,26 @@
+{
+  "status": "final pre-freeze tests",
+  "independent_episode_count": 48,
+  "small_sample_warning": "The risk panel creates repeated at-risk rows but does not increase the number of independent crisis episodes. Predictive scores are aggregated by held-out episode; small independent n remains unresolved.",
+  "direction_landmarks": [
+    5,
+    10,
+    15
+  ],
+  "direction_models": {
+    "D0": "historical recovery rate",
+    "D1": "running distance to recovery and relapse barriers",
+    "D2": "D1 plus downside pressure"
+  },
+  "timing_models": {
+    "H0": "constant daily hazard estimated from prior completed episodes",
+    "H1": "log duration",
+    "HP": "downside pressure",
+    "H1P": "log duration plus downside pressure"
+  },
+  "clock_models": {
+    "T0": "exponential",
+    "T1": "Weibull"
+  },
+  "verdicts_are_not_significance_tests": true
+}

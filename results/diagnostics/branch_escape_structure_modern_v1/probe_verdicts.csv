@@ -1,0 +1,4 @@
+probe,question,key_value,verdict
+residence_time_depends_on_direction,Is |rank-biserial effect| for recovery minus relapse residence time >=0.33?,-0.14814814814814814,NO
+branch_relaxation_differs_from_matched_stress,Do at least 2 matched indicators support slower branch relaxation versus high-stress non-branch controls?,1.0,NO
+resolution_aligned_commitment_window_detected,Is there a 3-day run where at least 2 of 4 path features have |SMD|>=0.8?,,NO

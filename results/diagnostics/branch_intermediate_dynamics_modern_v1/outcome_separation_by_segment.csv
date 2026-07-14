@@ -1,0 +1,11 @@
+segment,metric,n_recovery,n_relapse,smd_recovery_minus_relapse
+early_residence,return_sign_switch_rate,28,17,-0.050738157187450936
+early_residence,repair_sign_switch_rate,28,17,0.002152524804637221
+early_residence,directional_coherence,28,17,0.47504442458303864
+early_residence,rv_ratio_choppiness,28,17,-0.01222733455709292
+early_residence,mean_downside_pressure,28,17,-1.394220738177938
+late_residence,return_sign_switch_rate,28,17,0.5314105465428995
+late_residence,repair_sign_switch_rate,28,17,0.514807625872214
+late_residence,directional_coherence,28,17,-0.08680531901015157
+late_residence,rv_ratio_choppiness,28,17,0.2116688281919813
+late_residence,mean_downside_pressure,28,17,-2.1131621774636873

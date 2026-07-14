@@ -1,0 +1,19 @@
+{
+  "n_rows": 3471,
+  "first_date": "1960-01-01",
+  "last_date": "2026-07-03",
+  "duplicate_dates": 0,
+  "missing_values": 0,
+  "restricted_minus_unrestricted_total": 7.653764263466854,
+  "restricted_minus_unrestricted_mean": 0.0022050602891002173,
+  "restricted_minus_unrestricted_positive_weeks": 1784,
+  "restricted_minus_unrestricted_negative_weeks": 1687,
+  "restricted_minus_hmm2_total": 73.54648768240287,
+  "restricted_minus_hmm2_mean": 0.02118884692665021,
+  "restricted_minus_hmm2_positive_weeks": 1762,
+  "restricted_minus_hmm2_negative_weeks": 1709,
+  "restricted_minus_iid_total": 490.8615909932531,
+  "restricted_minus_iid_mean": 0.14141791731295106,
+  "restricted_minus_iid_positive_weeks": 1889,
+  "restricted_minus_iid_negative_weeks": 1582
+}

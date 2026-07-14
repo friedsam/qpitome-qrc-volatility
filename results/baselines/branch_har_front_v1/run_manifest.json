@@ -1,0 +1,59 @@
+{
+  "data": "data/processed/phase3_spy_vix_volatility_extended.csv",
+  "episodes": "results/regimes/branching_extractor_audit_v1/mid_grid_episodes.csv",
+  "task": "binary recovery versus relapse",
+  "positive_class": "recovery",
+  "mixed_handling": "retained in chronology; excluded from binary fitting and scoring",
+  "protocol": {
+    "min_train_episodes": 18,
+    "outcome_horizon_rows": 40,
+    "embargo_rows": 0
+  },
+  "har_model": {
+    "features": [
+      "rv_5d",
+      "rv_10d",
+      "rv_20d",
+      "rv_60d",
+      "vix_close"
+    ],
+    "target": "future_rv_20d",
+    "scaler": "StandardScaler",
+    "estimator": "Ridge",
+    "alpha": 1.0,
+    "target_horizon_rows": 20,
+    "prediction_floor": 1e-08,
+    "daily_fit_rule": "for each episode, fit only rows whose future_rv_20d target is complete before branch_idx"
+  },
+  "branch_readouts": {
+    "har_forecast_gap": [
+      "har_log_future_to_current"
+    ],
+    "har_forecast_level_gap": [
+      "har_future_rv20_pred",
+      "har_log_future_to_current"
+    ],
+    "har_plus_state": [
+      "har_log_future_to_current",
+      "stress_ratio",
+      "drawdown_120d",
+      "rv_ratio_5_20_branch",
+      "return_5d_branch"
+    ],
+    "har_plus_motion": [
+      "har_log_future_to_current",
+      "stress_ratio",
+      "drawdown_120d",
+      "rv_ratio_5_20_branch",
+      "return_5d_branch",
+      "rv_5d_change_5d_branch",
+      "worst_return_5d_in_prior_window"
+    ]
+  },
+  "readout_model": {
+    "scaler": "StandardScaler fit on each episode training set",
+    "estimator": "LogisticRegression",
+    "C": 1.0,
+    "tuning": "none"
+  }
+}

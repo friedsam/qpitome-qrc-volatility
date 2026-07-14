@@ -1,0 +1,6 @@
+probe,question,key_value,verdict
+observable_residence,Do at least half of resolved episodes survive more than 10 days after branch entry?,0.8125,YES
+fluctuating_residence,Do at least 2 of 4 directional/choppiness indicators increase from pre-entry to early residence?,0.0,NO
+common_early_intermediate,Is the maximum early recovery-vs-relapse dynamic separation below |SMD|=0.5?,1.394220738177938,NO
+late_outcome_divergence,Does late separation reach |SMD|>=0.8 and median separation grow >=1.5x versus early residence?,10.146360341197832,YES
+constant_escape_rate_roughly_compatible,"Across duration bins with adequate risk sets, is max/min implied daily escape rate <=2?",1.5424235952004262,YES

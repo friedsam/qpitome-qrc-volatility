@@ -73,7 +73,7 @@ The Rydberg model must use the same static coordinates, the same purged prequent
 
 ## Reproducibility
 
-Runner: `scripts/modeling/run_cross_market_day5_static_nonlinear_probe.py`
+Runner: `scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_static_nonlinear_probe.py`
 
 Protocol: `docs/protocols/day5_static_nonlinear_probe.md`
 

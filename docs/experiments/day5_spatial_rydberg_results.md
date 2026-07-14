@@ -166,13 +166,13 @@ That methodological finding is stronger and more defensible than claiming a quan
 
 Primary scripts:
 
-- `scripts/modeling/run_day5_spatial_rydberg_assay_shard.py`
-- `scripts/modeling/merge_day5_spatial_rydberg_assay.py`
-- `scripts/modeling/run_day5_rydberg_pca_reconstruction.py`
-- `scripts/modeling/run_day5_residualized_rydberg_shard.py`
-- `scripts/modeling/merge_day5_residualized_rydberg.py`
-- `scripts/modeling/run_day5_residualized_rydberg_crossfit_shard.py`
-- `scripts/modeling/merge_day5_residualized_rydberg_crossfit.py`
+- `scripts/modeling/day5_branching/spatial_rydberg/run_day5_spatial_rydberg_assay_shard.py`
+- `scripts/modeling/day5_branching/spatial_rydberg/merge_day5_spatial_rydberg_assay.py`
+- `scripts/modeling/day5_branching/spatial_rydberg/run_day5_rydberg_pca_reconstruction.py`
+- `scripts/modeling/day5_branching/residual_confirmation/run_day5_residualized_rydberg_shard.py`
+- `scripts/modeling/day5_branching/residual_confirmation/merge_day5_residualized_rydberg.py`
+- `scripts/modeling/day5_branching/residual_confirmation/run_day5_residualized_rydberg_crossfit_shard.py`
+- `scripts/modeling/day5_branching/residual_confirmation/merge_day5_residualized_rydberg_crossfit.py`
 
 Relevant frozen confirmation candidate:
 

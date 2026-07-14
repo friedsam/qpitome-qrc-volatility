@@ -1,0 +1,32 @@
+{
+  "status": "final descriptive diagnostic block before model-design freeze",
+  "probe_1": {
+    "target": "first-passage residence time versus eventual direction",
+    "effect": "rank-biserial recovery minus relapse",
+    "screen": 0.33
+  },
+  "probe_2": {
+    "controls": "high-stress non-branch anchors, excluded within +/-120 rows of branch points, nearest-neighbor matched without replacement",
+    "match_features": [
+      "stress_ratio",
+      "drawdown_120d",
+      "rv_ratio_5_20_branch",
+      "return_5d_branch"
+    ],
+    "window_days": 20,
+    "note": "descriptive full-sample matching; not a predictive/OOS evaluation"
+  },
+  "probe_3": {
+    "alignment": "days backward from fixed-barrier first passage",
+    "max_lead": 30,
+    "features": [
+      "signed_return_over_local_vol",
+      "downside_shock_pressure",
+      "d_log_rv5_over_rv20",
+      "drawdown_repair_over_local_vol"
+    ],
+    "commitment_rule": ">=2 features with |SMD|>=0.8 for 3 consecutive days",
+    "warning": "late separation is partly endpoint-conditioned; timing and sharpness are descriptive, not causal"
+  },
+  "verdicts_are_not_p_values": true
+}

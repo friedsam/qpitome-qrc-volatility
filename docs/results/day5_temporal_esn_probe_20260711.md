@@ -54,7 +54,7 @@ Given the repeated temporal failures elsewhere in the project, a broader ESN sea
 
 ## Reproducibility
 
-Runner: `scripts/modeling/run_cross_market_day5_esn_probe.py`
+Runner: `scripts/modeling/day5_branching/temporal_controls/run_cross_market_day5_esn_probe.py`
 
 Protocol: `docs/protocols/day5_esn_incremental_probe.md`
 

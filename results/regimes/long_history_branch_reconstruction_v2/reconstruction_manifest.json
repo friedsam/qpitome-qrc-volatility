@@ -1,0 +1,31 @@
+{
+  "status": "canonical long-history reconstruction",
+  "raw_source": "data/raw/paper_monthly/20260705T170000Z/gspc_daily_yahoo.json",
+  "rv_definition": "sqrt(rolling_mean(log_return^2) * 252)",
+  "modern_rv_parity_atol": 1e-12,
+  "daily_rows": 19246,
+  "daily_start": "1950-01-03",
+  "daily_end": "2026-07-02",
+  "episode_count": 80,
+  "outcome_counts": {
+    "mixed": 33,
+    "recovery": 28,
+    "relapse": 19
+  },
+  "state_config": {
+    "expanding_min_periods": 504,
+    "stress_quantile": 0.7,
+    "drawdown_threshold": -0.06,
+    "rv_ratio_cap": 1.0,
+    "stabilization_return_floor": -0.005,
+    "prior_decline_threshold": -0.05,
+    "prior_decline_lookback": 20,
+    "merge_gap_days": 3,
+    "min_episode_separation": 20
+  },
+  "outcome_config": {
+    "horizon": 40,
+    "recovery_scale": 0.55,
+    "relapse_scale": 0.7
+  }
+}

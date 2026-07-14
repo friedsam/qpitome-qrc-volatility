@@ -72,7 +72,7 @@ def test_fit_esn_predict_matches_locked_manual_sequence() -> None:
 def test_legacy_fixed_esn_script_reexports_package_core() -> None:
     module = load_script(
         "legacy_fixed_esn",
-        "scripts/modeling/run_cross_market_day5_fixed_esn.py",
+        "scripts/modeling/day5_branching/temporal_controls/run_cross_market_day5_fixed_esn.py",
     )
 
     assert module.fixed_esn_weights is fixed_esn.fixed_esn_weights

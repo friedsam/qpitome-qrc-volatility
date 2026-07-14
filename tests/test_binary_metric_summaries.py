@@ -58,7 +58,7 @@ def test_binary_summary_and_cluster_weighted_summary() -> None:
 def test_fixed_rydberg_baseline_reexports_scoring_helpers() -> None:
     module = load_script(
         "fixed_rydberg_metric_helpers",
-        "scripts/modeling/run_cross_market_day5_fixed_rydberg_feature.py",
+        "scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_fixed_rydberg_feature.py",
     )
 
     assert module.score is binary_summary
@@ -69,7 +69,7 @@ def test_fixed_rydberg_baseline_reexports_scoring_helpers() -> None:
 def test_spatial_merge_uses_all_shared_scoring_helpers() -> None:
     module = load_script(
         "spatial_rydberg_merge_scoring",
-        "scripts/modeling/merge_day5_spatial_rydberg_assay.py",
+        "scripts/modeling/day5_branching/spatial_rydberg/merge_day5_spatial_rydberg_assay.py",
     )
     frame = pd.DataFrame({
         "y": [0, 1, 1, 0],

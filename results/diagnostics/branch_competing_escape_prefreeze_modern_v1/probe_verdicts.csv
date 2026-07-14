@@ -1,0 +1,5 @@
+probe,question,key_value,verdict
+downside_pressure_survives_barrier_geometry,Does geometry+downside beat geometry-only logloss at at least 2 of 3 fixed landmarks?,3.0,YES
+downside_pressure_modulates_total_escape_timing,Does downside-only improve mean OOS episode NLL versus constant hazard?,0.11858201170781513,NO
+downside_adds_beyond_duration_for_timing,Does duration+downside improve mean OOS episode NLL versus duration-only?,0.09266612778609407,NO
+duration_dependent_clock_beats_constant_rate,Does Weibull T1 improve mean OOS NLL versus exponential T0?,0.009680076428750795,NO

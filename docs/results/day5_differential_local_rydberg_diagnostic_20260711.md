@@ -60,7 +60,7 @@ No operating-point tuning is permitted from the outer market result. The earlier
 
 ## Reproducibility
 
-Runner: `scripts/modeling/run_day5_differential_local_rydberg_diagnostic.py`
+Runner: `scripts/modeling/day5_branching/static_rydberg/run_day5_differential_local_rydberg_diagnostic.py`
 
 Protocol: `docs/protocols/day5_differential_local_rydberg_diagnostic.md`
 

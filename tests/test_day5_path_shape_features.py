@@ -50,7 +50,7 @@ def test_add_path_shape_features_matches_locked_geometry() -> None:
 def test_input_audit_reexports_path_shape_helpers() -> None:
     module = load_script(
         "day5_input_audit_path_shape",
-        "scripts/modeling/run_day5_input_audit.py",
+        "scripts/modeling/day5_branching/falsification/run_day5_input_audit.py",
     )
 
     assert module.add_path_shape_features is add_path_shape_features

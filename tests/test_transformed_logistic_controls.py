@@ -74,7 +74,7 @@ def test_fit_transformed_predict_matches_locked_rbf_sequence() -> None:
 def test_regularized_control_script_reexports_shared_helpers() -> None:
     module = load_script(
         "regularized_control_helpers",
-        "scripts/modeling/run_cross_market_day5_regularized_controls.py",
+        "scripts/modeling/day5_branching/baseline/run_cross_market_day5_regularized_controls.py",
     )
 
     assert module.make_model is transformed_logistic_pipeline

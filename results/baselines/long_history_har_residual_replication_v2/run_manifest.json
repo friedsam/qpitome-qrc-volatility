@@ -1,0 +1,52 @@
+{
+  "status": "locked long-history replication",
+  "daily_file": "results/regimes/long_history_branch_reconstruction_v2/gspc_daily_engineered_1950_2026.csv",
+  "episode_file": "results/regimes/long_history_branch_reconstruction_v2/branch_episodes_1950_2026.csv",
+  "baseline": "VIX-blind HAR-RV: RV5/RV10/RV20/RV60 -> StandardScaler -> Ridge(alpha=1)",
+  "baseline_qualification": "not exact canonical HAR because pre-1993 VIX is unavailable",
+  "target": "log(actual future RV20 / causal VIX-blind HAR-RV prediction)",
+  "families": {
+    "generic": [
+      "market_log_return",
+      "market_abs_log_return",
+      "log_rv5_over_rv20",
+      "log_rv20_over_rv60",
+      "drawdown_120d_path",
+      "rv5_change_scaled"
+    ],
+    "volatility_failure": [
+      "log_rv5_over_rv20",
+      "log_rv20_over_rv60",
+      "d_log_rv5_over_rv20_5d",
+      "d_log_rv20_over_rv60_5d",
+      "rv5_acceleration_scaled",
+      "rv20_change_scaled",
+      "rv5_distance_from_20d_peak",
+      "rv5_reexpansion_count_10d",
+      "rv5_reexpansion_magnitude_10d"
+    ]
+  },
+  "lookback": 40,
+  "esn_config": {
+    "n_reservoir": 50,
+    "spectral_radius": 0.9,
+    "input_scale": 0.3,
+    "leak": 0.3
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "ridge_alphas": [
+    1.0,
+    10.0,
+    100.0,
+    1000.0
+  ],
+  "protocol": {
+    "min_train_episodes": 18,
+    "outcome_horizon_rows": 40,
+    "embargo_rows": 0
+  }
+}

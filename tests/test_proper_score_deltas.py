@@ -54,7 +54,7 @@ def test_proper_score_deltas_matches_manual_row_and_cluster_means() -> None:
 def test_input_audit_reexports_proper_score_helper() -> None:
     module = load_script(
         "day5_input_audit_scoring",
-        "scripts/modeling/run_day5_input_audit.py",
+        "scripts/modeling/day5_branching/falsification/run_day5_input_audit.py",
     )
 
     assert module.proper_score_deltas is proper_score_deltas
@@ -63,7 +63,7 @@ def test_input_audit_reexports_proper_score_helper() -> None:
 def test_residualized_merge_uses_shared_scoring_with_historical_schema() -> None:
     module = load_script(
         "day5_residualized_merge_scoring",
-        "scripts/modeling/merge_day5_residualized_rydberg.py",
+        "scripts/modeling/day5_branching/residual_confirmation/merge_day5_residualized_rydberg.py",
     )
     frame = pd.DataFrame({
         "y": [0, 1, 1, 0],
@@ -94,7 +94,7 @@ def test_residualized_merge_uses_shared_scoring_with_historical_schema() -> None
 def test_crossfit_merge_uses_shared_scoring_with_historical_schemas() -> None:
     module = load_script(
         "day5_crossfit_merge_scoring",
-        "scripts/modeling/merge_day5_residualized_rydberg_crossfit.py",
+        "scripts/modeling/day5_branching/residual_confirmation/merge_day5_residualized_rydberg_crossfit.py",
     )
     frame = pd.DataFrame({
         "y": [0, 1, 1, 0],

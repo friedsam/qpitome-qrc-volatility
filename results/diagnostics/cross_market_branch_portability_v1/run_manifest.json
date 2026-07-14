@@ -1,0 +1,38 @@
+{
+  "question": "Does the unchanged causal branching-state detector identify the same qualitative transient escape object in other broad equity markets?",
+  "detector_retuning": false,
+  "state_config": {
+    "expanding_min_periods": 504,
+    "stress_quantile": 0.7,
+    "drawdown_threshold": -0.06,
+    "rv_ratio_cap": 1.0,
+    "stabilization_return_floor": -0.01,
+    "prior_decline_threshold": -0.04,
+    "prior_decline_lookback": 20,
+    "merge_gap_days": 3,
+    "min_episode_separation": 20
+  },
+  "fixed_barrier_followup_days": 120,
+  "market_inputs": {
+    "nikkei_225": {
+      "market": "Nikkei 225",
+      "source": "FRED:NIKKEI225",
+      "source_url": "https://fred.stlouisfed.org/series/NIKKEI225",
+      "raw_path": "data/raw/portability/nikkei_225_fred_raw.csv"
+    },
+    "ftse_100": {
+      "market": "FTSE 100",
+      "source": "WSJ:UKX",
+      "source_url": "https://www.wsj.com/market-data/quotes/index/UK/UKX/historical-prices",
+      "raw_path": "data/raw/portability/ftse_100_raw.csv"
+    },
+    "russell_2000": {
+      "market": "Russell 2000",
+      "source": "WSJ:RUT",
+      "source_url": "https://www.wsj.com/market-data/quotes/index/RUT/historical-prices",
+      "raw_path": "data/raw/portability/russell_2000_raw.csv"
+    }
+  },
+  "interpretation_limit": "Repeated market episodes are not assumed independent across synchronized global crises. Calendar-crisis clustering is evaluated separately.",
+  "admission_logic": "A market is scientifically portable only if the unchanged dimensionless detector finds recurrent finite-residence episodes that mostly resolve through the same fixed-barrier first-passage structure without market-specific parameter surgery."
+}

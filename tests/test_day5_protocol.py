@@ -105,7 +105,7 @@ def test_eligible_rows_uses_cluster_start_and_two_class_history() -> None:
 def test_spatial_runner_reexports_protocol_symbols() -> None:
     module = load_script(
         "day5_spatial_runner",
-        "scripts/modeling/run_day5_spatial_rydberg_assay_shard.py",
+        "scripts/modeling/day5_branching/spatial_rydberg/run_day5_spatial_rydberg_assay_shard.py",
     )
 
     assert module.load_frame is protocol.load_frame
@@ -123,7 +123,7 @@ def test_spatial_runner_reexports_protocol_symbols() -> None:
 def test_input_audit_uses_package_helpers_directly() -> None:
     module = load_script(
         "day5_input_audit",
-        "scripts/modeling/run_day5_input_audit.py",
+        "scripts/modeling/day5_branching/falsification/run_day5_input_audit.py",
     )
 
     assert module.load_frame is protocol.load_frame
@@ -136,7 +136,7 @@ def test_input_audit_uses_package_helpers_directly() -> None:
 def test_residualized_shard_uses_package_helpers_directly() -> None:
     module = load_script(
         "day5_residualized_shard",
-        "scripts/modeling/run_day5_residualized_rydberg_shard.py",
+        "scripts/modeling/day5_branching/residual_confirmation/run_day5_residualized_rydberg_shard.py",
     )
 
     assert module.load_frame is protocol.load_frame
@@ -155,7 +155,7 @@ def test_residualized_shard_uses_package_helpers_directly() -> None:
 def test_crossfit_shard_uses_package_helpers_directly() -> None:
     module = load_script(
         "day5_residualized_crossfit_shard",
-        "scripts/modeling/run_day5_residualized_rydberg_crossfit_shard.py",
+        "scripts/modeling/day5_branching/residual_confirmation/run_day5_residualized_rydberg_crossfit_shard.py",
     )
 
     assert module.load_frame is protocol.load_frame

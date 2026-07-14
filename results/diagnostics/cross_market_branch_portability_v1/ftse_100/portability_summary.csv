@@ -1,0 +1,2 @@
+market_key,market,source,first_date,last_date,n_daily_rows,n_branch_episodes,n_complete_120d,n_recovery,n_relapse,n_unresolved_120d,fraction_resolved_120d,median_residence_days
+ftse_100,FTSE 100,WSJ:UKX,1985-12-31,2026-07-10,10337,63,62,37,23,2,0.967741935483871,20.5

@@ -1,0 +1,2 @@
+n_atoms,hilbert_dimension,omega,detuning_base,detuning_scale,interaction_strength,segment_time,quantization_levels,readout_penalty,encodings,feature_definition,evaluation,claim_limit
+6,64,1.0,0.0,1.5,1.2,0.35,41,10.0,"return_only,return_uncertainty",final and temporal-mean occupations plus nearest-neighbor pair occupations,prequential; outcome-maturity aware; protected momentum offset,exact simulator only; not hardware calibrated; no quantum advantage claim

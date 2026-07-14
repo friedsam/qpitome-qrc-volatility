@@ -71,7 +71,7 @@ This indicates that the remaining exploitable structure is accessible to simple 
 
 Protocol: `docs/protocols/day5_static_rydberg_probe.md`
 
-Runner: `scripts/modeling/run_cross_market_day5_static_rydberg_probe.py`
+Runner: `scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_static_rydberg_probe.py`
 
 Shared simulator: `src/qpitome_qrc/qrc/local_detuning_reservoir.py`
 

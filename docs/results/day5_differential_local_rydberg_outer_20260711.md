@@ -87,7 +87,7 @@ The successful classical extrema and random-tanh controls remain the benchmark. 
 
 ## Reproducibility
 
-Runner: `scripts/modeling/run_cross_market_day5_differential_local_rydberg_probe.py`
+Runner: `scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_differential_local_rydberg_probe.py`
 
 Diagnostic result: `docs/results/day5_differential_local_rydberg_diagnostic_20260711.md`
 

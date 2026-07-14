@@ -17,7 +17,7 @@ from qpitome_qrc.evaluation.residualization import d1_basis, residualize_train_t
 from qpitome_qrc.evaluation.scoring import proper_score_deltas
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPT = REPO / "scripts/modeling/run_day5_standard_feature_assay.py"
+SCRIPT = REPO / "scripts/modeling/day5_branching/residual_confirmation/run_day5_standard_feature_assay.py"
 SPEC = importlib.util.spec_from_file_location("day5_standard_feature_assay", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 module = importlib.util.module_from_spec(SPEC)

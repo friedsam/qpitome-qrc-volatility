@@ -1,0 +1,2 @@
+horizon_weeks,neutral_zone_pct,split_date,ridge_penalty,minimum_train,n_binary_episodes,n_holdout_episodes,evaluation
+8,1.0,1999-12-17,1.0,60,131,48,prequential; train only on outcomes completed before prediction date

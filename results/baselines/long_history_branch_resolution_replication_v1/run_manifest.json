@@ -1,0 +1,60 @@
+{
+  "status": "frozen direct branch-resolution replication on canonical long history",
+  "primary_task": "forecast recovery versus relapse at the branch point",
+  "data": "results/regimes/long_history_branch_reconstruction_v2/gspc_daily_engineered_1950_2026.csv",
+  "episodes": "results/regimes/long_history_branch_reconstruction_v2/branch_episodes_1950_2026.csv",
+  "complete_episode_count": 80,
+  "mixed_handling": "retained in chronology; excluded from binary fitting and scoring",
+  "state_models": {
+    "current_state": [
+      "stress_ratio",
+      "drawdown_120d",
+      "rv_ratio_5_20_branch",
+      "return_5d_branch"
+    ],
+    "state_plus_motion": [
+      "stress_ratio",
+      "drawdown_120d",
+      "rv_ratio_5_20_branch",
+      "return_5d_branch",
+      "rv_5d_change_5d_branch",
+      "worst_return_5d_in_prior_window"
+    ]
+  },
+  "path_lookback": 40,
+  "path_channels": [
+    "spy_log_return",
+    "spy_abs_log_return",
+    "log_rv5_over_rv20",
+    "log_rv20_over_rv60",
+    "drawdown_120d_path",
+    "rv5_change_scaled"
+  ],
+  "path_models": [
+    "full_path_linear",
+    "reset_esn",
+    "continuous_esn"
+  ],
+  "esn_config": {
+    "n_reservoir": 50,
+    "spectral_radius": 0.9,
+    "input_scale": 0.3,
+    "leak": 0.3
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "seed_policy": "fixed a priori; report individuals and unweighted probability ensemble",
+  "readout": {
+    "model": "StandardScaler + LogisticRegression",
+    "C": 0.1
+  },
+  "protocol": {
+    "min_train_episodes": 18,
+    "outcome_horizon_rows": 40,
+    "embargo_rows": 0
+  },
+  "qualification": "This is a replication of the existing primitive branch ESN, not an improved ESN architecture search."
+}

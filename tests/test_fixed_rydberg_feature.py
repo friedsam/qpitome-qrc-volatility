@@ -36,7 +36,7 @@ def test_fixed_rydberg_feature_clips_inputs() -> None:
 def test_legacy_fixed_rydberg_script_reexports_package_feature_map() -> None:
     module = load_script(
         "legacy_fixed_rydberg_feature_map",
-        "scripts/modeling/run_cross_market_day5_fixed_rydberg_feature.py",
+        "scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_fixed_rydberg_feature.py",
     )
 
     assert module.rydberg_features is fixed.rydberg_features

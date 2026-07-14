@@ -182,10 +182,10 @@ The model does not need to win both tasks.
 Current scripts:
 
 ```text
-scripts/modeling/run_weekly_regime_baselines.py
-scripts/modeling/analyze_weekly_regime_baselines.py
-scripts/modeling/analyze_weekly_regime_states.py
-scripts/modeling/audit_branch_onset_triviality.py
+scripts/modeling/weekly_regimes/run_weekly_regime_baselines.py
+scripts/modeling/weekly_regimes/analyze_weekly_regime_baselines.py
+scripts/modeling/weekly_regimes/analyze_weekly_regime_states.py
+scripts/modeling/transition_onset/audit_branch_onset_triviality.py
 ```
 
 Current HMM implementation:
@@ -197,10 +197,10 @@ src/qpitome_qrc/baselines/gaussian_hmm.py
 Temporary outputs from the first complete run:
 
 ```text
-/tmp/weekly_regime_baselines/
-/tmp/weekly_regime_baseline_diagnostics/
-/tmp/weekly_regime_state_diagnostics/
-/tmp/branch_onset_triviality_audit/
+results/modeling/weekly_regimes/weekly_regime_baselines/
+results/modeling/weekly_regimes/weekly_regime_baseline_diagnostics/
+results/modeling/weekly_regimes/weekly_regime_state_diagnostics/
+results/modeling/transition_onset/branch_onset_triviality_audit/
 ```
 
 Durable reruns should move to a versioned `results/regimes/` directory with manifest, predictions, fit history, and summary metrics.

@@ -27,7 +27,7 @@ def load_script(name: str, path: str):
 def test_fixed_rydberg_baseline_uses_shared_day5_protocol() -> None:
     module = load_script(
         "cross_market_day5_fixed_rydberg_feature",
-        "scripts/modeling/run_cross_market_day5_fixed_rydberg_feature.py",
+        "scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_fixed_rydberg_feature.py",
     )
 
     assert module.D1 is protocol.D1
@@ -40,7 +40,7 @@ def test_fixed_rydberg_baseline_uses_shared_day5_protocol() -> None:
 def test_fixed_quantum_baseline_uses_shared_components() -> None:
     module = load_script(
         "cross_market_day5_fixed_quantum_feature",
-        "scripts/modeling/run_cross_market_day5_fixed_quantum_feature.py",
+        "scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_fixed_quantum_feature.py",
     )
 
     assert module.D1 is protocol.D1
@@ -56,7 +56,7 @@ def test_fixed_quantum_baseline_uses_shared_components() -> None:
 def test_fixed_esn_baseline_uses_shared_components() -> None:
     module = load_script(
         "cross_market_day5_fixed_esn",
-        "scripts/modeling/run_cross_market_day5_fixed_esn.py",
+        "scripts/modeling/day5_branching/temporal_controls/run_cross_market_day5_fixed_esn.py",
     )
 
     assert module.D1 is protocol.D1
@@ -72,7 +72,7 @@ def test_fixed_esn_baseline_uses_shared_components() -> None:
 def test_confirmatory_baseline_uses_shared_components() -> None:
     module = load_script(
         "cross_market_day5_confirmatory_baselines",
-        "scripts/modeling/run_cross_market_day5_confirmatory_baselines.py",
+        "scripts/modeling/day5_branching/baseline/run_cross_market_day5_confirmatory_baselines.py",
     )
 
     assert module.D1 is protocol.D1
@@ -88,7 +88,7 @@ def test_confirmatory_baseline_uses_shared_components() -> None:
 def test_regularized_controls_use_shared_components() -> None:
     module = load_script(
         "cross_market_day5_regularized_controls",
-        "scripts/modeling/run_cross_market_day5_regularized_controls.py",
+        "scripts/modeling/day5_branching/baseline/run_cross_market_day5_regularized_controls.py",
     )
 
     assert module.G is protocol.D1

@@ -109,7 +109,7 @@ Interpretation relative to existing controls:
 
 ## Outputs
 
-Default: `/tmp/qpitome_branch_rydberg_probe`
+Default: `results/modeling/day5_branching/static_rydberg/static_rydberg_probe`
 
 - `predictions.csv`;
 - `summary_metrics.csv`;

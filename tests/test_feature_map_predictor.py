@@ -57,7 +57,7 @@ def test_feature_map_predictor_matches_locked_manual_sequence() -> None:
 def test_fixed_rydberg_script_reexports_feature_map_predictor() -> None:
     module = load_script(
         "fixed_rydberg_feature_map_predictor",
-        "scripts/modeling/run_cross_market_day5_fixed_rydberg_feature.py",
+        "scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_fixed_rydberg_feature.py",
     )
 
     assert module.fit_feature_map_predict is fit_feature_map_predict

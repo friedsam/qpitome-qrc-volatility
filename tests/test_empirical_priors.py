@@ -61,7 +61,7 @@ def test_empirical_prior_clips_extreme_rates() -> None:
 def test_confirmatory_script_reexports_empirical_prior_helper() -> None:
     module = load_script(
         "confirmatory_empirical_prior",
-        "scripts/modeling/run_cross_market_day5_confirmatory_baselines.py",
+        "scripts/modeling/day5_branching/baseline/run_cross_market_day5_confirmatory_baselines.py",
     )
 
     assert module.predict_empirical_prior is predict_empirical_prior

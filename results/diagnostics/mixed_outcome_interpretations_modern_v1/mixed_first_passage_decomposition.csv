@@ -1,0 +1,4 @@
+bucket,n,fraction_of_mixed
+resolved_by_first_passage_within_40,7,0.3888888888888889
+first_passage_days_41_120,11,0.6111111111111112
+still_unresolved_at_120,0,0.0

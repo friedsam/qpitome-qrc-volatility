@@ -1,0 +1,23 @@
+{
+  "status": "descriptive falsification audit; not a fitted model",
+  "current_label_rule": "recovery uses terminal 40-day return; relapse uses worst 40-day drawdown; both-hit and neither-hit cases are mixed",
+  "fixed_barrier_first_passage_test": {
+    "barriers": "original 40-day volatility-scaled thresholds held fixed at all follow-up horizons",
+    "primary_horizon": 40,
+    "extended_horizon": 120
+  },
+  "closer_barrier_sensitivity": {
+    "factor": 0.8,
+    "meaning": "both original barrier magnitudes multiplied by 0.8"
+  },
+  "persistent_core_state": "branch_high_stress AND branch_persistent_damage from the causal detector",
+  "verdict_thresholds": {
+    "label_rule_artifact": 0.3333333333333333,
+    "threshold_artifact": 0.3333333333333333,
+    "forty_day_censoring": 0.5,
+    "persistent_metastable_region": 0.3333333333333333,
+    "persistent_core_occupancy": 0.5,
+    "minimum_denominator": 3
+  },
+  "warning": "YES/NO thresholds are operational screens, not statistical significance tests; interpretations can overlap."
+}

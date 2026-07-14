@@ -1,0 +1,4 @@
+market_key,market,source,first_date,last_date,n_daily_rows,n_branch_episodes,n_complete_120d,n_recovery,n_relapse,n_unresolved_120d,fraction_resolved_120d,median_residence_days
+nikkei_225,Nikkei 225,FRED:NIKKEI225,1949-05-16,2026-07-10,19156,180,179,91,80,8,0.9553072625698324,21.0
+ftse_100,FTSE 100,WSJ:UKX,1985-12-31,2026-07-10,10337,63,62,37,23,2,0.967741935483871,20.5
+russell_2000,Russell 2000,WSJ:RUT,1987-07-09,2026-07-09,9824,98,98,62,36,0,1.0,17.0

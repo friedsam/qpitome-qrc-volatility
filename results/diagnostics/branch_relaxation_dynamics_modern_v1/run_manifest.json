@@ -1,0 +1,12 @@
+{
+  "status": "model-free relaxation audit",
+  "hypothesis": "branch episodes may become observable because internal relaxation slows relative to fixed daily sampling",
+  "interpretation_warning": "episode-specific timescales and heterogeneous intermediates can weaken pooled verdicts; paired episode-level tables remain primary evidence",
+  "segments": {
+    "pre_entry_days": 20,
+    "early_residence_max_days": 20,
+    "late_residence_max_days": 10,
+    "escape_day_excluded": true
+  },
+  "verdicts_are_not_p_values": true
+}

@@ -44,7 +44,7 @@ def test_pca_block_preserves_train_test_row_counts() -> None:
 def test_spatial_runner_reexports_extracted_helpers() -> None:
     module = load_script(
         "day5_spatial_runner_helpers",
-        "scripts/modeling/run_day5_spatial_rydberg_assay_shard.py",
+        "scripts/modeling/day5_branching/spatial_rydberg/run_day5_spatial_rydberg_assay_shard.py",
     )
 
     assert module.feature_diagnostics is feature_diagnostics

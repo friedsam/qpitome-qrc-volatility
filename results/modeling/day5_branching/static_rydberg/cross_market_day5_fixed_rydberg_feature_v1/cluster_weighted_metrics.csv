@@ -1,0 +1,4 @@
+model,n_clusters,cluster_mean_logloss,cluster_mean_brier,median_cluster_size
+D0_prior,150,0.6882837139355305,0.2475652079501965,2.0
+D1_geometry,150,0.6076492324485545,0.20820330056976236,2.0
+QR1_fixed_rydberg_feature,150,0.6881736962545275,0.2475102694353767,2.0

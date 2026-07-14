@@ -1,0 +1,3 @@
+model,n_oos_episodes,mean_nll,total_loglik,median_fitted_shape
+T0_exponential,30,4.5903879666163325,-137.71163899848997,1.0
+T1_weibull,30,4.600068043045083,-138.0020412913525,1.2409154846677313

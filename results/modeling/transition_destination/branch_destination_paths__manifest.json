@@ -1,0 +1,27 @@
+{
+  "n_episodes": 131,
+  "n_positive": 85,
+  "n_negative": 46,
+  "path_weeks": 13,
+  "n_channels": 8,
+  "channels": [
+    "return_pct",
+    "rolling_return_4w",
+    "rolling_return_13w",
+    "rolling_vol_4w",
+    "rolling_vol_13w",
+    "bull_probability",
+    "long_regime_uncertainty",
+    "one_week_probability_motion"
+  ],
+  "array_shape": [
+    131,
+    13,
+    8
+  ],
+  "horizon_weeks": 8,
+  "neutral_zone_pct": 1.0,
+  "split_date": "1999-12-17",
+  "standardization": "fixed mean and scale from weekly observations before split date",
+  "causality": "each path ends at episode date and includes no future observations"
+}

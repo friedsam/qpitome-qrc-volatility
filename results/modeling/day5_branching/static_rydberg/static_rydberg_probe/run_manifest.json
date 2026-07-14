@@ -1,0 +1,52 @@
+{
+  "purpose": "Bounded native local-detuning Rydberg probe",
+  "static_inputs": [
+    "current_return_5d_from_branch",
+    "distance_to_recovery_barrier",
+    "distance_to_relapse_barrier",
+    "closest_to_relapse",
+    "closest_to_recovery"
+  ],
+  "site_encoding": "five direct coordinates plus three fixed contrasts",
+  "feature_dimension": 36,
+  "local_detuning_config": {
+    "evolution_time_us": 0.55,
+    "global_omega_rad_us": 6.0,
+    "global_delta_rad_us": 6.0,
+    "local_delta_rad_us": 4.0,
+    "reservoir": {
+      "geometry": "dual_chain",
+      "n_atoms_slow": 4,
+      "n_atoms_fast": 4,
+      "spacing_slow_um": 9.0,
+      "spacing_fast_um": 15.0,
+      "row_gap_um": 14.0,
+      "chain_atoms": 8,
+      "chain_spacing_um": 6.5,
+      "lookback_days": 40,
+      "anchor_count": 6,
+      "anchor_policy": "even",
+      "total_time_us": 1.8,
+      "delta_center_rad_us": 6.0,
+      "delta_span_rad_us": 4.0,
+      "omega_base_rad_us": 6.0,
+      "omega_mod_frac": 0.5,
+      "omega_mode": "encode_rate",
+      "encoding": "plateau",
+      "memory_mode": "memoryless",
+      "reverse_anchors": false,
+      "shuffle_anchors": false,
+      "shuffle_seed": 1234,
+      "observable_mode": "n_nn",
+      "collect_anchor_features": false,
+      "shots": null,
+      "shot_seed": 7,
+      "max_phase_per_substep": 0.25,
+      "max_substeps_per_segment": 2000,
+      "ridge_alpha": 10.0,
+      "target_transform": "log",
+      "seed": 42
+    }
+  },
+  "status": "exploratory exact-state simulation; no parameter sweep"
+}

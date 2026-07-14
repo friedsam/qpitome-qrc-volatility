@@ -41,7 +41,7 @@ def test_fixed_quantum_gates_preserve_state_norm_and_clip_inputs() -> None:
 def test_legacy_fixed_quantum_script_reexports_package_components() -> None:
     module = load_script(
         "legacy_fixed_quantum_feature_map",
-        "scripts/modeling/run_cross_market_day5_fixed_quantum_feature.py",
+        "scripts/modeling/day5_branching/static_rydberg/run_cross_market_day5_fixed_quantum_feature.py",
     )
 
     assert module.quantum_features is fixed.quantum_features

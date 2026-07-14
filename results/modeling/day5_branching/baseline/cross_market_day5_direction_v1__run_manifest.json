@@ -1,0 +1,5 @@
+{
+  "landmark_day": 5,
+  "min_train": 30,
+  "evaluation": "calendar-prequential, train landmark_date < test landmark_date"
+}

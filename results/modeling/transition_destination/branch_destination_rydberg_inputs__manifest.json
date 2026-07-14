@@ -1,0 +1,49 @@
+{
+  "source_shape": [
+    131,
+    13,
+    8
+  ],
+  "n_episodes": 131,
+  "path_weeks": 13,
+  "bound_transform": "tanh(pre_split_standardized_value / 2.0)",
+  "label_independent": true,
+  "intended_use": "time-multiplexed analog Rydberg controls with one segment per channel per week",
+  "encodings": {
+    "return_only": {
+      "channels": [
+        "return_pct"
+      ],
+      "shape": [
+        131,
+        13,
+        1
+      ],
+      "segments_per_episode": 13
+    },
+    "return_uncertainty": {
+      "channels": [
+        "return_pct",
+        "long_regime_uncertainty"
+      ],
+      "shape": [
+        131,
+        13,
+        2
+      ],
+      "segments_per_episode": 26
+    },
+    "return_volatility": {
+      "channels": [
+        "return_pct",
+        "rolling_vol_13w"
+      ],
+      "shape": [
+        131,
+        13,
+        2
+      ],
+      "segments_per_episode": 26
+    }
+  }
+}

@@ -1,0 +1,5 @@
+metric,n_pairs,summary_kind,summary_value,supports_more_fluctuation
+return_sign_switch_rate,45,median_difference,0.0,False
+repair_sign_switch_rate,45,median_difference,-0.015384615384615441,False
+directional_coherence,45,median_difference,-0.02898812161743366,False
+rv_ratio_choppiness,45,median_ratio,1.0973201414421039,False

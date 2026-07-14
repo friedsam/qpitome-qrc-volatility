@@ -1,0 +1,16 @@
+family,channel
+generic,market_log_return
+generic,market_abs_log_return
+generic,log_rv5_over_rv20
+generic,log_rv20_over_rv60
+generic,drawdown_120d_path
+generic,rv5_change_scaled
+volatility_failure,log_rv5_over_rv20
+volatility_failure,log_rv20_over_rv60
+volatility_failure,d_log_rv5_over_rv20_5d
+volatility_failure,d_log_rv20_over_rv60_5d
+volatility_failure,rv5_acceleration_scaled
+volatility_failure,rv20_change_scaled
+volatility_failure,rv5_distance_from_20d_peak
+volatility_failure,rv5_reexpansion_count_10d
+volatility_failure,rv5_reexpansion_magnitude_10d

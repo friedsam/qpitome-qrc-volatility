@@ -116,10 +116,10 @@ Do not begin a broad hyperparameter search. Do not promote D1X or alter the lock
 
 ## Inputs
 
-- `results/baselines/cross_market_day5_direction_v1/day5_landmark_frame.csv`
+- `results/modeling/day5_branching/baseline/cross_market_day5_direction_v1/day5_landmark_frame.csv`
 - portability raw data already used by the cross-market branch pipeline;
 - `results/diagnostics/cross_market_crisis_clusters_v2/branch_sync_cluster_detail.csv`
-- locked D1 predictions in `results/baselines/cross_market_day5_confirmatory_v1/purged_calendar_prequential_predictions.csv`
+- locked D1 predictions in `results/modeling/day5_branching/baseline/cross_market_day5_confirmatory_v1/purged_calendar_prequential_predictions.csv`
 
 ## Outputs
 

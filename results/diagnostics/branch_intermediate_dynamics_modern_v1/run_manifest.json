@@ -1,0 +1,22 @@
+{
+  "status": "model-free descriptive probes before hazard/HMM/Bell-Kramers modeling",
+  "first_passage": "original 40-day volatility-scaled barriers held fixed through 120-day follow-up",
+  "segments": {
+    "pre_entry": 20,
+    "early_residence_max": 20,
+    "late_residence_max": 10,
+    "escape_day_excluded_from dynamics": true
+  },
+  "warning": "YES/NO verdicts are operational screens, not hypothesis-test p-values",
+  "thresholds": {
+    "observable_residence_day": 10,
+    "observable_residence_fraction": 0.5,
+    "fluctuation_switch_delta": 0.05,
+    "fluctuation_coherence_delta": -0.05,
+    "fluctuation_choppiness_ratio": 1.1,
+    "common_early_max_abs_smd": 0.5,
+    "late_divergence_max_abs_smd": 0.8,
+    "late_vs_early_median_ratio": 1.5,
+    "constant_rate_max_min_ratio": 2.0
+  }
+}

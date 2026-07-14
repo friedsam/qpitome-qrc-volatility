@@ -1,0 +1,9 @@
+model,n_clusters,cluster_mean_logloss,cluster_mean_brier,median_cluster_size,group
+D1,150,0.6076492324485545,0.20820330056976236,2.0,all_post1990_purged
+D1_plus_differential_local_rydberg_joint,150,0.6237415878666551,0.2137710996480259,2.0,all_post1990_purged
+D1,149,0.6130273943839215,0.21043001199756406,2.0,validation_non_spy
+D1_plus_differential_local_rydberg_joint,149,0.6283483483692918,0.2156636243072844,2.0,validation_non_spy
+D1,109,0.5884760025489397,0.20024662310057825,1.0,leave_nikkei_out_eval
+D1_plus_differential_local_rydberg_joint,109,0.6119517553294195,0.20806757038561302,1.0,leave_nikkei_out_eval
+D1,109,0.6704131147142399,0.23478014958338486,1.0,nikkei_only_eval
+D1_plus_differential_local_rydberg_joint,109,0.6759098118108307,0.23673107827490636,1.0,nikkei_only_eval

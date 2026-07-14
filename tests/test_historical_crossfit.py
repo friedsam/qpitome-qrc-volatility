@@ -46,7 +46,7 @@ def test_historical_crossfit_skips_groups_without_prior_history() -> None:
 def test_crossfit_shard_reexports_package_helper() -> None:
     module = load_script(
         "day5_residualized_crossfit_shard",
-        "scripts/modeling/run_day5_residualized_rydberg_crossfit_shard.py",
+        "scripts/modeling/day5_branching/residual_confirmation/run_day5_residualized_rydberg_crossfit_shard.py",
     )
 
     assert module.historical_crossfit_d1_logits is historical_crossfit_d1_logits

@@ -1,0 +1,2 @@
+n_total,train_n,test_n,train_start,train_end,test_start,test_end,train_prevalence,test_prevalence,horizon,persist_window,min_persist
+3457,2074,1383,1960-02-19,1999-11-12,1999-11-19,2026-05-15,0.14127290260366443,0.14967462039045554,4,4,3

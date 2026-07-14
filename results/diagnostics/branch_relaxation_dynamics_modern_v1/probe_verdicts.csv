@@ -1,0 +1,5 @@
+probe,question,key_value,verdict
+persistence_increases_after_entry,Do at least 2 of 3 relaxation variables increase lag-1 persistence after entry by median delta >=0.05?,0.0,NO
+shock_recovery_slows_after_entry,Is median lag-5 volatility-response carryover at least 10% larger after entry?,2.4167392487863615,YES
+deviations_last_longer_after_entry,Do at least 2 of 3 variables show >=10% longer same-side runs after entry?,0.0,NO
+relaxation_recovers_near_escape,Do at least 2 persistence/restoring indicators move toward faster restoration near escape?,3.0,YES
