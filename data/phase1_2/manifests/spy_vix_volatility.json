@@ -1,0 +1,19 @@
+{
+  "columns": 41,
+  "date_end": "2024-03-15",
+  "date_start": "1993-04-27",
+  "dataset": "data/phase1_2/processed/reference/spy_vix_volatility.csv",
+  "producer": "scripts/data/build_spy_vix_volatility.py",
+  "raw_inputs": [
+    "data/phase1_2/raw/kaggle_market_ohlcv/SPY.csv",
+    "data/phase1_2/raw/vix/VIX_History.csv"
+  ],
+  "rows": 7775,
+  "sha256": "46c6cae28580d18bda3494941284a8b7825e0adf02e47dd611f39dee4af18879",
+  "status": "historical canonical reference; rebuilt output must pass comparison",
+  "target_definition": {
+    "future_rv_5d": "sqrt(mean squared next 5 SPY log returns) annualized by sqrt(252)",
+    "future_rv_20d": "sqrt(mean squared next 20 SPY log returns) annualized by sqrt(252)"
+  },
+  "trailing_volatility_definition": "sqrt(mean squared trailing SPY log returns) annualized by sqrt(252)"
+}

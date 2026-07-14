@@ -1,0 +1,14 @@
+{
+  "backup": "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-data-port",
+  "dataset": "data/phase1_2/processed/reference/phase2_spy_vix_volatility.csv",
+  "dataset_sha256": "46c6cae28580d18bda3494941284a8b7825e0adf02e47dd611f39dee4af18879",
+  "removed_duplicate_files": [],
+  "validator_output": {
+    "columns": 41,
+    "date_end": "2024-03-15",
+    "date_start": "1993-04-27",
+    "file": "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/data/phase1_2/processed/reference/phase2_spy_vix_volatility.csv",
+    "rows": 7775,
+    "sha256": "46c6cae28580d18bda3494941284a8b7825e0adf02e47dd611f39dee4af18879"
+  }
+}
