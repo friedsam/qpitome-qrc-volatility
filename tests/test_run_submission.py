@@ -10,7 +10,12 @@ import pytest
 
 
 def load_runner() -> ModuleType:
-    path = Path(__file__).resolve().parents[1] / "scripts" / "run_submission.py"
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "runs"
+        / "run_submission.py"
+    )
     spec = importlib.util.spec_from_file_location("run_submission", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
