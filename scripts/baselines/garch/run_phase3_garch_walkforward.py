@@ -31,6 +31,7 @@ from data.targets import (
 from evaluation.metrics import evaluate_volatility_forecast
 from evaluation.transition import evaluate_transition_forecast
 from evaluation.walkforward import make_purged_walkforward_folds
+from experiments.runs import begin_run
 
 RETURN_COLUMN = "spy_log_return"
 ANNUALIZATION_PERIOD = 252.0
@@ -48,6 +49,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("results/baselines/garch/run_phase3_garch_walkforward"),
     )
+    parser.add_argument("--run-id", default=None)
     parser.add_argument("--tag", default="garch_phase3")
     parser.add_argument("--task", choices=("level", "innovation"), default="level")
     parser.add_argument("--return-column", default=RETURN_COLUMN)
@@ -84,7 +86,7 @@ def finite_level_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, fl
 
 def main() -> int:
     args = parse_args()
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+    args.out_dir = begin_run(args.out_dir, args, run_id=args.run_id)
 
     frame = pd.read_csv(args.data).sort_values("date").reset_index(drop=True)
     if args.task == "innovation":
