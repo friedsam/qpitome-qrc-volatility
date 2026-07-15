@@ -31,6 +31,13 @@ def _spec(
 
 SPECS = [
     _spec(
+        name="sp500_yahoo",
+        relative_path="monthly_market_features/sp500_yahoo_raw.csv",
+        yahoo_symbol="^GSPC",
+        start_date="1927-01-01",
+        end_date="2026-06-05",
+    ),
+    _spec(
         name="fred_tb3ms",
         relative_path="macro_fred_monthly/fred_TB3MS_three_month_tbill.csv",
         source_url=f"{FRED_BASE}TB3MS",
