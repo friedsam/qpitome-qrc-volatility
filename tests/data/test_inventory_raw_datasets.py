@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from zipfile import ZipFile
 
+import pytest
+
 from data.inventory_raw_datasets import inventory_raw_datasets
 
 
@@ -17,7 +19,12 @@ def test_inventory_reports_csv_and_zip_metadata(tmp_path: Path) -> None:
         archive.writestr("factors.csv", "date,factor\n202001,0.1\n")
 
     output = tmp_path / "inventory.json"
-    results = inventory_raw_datasets(raw_root, output_path=output, sample_size=1)
+    results = inventory_raw_datasets(
+        raw_root,
+        output_path=output,
+        sample_size=1,
+        required_paths=[csv_path, zip_path],
+    )
 
     assert len(results) == 2
     csv_result = next(result for result in results if result.suffix == ".csv")
@@ -30,4 +37,24 @@ def test_inventory_reports_csv_and_zip_metadata(tmp_path: Path) -> None:
 
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["file_count"] == 2
+    assert payload["missing_required_files"] == []
     assert len(payload["files"]) == 2
+
+
+def test_inventory_fails_closed_when_required_file_is_missing(tmp_path: Path) -> None:
+    raw_root = tmp_path / "raw"
+    raw_root.mkdir()
+    present = raw_root / "present.csv"
+    present.write_text("date,value\n2020-01-01,1\n", encoding="utf-8")
+    missing = raw_root / "critical.csv"
+    output = tmp_path / "inventory.json"
+
+    with pytest.raises(FileNotFoundError, match="critical.csv"):
+        inventory_raw_datasets(
+            raw_root,
+            output_path=output,
+            required_paths=[present, missing],
+        )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["missing_required_files"] == [str(missing)]
