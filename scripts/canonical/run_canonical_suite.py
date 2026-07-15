@@ -147,6 +147,74 @@ def unique_match(directory: Path, pattern: str) -> Path:
     return matches[0]
 
 
+def read_run_parameters(directory: Path) -> tuple[dict, str | None]:
+    path = directory / "params.json"
+    if not path.exists():
+        return {}, None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    parameters = payload.get("parameters", {})
+    return parameters if isinstance(parameters, dict) else {}, str(path)
+
+
+def compatibility_report(
+    args: argparse.Namespace,
+    model: str,
+    directory: Path,
+    metrics: pd.DataFrame,
+) -> dict:
+    source_params, params_path = read_run_parameters(directory)
+    requested = {
+        "n_folds": args.n_folds,
+        "min_train": args.min_train,
+        "val_size": args.val_size,
+        "purge": args.purge,
+        "only_folds": args.only_folds,
+    }
+    if model != "garch_1_1_t":
+        requested["lookback"] = args.lookback
+
+    source = {key: source_params.get(key) for key in requested}
+    differences = {
+        key: {"requested": requested[key], "source": source[key]}
+        for key in requested
+        if source[key] is not None and source[key] != requested[key]
+    }
+    missing = [key for key, value in source.items() if value is None]
+    actual_folds = sorted(
+        int(value)
+        for value in pd.to_numeric(metrics["fold"], errors="coerce").dropna().unique()
+    )
+    expected_folds = (
+        sorted(int(value) for value in args.only_folds)
+        if args.only_folds
+        else list(range(1, args.n_folds + 1))
+    )
+    if actual_folds != expected_folds:
+        differences["actual_fold_ids"] = {
+            "requested": expected_folds,
+            "source": actual_folds,
+        }
+
+    if differences:
+        status = "different"
+    elif missing or params_path is None:
+        status = "incomplete"
+    else:
+        status = "passed"
+
+    return {
+        "status": status,
+        "params_file": params_path,
+        "requested": requested,
+        "source": source,
+        "actual_fold_ids": actual_folds,
+        "actual_fold_count": len(actual_folds),
+        "missing_parameter_fields": missing,
+        "differences": differences,
+        "policy": "record differences without blocking deliberate mixed-source comparisons",
+    }
+
+
 def run_child(command: list[str], log_path: Path) -> None:
     with log_path.open("w", encoding="utf-8") as log:
         log.write(f"$ {' '.join(command)}\n\n")
@@ -369,6 +437,12 @@ def main() -> None:
         metric_frames.append(metrics)
         prediction_frames.append(predictions)
         source["mode"] = "override" if model in overrides else "generated"
+        source["compatibility"] = compatibility_report(
+            args,
+            model,
+            sources[model],
+            metrics,
+        )
         source_manifest.append(source)
 
     combined_metrics = pd.concat(metric_frames, ignore_index=True, sort=False)
@@ -393,6 +467,10 @@ def main() -> None:
                 "available_groups": {key: list(value) for key, value in MODEL_GROUPS.items()},
                 "sources": source_manifest,
                 "child_commands": child_commands,
+                "compatibility_policy": (
+                    "Source differences are recorded per model and do not block deliberate "
+                    "mixed-source comparisons."
+                ),
                 "classification_note": (
                     "GARCH and LSTM currently contribute regression metrics only; "
                     "their q90/q95 classification fields remain NaN."
