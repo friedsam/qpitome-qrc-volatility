@@ -76,9 +76,13 @@ def inventory_raw_datasets(
     *,
     output_path: Path,
     sample_size: int = 3,
+    required_paths: list[Path] | None = None,
 ) -> list[RawFileInventory]:
     if not raw_root.exists():
         raise FileNotFoundError(raw_root)
+
+    required_paths = required_paths or []
+    missing_required = [path for path in required_paths if not path.is_file()]
 
     supported = {".csv", ".zip"}
     files = sorted(
@@ -93,7 +97,18 @@ def inventory_raw_datasets(
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "raw_root": str(raw_root),
         "file_count": len(results),
+        "required_file_count": len(required_paths),
+        "missing_required_files": [str(path) for path in missing_required],
         "files": [asdict(result) for result in results],
     }
     output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    if missing_required:
+        formatted = "\n".join(f"- {path}" for path in missing_required)
+        raise FileNotFoundError(
+            "Required canonical raw datasets are missing. "
+            "Run the acquisition scripts to restore them from remote or fallback:\n"
+            f"{formatted}"
+        )
+
     return results
