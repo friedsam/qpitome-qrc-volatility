@@ -36,6 +36,7 @@ from baselines.numpy_esn import (
 from data.features import FEATURE_COLUMNS
 from evaluation.metrics import evaluate_volatility_forecast
 from evaluation.walkforward import align_fold_frames, make_purged_walkforward_folds
+from experiments.runs import begin_run
 
 TARGET = "future_rv_20d"
 SPLITS = ("train", "val", "test")
@@ -54,6 +55,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("results/canonical/run_master_comparison"),
     )
+    p.add_argument("--run-id", default=None)
     p.add_argument("--tag", default="classical_current")
     p.add_argument("--models", nargs="*", default=list(DEFAULT_MODELS))
     p.add_argument("--only-folds", nargs="*", type=int, default=None)
@@ -74,7 +76,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def make_folds(n: int, *, n_folds: int, min_train: int, val_size: int, purge: int) -> list[dict]:
-    """Backward-compatible canonical fold API."""
     shared = make_purged_walkforward_folds(
         n,
         n_folds=n_folds,
@@ -94,12 +95,10 @@ def make_folds(n: int, *, n_folds: int, min_train: int, val_size: int, purge: in
 
 
 def aligned_frames(df: pd.DataFrame, fold: dict, lookback: int) -> dict[str, pd.DataFrame]:
-    """Backward-compatible wrapper around shared common-date alignment."""
     return align_fold_frames(df, fold, lookback)
 
 
 def select_anchor_indices(lookback_days: int, anchor_count: int) -> np.ndarray:
-    """Select the historical evenly spaced temporal anchors."""
     if anchor_count < 1:
         raise ValueError("anchor_count must be >= 1")
     if anchor_count > lookback_days:
@@ -108,7 +107,6 @@ def select_anchor_indices(lookback_days: int, anchor_count: int) -> np.ndarray:
 
 
 def ensure_market_scalar(frame: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Return a frame containing the requested historical level/rate scalar."""
     if column in frame.columns:
         return frame
     out = frame.copy()
@@ -144,7 +142,6 @@ def make_level_rate_sequence_splits(
     target_column: str,
     lookback_days: int,
 ) -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Build leakage-safe level/rate windows using train-only robust scaling."""
     prepared = {
         name: ensure_market_scalar(ensure_market_scalar(frame, level_col), rate_col)
         for name, frame in splits.items()
@@ -418,13 +415,13 @@ def aggregate_metrics(per_fold: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     args = parse_args()
+    args.out_dir = begin_run(args.out_dir, args, run_id=args.run_id)
     unknown = sorted(set(args.models) - set(DEFAULT_MODELS))
     if unknown:
         raise ValueError(f"Unknown models: {unknown}")
     if args.train_stride < 1:
         raise ValueError("train_stride must be >= 1")
 
-    args.out_dir.mkdir(parents=True, exist_ok=True)
     frame = pd.read_csv(args.data).sort_values("date").reset_index(drop=True)
     required = {
         "date",
