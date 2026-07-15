@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
 """Run or assemble a selectable canonical model comparison.
 
-The suite supports three operations in one command:
-
-1. select model groups or individual models;
-2. run selected models that do not have supplied result overrides;
-3. combine standardized per-fold metrics and predictions into one canonical run.
-
-A supplied ``--source MODEL=RUN_DIRECTORY`` replaces that model's newly run
-result. This allows a stronger standalone experiment to be retained in a later
-canonical comparison without copying or overwriting artifacts.
+Selected models without supplied ``--source`` overrides are run through their
+own scientific runner. Existing run directories can be mixed deliberately; the
+manifest records parameter and fold-geometry compatibility for every source.
 """
 from __future__ import annotations
 
@@ -28,6 +22,7 @@ from experiments.runs import begin_run
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 MASTER_SCRIPT = SCRIPT_DIR / "run_master_comparison.py"
+TFIM_SCRIPT = SCRIPT_DIR / "run_canonical_tfim.py"
 LSTM_SCRIPT = REPO_ROOT / "scripts/baselines/lstm/run_phase3_lstm_walkforward.py"
 GARCH_SCRIPT = REPO_ROOT / "scripts/baselines/garch/run_phase3_garch_walkforward.py"
 
@@ -37,11 +32,16 @@ MASTER_MODELS = (
     "raw_ridge",
     "esn_selected",
 )
-STANDALONE_MODELS = ("garch_1_1_t", "lstm")
+CLASSICAL_STANDALONE_MODELS = ("garch_1_1_t", "lstm")
+QUANTUM_MODELS = ("tfim_phase2_final",)
+STANDALONE_MODELS = CLASSICAL_STANDALONE_MODELS + QUANTUM_MODELS
 AVAILABLE_MODELS = MASTER_MODELS + STANDALONE_MODELS
+CLASSICAL_ALL = MASTER_MODELS + CLASSICAL_STANDALONE_MODELS
 MODEL_GROUPS = {
     "classical-core": MASTER_MODELS,
-    "classical-all": AVAILABLE_MODELS,
+    "classical-all": CLASSICAL_ALL,
+    "quantum": QUANTUM_MODELS,
+    "classical+quantum": CLASSICAL_ALL + QUANTUM_MODELS,
     "all-available": AVAILABLE_MODELS,
 }
 
@@ -104,7 +104,6 @@ def selected_models(args: argparse.Namespace) -> list[str]:
     models = args.models
     if groups is None and models is None:
         groups = ["classical-all"]
-
     selected: list[str] = []
     for group in groups or []:
         for model in MODEL_GROUPS[group]:
@@ -172,7 +171,6 @@ def compatibility_report(
     }
     if model != "garch_1_1_t":
         requested["lookback"] = args.lookback
-
     source = {key: source_params.get(key) for key in requested}
     differences = {
         key: {"requested": requested[key], "source": source[key]}
@@ -194,14 +192,7 @@ def compatibility_report(
             "requested": expected_folds,
             "source": actual_folds,
         }
-
-    if differences:
-        status = "different"
-    elif missing or params_path is None:
-        status = "incomplete"
-    else:
-        status = "passed"
-
+    status = "different" if differences else "incomplete" if missing or params_path is None else "passed"
     return {
         "status": status,
         "params_file": params_path,
@@ -280,6 +271,22 @@ def generated_sources(
             sources[model] = run_dir
         commands.append({"models": master_models, "command": command, "log": str(log_path)})
 
+    if "tfim_phase2_final" in missing:
+        command = [
+            sys.executable,
+            str(TFIM_SCRIPT.relative_to(REPO_ROOT)),
+            "--run-id", child_run_id,
+            "--tag", "tfim_phase2_final",
+            "--lookback", str(args.lookback),
+            *common_fold_args(args),
+        ]
+        log_path = args.out_dir / "child_tfim.log"
+        run_child(command, log_path)
+        sources["tfim_phase2_final"] = (
+            REPO_ROOT / "results/canonical/run_canonical_tfim" / child_run_id
+        )
+        commands.append({"models": ["tfim_phase2_final"], "command": command, "log": str(log_path)})
+
     if "lstm" in missing:
         command = [
             sys.executable,
@@ -292,9 +299,7 @@ def generated_sources(
         log_path = args.out_dir / "child_lstm.log"
         run_child(command, log_path)
         sources["lstm"] = (
-            REPO_ROOT
-            / "results/baselines/lstm/run_phase3_lstm_walkforward"
-            / child_run_id
+            REPO_ROOT / "results/baselines/lstm/run_phase3_lstm_walkforward" / child_run_id
         )
         commands.append({"models": ["lstm"], "command": command, "log": str(log_path)})
 
@@ -309,9 +314,7 @@ def generated_sources(
         log_path = args.out_dir / "child_garch.log"
         run_child(command, log_path)
         sources["garch_1_1_t"] = (
-            REPO_ROOT
-            / "results/baselines/garch/run_phase3_garch_walkforward"
-            / child_run_id
+            REPO_ROOT / "results/baselines/garch/run_phase3_garch_walkforward" / child_run_id
         )
         commands.append({"models": ["garch_1_1_t"], "command": command, "log": str(log_path)})
 
@@ -331,15 +334,13 @@ def normalize_lstm_metrics(frame: pd.DataFrame) -> pd.DataFrame:
     if test.empty:
         raise ValueError("LSTM metrics contain no test rows")
     test["protocol"] = "classical"
-    test = test.rename(
-        columns={
-            "rmse": "test_rmse",
-            "qlike": "test_qlike",
-            "mz_alpha": "test_mz_alpha",
-            "mz_beta": "test_mz_beta",
-            "mz_r2": "test_mz_r2",
-        }
-    )
+    test = test.rename(columns={
+        "rmse": "test_rmse",
+        "qlike": "test_qlike",
+        "mz_alpha": "test_mz_alpha",
+        "mz_beta": "test_mz_beta",
+        "mz_r2": "test_mz_r2",
+    })
     return empty_classification_columns(test)
 
 
@@ -348,15 +349,13 @@ def normalize_garch_metrics(frame: pd.DataFrame) -> pd.DataFrame:
     if test.empty:
         raise ValueError("GARCH metrics contain no level-task test rows")
     test["protocol"] = "classical"
-    test = test.rename(
-        columns={
-            "rmse": "test_rmse",
-            "qlike": "test_qlike",
-            "mz_alpha": "test_mz_alpha",
-            "mz_beta": "test_mz_beta",
-            "mz_r2": "test_mz_r2",
-        }
-    )
+    test = test.rename(columns={
+        "rmse": "test_rmse",
+        "qlike": "test_qlike",
+        "mz_alpha": "test_mz_alpha",
+        "mz_beta": "test_mz_beta",
+        "mz_r2": "test_mz_r2",
+    })
     return empty_classification_columns(test)
 
 
@@ -366,9 +365,10 @@ def normalize_lstm_predictions(frame: pd.DataFrame) -> pd.DataFrame:
     output["log_score"] = np.log(np.clip(output["y_pred"].to_numpy(float), 1e-12, None))
     output["q90_label"] = np.nan
     output["q95_label"] = np.nan
-    return output[
-        ["fold", "model", "protocol", "split", "date", "y_true", "log_score", "y_pred", "q90_label", "q95_label"]
-    ]
+    return output[[
+        "fold", "model", "protocol", "split", "date", "y_true",
+        "log_score", "y_pred", "q90_label", "q95_label",
+    ]]
 
 
 def normalize_garch_predictions(frame: pd.DataFrame) -> pd.DataFrame:
@@ -379,13 +379,14 @@ def normalize_garch_predictions(frame: pd.DataFrame) -> pd.DataFrame:
     output["log_score"] = np.log(np.clip(output["y_pred"].to_numpy(float), 1e-12, None))
     output["q90_label"] = np.nan
     output["q95_label"] = np.nan
-    return output[
-        ["fold", "model", "protocol", "split", "date", "y_true", "log_score", "y_pred", "q90_label", "q95_label"]
-    ]
+    return output[[
+        "fold", "model", "protocol", "split", "date", "y_true",
+        "log_score", "y_pred", "q90_label", "q95_label",
+    ]]
 
 
 def load_model_result(model: str, directory: Path) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    if model in MASTER_MODELS:
+    if model in MASTER_MODELS or model == "tfim_phase2_final":
         metrics_path = unique_match(directory, "per_fold_metrics_*.csv")
         predictions_path = unique_match(directory, "predictions_*.csv")
         metrics = pd.read_csv(metrics_path)
@@ -404,7 +405,6 @@ def load_model_result(model: str, directory: Path) -> tuple[pd.DataFrame, pd.Dat
         predictions = normalize_garch_predictions(pd.read_csv(predictions_path))
     else:
         raise ValueError(model)
-
     if metrics.empty or predictions.empty:
         raise ValueError(f"No rows for {model} in {directory}")
     source = {
@@ -438,10 +438,7 @@ def main() -> None:
         prediction_frames.append(predictions)
         source["mode"] = "override" if model in overrides else "generated"
         source["compatibility"] = compatibility_report(
-            args,
-            model,
-            sources[model],
-            metrics,
+            args, model, sources[model], metrics
         )
         source_manifest.append(source)
 
@@ -472,12 +469,8 @@ def main() -> None:
                     "mixed-source comparisons."
                 ),
                 "classification_note": (
-                    "GARCH and LSTM currently contribute regression metrics only; "
-                    "their q90/q95 classification fields remain NaN."
-                ),
-                "extension_note": (
-                    "Quantum model groups can be added to MODEL_GROUPS and the model "
-                    "registry when their current runners and standardized loaders exist."
+                    "TFIM and master-comparison models include q90/q95 evaluation. "
+                    "GARCH and LSTM currently contribute regression metrics only."
                 ),
             },
             indent=2,
