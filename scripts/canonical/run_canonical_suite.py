@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""Combine completed Stage 1 baseline runs into one canonical comparison.
+"""Run or assemble a selectable canonical model comparison.
 
-This script does not retrain models. It reads the standardized classical master
-outputs plus the standalone LSTM and GARCH outputs, normalizes their schemas,
-and writes one unified comparison directory.
+The suite supports three operations in one command:
+
+1. select model groups or individual models;
+2. run selected models that do not have supplied result overrides;
+3. combine standardized per-fold metrics and predictions into one canonical run.
+
+A supplied ``--source MODEL=RUN_DIRECTORY`` replaces that model's newly run
+result. This allows a stronger standalone experiment to be retained in a later
+canonical comparison without copying or overwriting artifacts.
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +28,22 @@ from experiments.runs import begin_run
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 MASTER_SCRIPT = SCRIPT_DIR / "run_master_comparison.py"
+LSTM_SCRIPT = REPO_ROOT / "scripts/baselines/lstm/run_phase3_lstm_walkforward.py"
+GARCH_SCRIPT = REPO_ROOT / "scripts/baselines/garch/run_phase3_garch_walkforward.py"
+
+MASTER_MODELS = (
+    "persistence_20d",
+    "har_ridge",
+    "raw_ridge",
+    "esn_selected",
+)
+STANDALONE_MODELS = ("garch_1_1_t", "lstm")
+AVAILABLE_MODELS = MASTER_MODELS + STANDALONE_MODELS
+MODEL_GROUPS = {
+    "classical-core": MASTER_MODELS,
+    "classical-all": AVAILABLE_MODELS,
+    "all-available": AVAILABLE_MODELS,
+}
 
 
 def load_master_module():
@@ -34,22 +58,39 @@ def load_master_module():
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", default=None)
-    parser.add_argument("--tag", default="stage1_7fold")
+    parser.add_argument("--tag", default="canonical")
     parser.add_argument(
-        "--master-dir",
-        type=Path,
-        default=REPO_ROOT / "results/canonical/run_master_comparison",
+        "--groups",
+        nargs="*",
+        choices=sorted(MODEL_GROUPS),
+        default=None,
+        help="Named model groups. Defaults to classical-all when no models are supplied.",
     )
     parser.add_argument(
-        "--lstm-dir",
-        type=Path,
-        default=REPO_ROOT / "results/baselines/lstm/run_phase3_lstm_walkforward",
+        "--models",
+        nargs="*",
+        choices=sorted(AVAILABLE_MODELS),
+        default=None,
+        help="Individual models added to the selected groups.",
     )
     parser.add_argument(
-        "--garch-dir",
-        type=Path,
-        default=REPO_ROOT / "results/baselines/garch/run_phase3_garch_walkforward",
+        "--source",
+        action="append",
+        default=[],
+        metavar="MODEL=RUN_DIRECTORY",
+        help="Use an existing model run instead of running that model again.",
     )
+    parser.add_argument(
+        "--no-run",
+        action="store_true",
+        help="Aggregation only; require an explicit --source for every selected model.",
+    )
+    parser.add_argument("--n-folds", type=int, default=7)
+    parser.add_argument("--min-train", type=int, default=2500)
+    parser.add_argument("--val-size", type=int, default=504)
+    parser.add_argument("--purge", type=int, default=60)
+    parser.add_argument("--lookback", type=int, default=40)
+    parser.add_argument("--only-folds", nargs="*", type=int, default=None)
     parser.add_argument(
         "--out-dir",
         type=Path,
@@ -58,10 +99,163 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def require_file(path: Path) -> Path:
-    if not path.exists():
-        raise FileNotFoundError(f"Required completed result file not found: {path}")
-    return path
+def selected_models(args: argparse.Namespace) -> list[str]:
+    groups = args.groups
+    models = args.models
+    if groups is None and models is None:
+        groups = ["classical-all"]
+
+    selected: list[str] = []
+    for group in groups or []:
+        for model in MODEL_GROUPS[group]:
+            if model not in selected:
+                selected.append(model)
+    for model in models or []:
+        if model not in selected:
+            selected.append(model)
+    if not selected:
+        raise ValueError("No models selected")
+    return selected
+
+
+def parse_sources(values: list[str]) -> dict[str, Path]:
+    sources: dict[str, Path] = {}
+    for value in values:
+        if "=" not in value:
+            raise ValueError(f"Invalid --source {value!r}; expected MODEL=RUN_DIRECTORY")
+        model, raw_path = value.split("=", 1)
+        model = model.strip()
+        if model not in AVAILABLE_MODELS:
+            raise ValueError(f"Unknown source model {model!r}")
+        if model in sources:
+            raise ValueError(f"Duplicate --source for {model}")
+        path = Path(raw_path).expanduser()
+        if not path.is_absolute():
+            path = REPO_ROOT / path
+        if not path.is_dir():
+            raise FileNotFoundError(f"Source run directory not found for {model}: {path}")
+        sources[model] = path.resolve()
+    return sources
+
+
+def unique_match(directory: Path, pattern: str) -> Path:
+    matches = sorted(directory.glob(pattern))
+    if len(matches) != 1:
+        raise FileNotFoundError(
+            f"Expected exactly one {pattern!r} in {directory}; found {len(matches)}"
+        )
+    return matches[0]
+
+
+def run_child(command: list[str], log_path: Path) -> None:
+    with log_path.open("w", encoding="utf-8") as log:
+        log.write(f"$ {' '.join(command)}\n\n")
+        log.flush()
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"Child run failed with exit code {completed.returncode}; see {log_path}"
+        )
+
+
+def common_fold_args(args: argparse.Namespace) -> list[str]:
+    values = [
+        "--n-folds", str(args.n_folds),
+        "--min-train", str(args.min_train),
+        "--val-size", str(args.val_size),
+        "--purge", str(args.purge),
+    ]
+    if args.only_folds:
+        values.extend(["--only-folds", *[str(value) for value in args.only_folds]])
+    return values
+
+
+def generated_sources(
+    args: argparse.Namespace,
+    models: list[str],
+    overrides: dict[str, Path],
+) -> tuple[dict[str, Path], list[dict]]:
+    sources = dict(overrides)
+    commands: list[dict] = []
+    missing = [model for model in models if model not in sources]
+    if not missing:
+        return sources, commands
+    if args.no_run:
+        raise ValueError(
+            "--no-run requires --source for every selected model; missing: "
+            + ", ".join(missing)
+        )
+
+    child_run_id = args.out_dir.name
+    master_models = [model for model in missing if model in MASTER_MODELS]
+    if master_models:
+        command = [
+            sys.executable,
+            str(MASTER_SCRIPT.relative_to(REPO_ROOT)),
+            "--run-id", child_run_id,
+            "--tag", args.tag,
+            "--models", *master_models,
+            "--lookback", str(args.lookback),
+            *common_fold_args(args),
+        ]
+        log_path = args.out_dir / "child_master.log"
+        run_child(command, log_path)
+        run_dir = REPO_ROOT / "results/canonical/run_master_comparison" / child_run_id
+        for model in master_models:
+            sources[model] = run_dir
+        commands.append({"models": master_models, "command": command, "log": str(log_path)})
+
+    if "lstm" in missing:
+        command = [
+            sys.executable,
+            str(LSTM_SCRIPT.relative_to(REPO_ROOT)),
+            "--run-id", child_run_id,
+            "--tag", args.tag,
+            "--lookback", str(args.lookback),
+            *common_fold_args(args),
+        ]
+        log_path = args.out_dir / "child_lstm.log"
+        run_child(command, log_path)
+        sources["lstm"] = (
+            REPO_ROOT
+            / "results/baselines/lstm/run_phase3_lstm_walkforward"
+            / child_run_id
+        )
+        commands.append({"models": ["lstm"], "command": command, "log": str(log_path)})
+
+    if "garch_1_1_t" in missing:
+        command = [
+            sys.executable,
+            str(GARCH_SCRIPT.relative_to(REPO_ROOT)),
+            "--run-id", child_run_id,
+            "--tag", args.tag,
+            *common_fold_args(args),
+        ]
+        log_path = args.out_dir / "child_garch.log"
+        run_child(command, log_path)
+        sources["garch_1_1_t"] = (
+            REPO_ROOT
+            / "results/baselines/garch/run_phase3_garch_walkforward"
+            / child_run_id
+        )
+        commands.append({"models": ["garch_1_1_t"], "command": command, "log": str(log_path)})
+
+    return sources, commands
+
+
+def empty_classification_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    output = frame.copy()
+    for quantile in (90, 95):
+        for metric in ("ap", "auc", "f1", "precision", "recall", "called_rate"):
+            output[f"q{quantile}_test_{metric}"] = np.nan
+    return output
 
 
 def normalize_lstm_metrics(frame: pd.DataFrame) -> pd.DataFrame:
@@ -69,30 +263,16 @@ def normalize_lstm_metrics(frame: pd.DataFrame) -> pd.DataFrame:
     if test.empty:
         raise ValueError("LSTM metrics contain no test rows")
     test["protocol"] = "classical"
-    rename = {
-        "rmse": "test_rmse",
-        "qlike": "test_qlike",
-        "mz_alpha": "test_mz_alpha",
-        "mz_beta": "test_mz_beta",
-        "mz_r2": "test_mz_r2",
-    }
-    test = test.rename(columns=rename)
-    for column in (
-        "q90_test_ap",
-        "q90_test_auc",
-        "q90_test_f1",
-        "q90_test_precision",
-        "q90_test_recall",
-        "q90_test_called_rate",
-        "q95_test_ap",
-        "q95_test_auc",
-        "q95_test_f1",
-        "q95_test_precision",
-        "q95_test_recall",
-        "q95_test_called_rate",
-    ):
-        test[column] = np.nan
-    return test
+    test = test.rename(
+        columns={
+            "rmse": "test_rmse",
+            "qlike": "test_qlike",
+            "mz_alpha": "test_mz_alpha",
+            "mz_beta": "test_mz_beta",
+            "mz_r2": "test_mz_r2",
+        }
+    )
+    return empty_classification_columns(test)
 
 
 def normalize_garch_metrics(frame: pd.DataFrame) -> pd.DataFrame:
@@ -100,30 +280,16 @@ def normalize_garch_metrics(frame: pd.DataFrame) -> pd.DataFrame:
     if test.empty:
         raise ValueError("GARCH metrics contain no level-task test rows")
     test["protocol"] = "classical"
-    rename = {
-        "rmse": "test_rmse",
-        "qlike": "test_qlike",
-        "mz_alpha": "test_mz_alpha",
-        "mz_beta": "test_mz_beta",
-        "mz_r2": "test_mz_r2",
-    }
-    test = test.rename(columns=rename)
-    for column in (
-        "q90_test_ap",
-        "q90_test_auc",
-        "q90_test_f1",
-        "q90_test_precision",
-        "q90_test_recall",
-        "q90_test_called_rate",
-        "q95_test_ap",
-        "q95_test_auc",
-        "q95_test_f1",
-        "q95_test_precision",
-        "q95_test_recall",
-        "q95_test_called_rate",
-    ):
-        test[column] = np.nan
-    return test
+    test = test.rename(
+        columns={
+            "rmse": "test_rmse",
+            "qlike": "test_qlike",
+            "mz_alpha": "test_mz_alpha",
+            "mz_beta": "test_mz_beta",
+            "mz_r2": "test_mz_r2",
+        }
+    )
+    return empty_classification_columns(test)
 
 
 def normalize_lstm_predictions(frame: pd.DataFrame) -> pd.DataFrame:
@@ -133,18 +299,7 @@ def normalize_lstm_predictions(frame: pd.DataFrame) -> pd.DataFrame:
     output["q90_label"] = np.nan
     output["q95_label"] = np.nan
     return output[
-        [
-            "fold",
-            "model",
-            "protocol",
-            "split",
-            "date",
-            "y_true",
-            "log_score",
-            "y_pred",
-            "q90_label",
-            "q95_label",
-        ]
+        ["fold", "model", "protocol", "split", "date", "y_true", "log_score", "y_pred", "q90_label", "q95_label"]
     ]
 
 
@@ -157,58 +312,74 @@ def normalize_garch_predictions(frame: pd.DataFrame) -> pd.DataFrame:
     output["q90_label"] = np.nan
     output["q95_label"] = np.nan
     return output[
-        [
-            "fold",
-            "model",
-            "protocol",
-            "split",
-            "date",
-            "y_true",
-            "log_score",
-            "y_pred",
-            "q90_label",
-            "q95_label",
-        ]
+        ["fold", "model", "protocol", "split", "date", "y_true", "log_score", "y_pred", "q90_label", "q95_label"]
     ]
+
+
+def load_model_result(model: str, directory: Path) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    if model in MASTER_MODELS:
+        metrics_path = unique_match(directory, "per_fold_metrics_*.csv")
+        predictions_path = unique_match(directory, "predictions_*.csv")
+        metrics = pd.read_csv(metrics_path)
+        predictions = pd.read_csv(predictions_path)
+        metrics = metrics.loc[metrics["model"] == model].copy()
+        predictions = predictions.loc[predictions["model"] == model].copy()
+    elif model == "lstm":
+        metrics_path = unique_match(directory, "lstm_metrics_*.csv")
+        predictions_path = unique_match(directory, "lstm_predictions_*.csv")
+        metrics = normalize_lstm_metrics(pd.read_csv(metrics_path))
+        predictions = normalize_lstm_predictions(pd.read_csv(predictions_path))
+    elif model == "garch_1_1_t":
+        metrics_path = unique_match(directory, "garch_metrics_*.csv")
+        predictions_path = unique_match(directory, "garch_predictions_*.csv")
+        metrics = normalize_garch_metrics(pd.read_csv(metrics_path))
+        predictions = normalize_garch_predictions(pd.read_csv(predictions_path))
+    else:
+        raise ValueError(model)
+
+    if metrics.empty or predictions.empty:
+        raise ValueError(f"No rows for {model} in {directory}")
+    source = {
+        "model": model,
+        "run_directory": str(directory),
+        "metrics": str(metrics_path),
+        "predictions": str(predictions_path),
+    }
+    return metrics, predictions, source
 
 
 def main() -> None:
     args = parse_args()
+    models = selected_models(args)
+    overrides = parse_sources(args.source)
+    unknown_overrides = sorted(set(overrides) - set(models))
+    if unknown_overrides:
+        raise ValueError(
+            "Sources were supplied for unselected models: " + ", ".join(unknown_overrides)
+        )
+
     args.out_dir = begin_run(args.out_dir, args, run_id=args.run_id)
-    tag = args.tag
+    sources, child_commands = generated_sources(args, models, overrides)
 
-    master_metrics_path = require_file(args.master_dir / f"per_fold_metrics_{tag}.csv")
-    master_predictions_path = require_file(args.master_dir / f"predictions_{tag}.csv")
-    lstm_metrics_path = require_file(args.lstm_dir / f"lstm_metrics_{tag}.csv")
-    lstm_predictions_path = require_file(args.lstm_dir / f"lstm_predictions_{tag}.csv")
-    garch_metrics_path = require_file(args.garch_dir / f"garch_metrics_{tag}.csv")
-    garch_predictions_path = require_file(args.garch_dir / f"garch_predictions_{tag}.csv")
+    metric_frames = []
+    prediction_frames = []
+    source_manifest = []
+    for model in models:
+        metrics, predictions, source = load_model_result(model, sources[model])
+        metric_frames.append(metrics)
+        prediction_frames.append(predictions)
+        source["mode"] = "override" if model in overrides else "generated"
+        source_manifest.append(source)
 
-    master_metrics = pd.read_csv(master_metrics_path)
-    master_predictions = pd.read_csv(master_predictions_path)
-    lstm_metrics = normalize_lstm_metrics(pd.read_csv(lstm_metrics_path))
-    garch_metrics = normalize_garch_metrics(pd.read_csv(garch_metrics_path))
-    lstm_predictions = normalize_lstm_predictions(pd.read_csv(lstm_predictions_path))
-    garch_predictions = normalize_garch_predictions(pd.read_csv(garch_predictions_path))
-
-    combined_metrics = pd.concat(
-        [master_metrics, lstm_metrics, garch_metrics],
-        ignore_index=True,
-        sort=False,
-    )
-    combined_predictions = pd.concat(
-        [master_predictions, lstm_predictions, garch_predictions],
-        ignore_index=True,
-        sort=False,
-    )
-
+    combined_metrics = pd.concat(metric_frames, ignore_index=True, sort=False)
+    combined_predictions = pd.concat(prediction_frames, ignore_index=True, sort=False)
     master = load_master_module()
     aggregate = master.aggregate_metrics(combined_metrics)
 
-    per_fold_path = args.out_dir / f"per_fold_metrics_{tag}.csv"
-    predictions_path = args.out_dir / f"predictions_{tag}.csv"
-    aggregate_path = args.out_dir / f"aggregate_metrics_{tag}.csv"
-    manifest_path = args.out_dir / f"run_manifest_{tag}.json"
+    per_fold_path = args.out_dir / f"per_fold_metrics_{args.tag}.csv"
+    predictions_path = args.out_dir / f"predictions_{args.tag}.csv"
+    aggregate_path = args.out_dir / f"aggregate_metrics_{args.tag}.csv"
+    manifest_path = args.out_dir / f"run_manifest_{args.tag}.json"
 
     combined_metrics.to_csv(per_fold_path, index=False)
     combined_predictions.to_csv(predictions_path, index=False)
@@ -216,21 +387,19 @@ def main() -> None:
     manifest_path.write_text(
         json.dumps(
             {
-                "tag": tag,
-                "mode": "aggregation_only",
-                "sources": {
-                    "master_metrics": str(master_metrics_path),
-                    "master_predictions": str(master_predictions_path),
-                    "lstm_metrics": str(lstm_metrics_path),
-                    "lstm_predictions": str(lstm_predictions_path),
-                    "garch_metrics": str(garch_metrics_path),
-                    "garch_predictions": str(garch_predictions_path),
-                },
-                "models": sorted(combined_metrics["model"].dropna().unique().tolist()),
+                "tag": args.tag,
+                "selected_groups": args.groups,
+                "selected_models": models,
+                "available_groups": {key: list(value) for key, value in MODEL_GROUPS.items()},
+                "sources": source_manifest,
+                "child_commands": child_commands,
                 "classification_note": (
-                    "GARCH and LSTM standalone runners do not currently emit the "
-                    "canonical q90/q95 classification fields; those aggregate fields "
-                    "remain NaN for these two models."
+                    "GARCH and LSTM currently contribute regression metrics only; "
+                    "their q90/q95 classification fields remain NaN."
+                ),
+                "extension_note": (
+                    "Quantum model groups can be added to MODEL_GROUPS and the model "
+                    "registry when their current runners and standardized loaders exist."
                 ),
             },
             indent=2,
