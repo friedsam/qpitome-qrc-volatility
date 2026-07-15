@@ -1,0 +1,49 @@
+{
+  "provider": "Yahoo Finance chart API",
+  "created_at_utc": "2026-07-15T03:03:03.866088+00:00",
+  "policy": "remote_first_explicit_fallback_copy",
+  "requested_start_date": "1990-01-01",
+  "requested_end_date_exclusive": "2026-06-05",
+  "series": {
+    "market": {
+      "symbol": "SPY",
+      "path": "data/raw/yahoo_daily_history/historical_market_data.csv",
+      "fallback_path": "data/fallback/yahoo_daily_history/historical_market_data.csv",
+      "status": "downloaded",
+      "remote_error": null,
+      "rows": 8394,
+      "date_start": "1993-01-29",
+      "date_end": "2026-06-04",
+      "columns": [
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "adjusted_close"
+      ],
+      "sha256": "1511f1b2b0ecaa07e605ac955e2247328e49758b6d40be768f57e5c6e9255d89"
+    },
+    "volatility": {
+      "symbol": "^VIX",
+      "path": "data/raw/yahoo_daily_history/historical_volatility_data.csv",
+      "fallback_path": "data/fallback/yahoo_daily_history/historical_volatility_data.csv",
+      "status": "downloaded",
+      "remote_error": null,
+      "rows": 9174,
+      "date_start": "1990-01-02",
+      "date_end": "2026-06-04",
+      "columns": [
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "adjusted_close"
+      ],
+      "sha256": "3f43cf643529855f7b34384401701995bbd92f781df52761a0c69a8b5033c825"
+    }
+  }
+}
