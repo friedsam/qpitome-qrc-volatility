@@ -15,6 +15,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from experiments.runs import begin_run
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 MASTER_SCRIPT = SCRIPT_DIR / "run_master_comparison.py"
@@ -31,6 +33,7 @@ def load_master_module():
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run-id", default=None)
     parser.add_argument("--tag", default="stage1_7fold")
     parser.add_argument(
         "--master-dir",
@@ -171,6 +174,7 @@ def normalize_garch_predictions(frame: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     args = parse_args()
+    args.out_dir = begin_run(args.out_dir, args, run_id=args.run_id)
     tag = args.tag
 
     master_metrics_path = require_file(args.master_dir / f"per_fold_metrics_{tag}.csv")
@@ -201,7 +205,6 @@ def main() -> None:
     master = load_master_module()
     aggregate = master.aggregate_metrics(combined_metrics)
 
-    args.out_dir.mkdir(parents=True, exist_ok=True)
     per_fold_path = args.out_dir / f"per_fold_metrics_{tag}.csv"
     predictions_path = args.out_dir / f"predictions_{tag}.csv"
     aggregate_path = args.out_dir / f"aggregate_metrics_{tag}.csv"
