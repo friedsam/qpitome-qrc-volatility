@@ -8,8 +8,8 @@ __pycache__/
 
 data/legacy_classifier_branch/*
 
-# Ignore noncanonical raw files by default, but track the canonical source snapshots
-# required to reproduce all stages.
+# Ignore noncanonical raw files by default, but track permanent source snapshots
+# and preserved reference datasets required across stages.
 data/raw/*
 !data/raw/.gitkeep
 
@@ -37,6 +37,17 @@ data/raw/international_equity_indices/*
 !data/raw/international_equity_indices/nikkei_225_fred_raw.csv
 !data/raw/international_equity_indices/russell_2000_yahoo_raw.csv
 !data/raw/international_equity_indices/ftse_100_yahoo_raw.csv
+!data/raw/international_equity_indices/ftse_100_raw.csv
+!data/raw/international_equity_indices/russell_2000_raw.csv
+
+!data/raw/us_market_ohlcv/
+!data/raw/us_market_ohlcv/**
+
+!data/raw/vix_history/
+!data/raw/vix_history/**
+
+!data/raw/sp500_yahoo_daily/
+!data/raw/sp500_yahoo_daily/**
 
 !data/raw/external_dataset_manifest.json
 !data/raw/raw_dataset_inventory.json
@@ -46,13 +57,21 @@ data/fallback/**/*.tmp
 data/fallback/**/.*.tmp
 data/fallback/**/.*.fallback.*
 
-# Ignore generated processed outputs by default, but preserve the canonical Stage 1 dataset.
+# Ignore generated processed outputs by default, but preserve canonical and
+# historical reference datasets used across stages.
 data/processed/*
 !data/processed/.gitkeep
+
 !data/processed/spy_vix_volatility/
 data/processed/spy_vix_volatility/*
 !data/processed/spy_vix_volatility/spy_vix_volatility.csv
+!data/processed/spy_vix_volatility/spy_vix_volatility_extended.csv
 !data/processed/spy_vix_volatility/manifest.json
+
+!data/processed/monthly_market_features/
+!data/processed/monthly_market_features/**
+
+!data/manifest.json
 
 !data/legacy_classifier_branch/raw/.gitkeep
 !data/legacy_classifier_branch/processed/.gitkeep
