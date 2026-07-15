@@ -26,6 +26,8 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from experiments.runs import begin_run
+
 MASTER_PATH = Path(__file__).with_name("run_master_comparison.py")
 TARGET = "future_rv_20d"
 SPLITS = ("train", "val", "test")
@@ -53,6 +55,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("results/canonical/run_canonical_har"),
     )
+    p.add_argument("--run-id", default=None)
     p.add_argument("--tag", default="har_ridge")
     p.add_argument("--only-folds", nargs="*", type=int, default=None)
     p.add_argument("--n-folds", type=int, default=5)
@@ -72,8 +75,8 @@ def atomic_csv(frame: pd.DataFrame, path: Path) -> None:
 
 def main() -> None:
     args = parse_args()
+    args.out_dir = begin_run(args.out_dir, args, run_id=args.run_id)
     master = load_master()
-    args.out_dir.mkdir(parents=True, exist_ok=True)
 
     per_fold_path = args.out_dir / f"per_fold_metrics_{args.tag}.csv"
     pred_path = args.out_dir / f"predictions_{args.tag}.csv"
