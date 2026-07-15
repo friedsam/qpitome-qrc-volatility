@@ -34,8 +34,8 @@ SPECS = [
         name="sp500_yahoo",
         relative_path="monthly_market_features/sp500_yahoo_raw.csv",
         yahoo_symbol="^GSPC",
-        start_date="1927-01-01",
-        end_date="2026-06-05",
+        start_date="1950-01-01",
+        end_date="2026-07-01",
     ),
     _spec(
         name="fred_tb3ms",
