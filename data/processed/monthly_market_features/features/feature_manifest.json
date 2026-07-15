@@ -1,0 +1,17 @@
+{
+  "producer": "scripts/data/build_monthly_market_features.py",
+  "inputs": [
+    "data/raw/monthly_market_features/sp500_yahoo_raw.csv",
+    "data/raw/macro_fred_monthly",
+    "data/raw/equity_factor_returns_monthly"
+  ],
+  "outputs": {
+    "extended": "data/processed/monthly_market_features/extended_complete_market_months.parquet",
+    "paper": "data/processed/monthly_market_features/paper_parity_1950_02_to_2017_12.parquet",
+    "features": "data/processed/monthly_market_features/features/preliminary_features.parquet",
+    "catalog": "data/processed/monthly_market_features/features/feature_catalog.csv"
+  },
+  "paper_rows": 815,
+  "extended_rows": 918,
+  "feature_count": 24
+}

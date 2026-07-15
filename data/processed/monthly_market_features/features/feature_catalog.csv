@@ -1,0 +1,25 @@
+feature,family,role,formula,timing
+vol_state_1m,volatility_state,current state,log_rv_close,available by end of month t
+vol_state_3m_mean,volatility_state,short memory,mean(log_rv[t-2:t]),available by end of month t
+vol_state_12m_mean,volatility_state,long memory,mean(log_rv[t-11:t]),available by end of month t
+vol_change_1m,volatility_dynamics,rate of change,log_rv[t] - log_rv[t-1],available by end of month t
+vol_change_3m,volatility_dynamics,medium change,log_rv[t] - log_rv[t-3],available by end of month t
+vol_acceleration_1m,volatility_dynamics,acceleration,delta1[t] - delta1[t-1],available by end of month t
+vol_short_minus_long,volatility_dynamics,timescale separation,mean3(log_rv) - mean12(log_rv),available by end of month t
+vol_prior_12m_robust_z,volatility_dynamics,robust surprise,current log_rv relative to prior-12-month median/MAD,available by end of month t
+market_mkt_excess,market_drivers,market shock,mkt_excess,available by end of month t
+market_smb,market_drivers,market shock,smb,available by end of month t
+market_hml,market_drivers,market shock,hml,available by end of month t
+market_str,market_drivers,market shock,str,available by end of month t
+credit_tb3ms_level,credit_rates,financial conditions state,tb3ms,available by end of month t
+credit_tb3ms_change_1m,credit_rates,financial conditions change,tb3ms[t] - tb3ms[t-1],available by end of month t
+credit_aaa_yield_level,credit_rates,financial conditions state,aaa_yield,available by end of month t
+credit_aaa_yield_change_1m,credit_rates,financial conditions change,aaa_yield[t] - aaa_yield[t-1],available by end of month t
+credit_baa_yield_level,credit_rates,financial conditions state,baa_yield,available by end of month t
+credit_baa_yield_change_1m,credit_rates,financial conditions change,baa_yield[t] - baa_yield[t-1],available by end of month t
+credit_default_spread_baa_minus_aaa_level,credit_rates,financial conditions state,default_spread_baa_minus_aaa__candidate,available by end of month t
+credit_default_spread_baa_minus_aaa_change_1m,credit_rates,financial conditions change,default_spread_baa_minus_aaa__candidate[t] - default_spread_baa_minus_aaa__candidate[t-1],available by end of month t
+macro_inflation_growth_lag1,macro_dynamics,lagged macro growth,inflation_log_change__avail_lag1,one-month availability lag enforced
+macro_inflation_growth_lag1_change_1m,macro_dynamics,macro acceleration,inflation_log_change__avail_lag1[t] - inflation_log_change__avail_lag1[t-1],one-month availability lag enforced
+macro_ip_growth_lag1,macro_dynamics,lagged macro growth,ip_log_growth__avail_lag1,one-month availability lag enforced
+macro_ip_growth_lag1_change_1m,macro_dynamics,macro acceleration,ip_log_growth__avail_lag1[t] - ip_log_growth__avail_lag1[t-1],one-month availability lag enforced
