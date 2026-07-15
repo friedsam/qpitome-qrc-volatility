@@ -50,6 +50,7 @@ from evaluation.walkforward import (
     make_purged_walkforward_folds,
     slice_fold_frames,
 )
+from experiments.runs import begin_run
 
 SPLITS = ("train", "val", "test")
 
@@ -66,6 +67,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("results/baselines/lstm/run_phase3_lstm_walkforward"),
     )
+    parser.add_argument("--run-id", default=None)
     parser.add_argument("--tag", default="lstm_phase3")
     parser.add_argument("--task", choices=("level", "innovation"), default="level")
     parser.add_argument("--lookback", type=int, default=40)
@@ -88,7 +90,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+    args.out_dir = begin_run(args.out_dir, args, run_id=args.run_id)
 
     frame = pd.read_csv(args.data).sort_values("date").reset_index(drop=True)
     if args.task == "innovation":
