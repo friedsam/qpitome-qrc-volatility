@@ -7,10 +7,53 @@ __pycache__/
 *.pyc
 
 data/legacy_classifier_branch/*
+
+# Ignore noncanonical raw files by default, but track the canonical source snapshots
+# required to reproduce all stages.
 data/raw/*
-data/processed/*
 !data/raw/.gitkeep
+
+!data/raw/yahoo_daily_history/
+data/raw/yahoo_daily_history/*
+!data/raw/yahoo_daily_history/historical_market_data.csv
+!data/raw/yahoo_daily_history/historical_volatility_data.csv
+!data/raw/yahoo_daily_history/manifest.json
+
+!data/raw/macro_fred_monthly/
+data/raw/macro_fred_monthly/*
+!data/raw/macro_fred_monthly/fred_TB3MS_three_month_tbill.csv
+!data/raw/macro_fred_monthly/fred_CPIAUCSL_cpi.csv
+!data/raw/macro_fred_monthly/fred_INDPRO_industrial_production.csv
+!data/raw/macro_fred_monthly/fred_AAA_aaa_corporate_yield.csv
+!data/raw/macro_fred_monthly/fred_BAA_baa_corporate_yield.csv
+
+!data/raw/equity_factor_returns_monthly/
+data/raw/equity_factor_returns_monthly/*
+!data/raw/equity_factor_returns_monthly/ff3_monthly.zip
+!data/raw/equity_factor_returns_monthly/short_term_reversal_monthly.zip
+
+!data/raw/international_equity_indices/
+data/raw/international_equity_indices/*
+!data/raw/international_equity_indices/nikkei_225_fred_raw.csv
+!data/raw/international_equity_indices/russell_2000_yahoo_raw.csv
+!data/raw/international_equity_indices/ftse_100_yahoo_raw.csv
+
+!data/raw/external_dataset_manifest.json
+!data/raw/raw_dataset_inventory.json
+
+# Keep fallback snapshots durable and versioned. Only temporary files are ignored.
+data/fallback/**/*.tmp
+data/fallback/**/.*.tmp
+data/fallback/**/.*.fallback.*
+
+# Ignore generated processed outputs by default, but preserve the canonical Stage 1 dataset.
+data/processed/*
 !data/processed/.gitkeep
+!data/processed/spy_vix_volatility/
+data/processed/spy_vix_volatility/*
+!data/processed/spy_vix_volatility/spy_vix_volatility.csv
+!data/processed/spy_vix_volatility/manifest.json
+
 !data/legacy_classifier_branch/raw/.gitkeep
 !data/legacy_classifier_branch/processed/.gitkeep
 
