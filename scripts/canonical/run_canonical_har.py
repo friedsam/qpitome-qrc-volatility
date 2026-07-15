@@ -48,7 +48,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("data/processed/spy_vix_volatility/spy_vix_volatility.csv"),
     )
-    p.add_argument("--out-dir", type=Path, default=Path("results/canonical/segments/har_ridge"))
+    p.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("results/canonical/run_canonical_har"),
+    )
     p.add_argument("--tag", default="har_ridge")
     p.add_argument("--only-folds", nargs="*", type=int, default=None)
     p.add_argument("--n-folds", type=int, default=5)
