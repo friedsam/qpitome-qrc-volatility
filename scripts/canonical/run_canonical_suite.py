@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Run or assemble a selectable canonical model comparison.
 
-Selected models without supplied ``--source`` overrides are run through their
-own scientific runner. Existing run directories can be mixed deliberately; the
-manifest records parameter and fold-geometry compatibility for every source.
+Models without ``--source`` overrides are executed through their own scientific
+runner. The default remains ``classical-all``; quantum models are opt-in.
 """
 from __future__ import annotations
 
@@ -23,6 +22,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 MASTER_SCRIPT = SCRIPT_DIR / "run_master_comparison.py"
 TFIM_SCRIPT = SCRIPT_DIR / "run_canonical_tfim.py"
+RYDBERG_SCRIPT = SCRIPT_DIR / "run_canonical_rydberg.py"
 LSTM_SCRIPT = REPO_ROOT / "scripts/baselines/lstm/run_phase3_lstm_walkforward.py"
 GARCH_SCRIPT = REPO_ROOT / "scripts/baselines/garch/run_phase3_garch_walkforward.py"
 
@@ -33,13 +33,24 @@ MASTER_MODELS = (
     "esn_selected",
 )
 CLASSICAL_STANDALONE_MODELS = ("garch_1_1_t", "lstm")
-QUANTUM_MODELS = ("tfim_phase2_final",)
+TFIM_MODELS = ("tfim_phase2_final",)
+RYDBERG_MODELS = (
+    "rydberg_temporal",
+    "rydberg_memoryless",
+    "rydberg_shuffled",
+    "rydberg_multi_lb",
+    "rydberg_multi_lb_memoryless",
+    "rydberg_multi_lb_shuffled",
+)
+QUANTUM_MODELS = TFIM_MODELS + RYDBERG_MODELS
 STANDALONE_MODELS = CLASSICAL_STANDALONE_MODELS + QUANTUM_MODELS
 AVAILABLE_MODELS = MASTER_MODELS + STANDALONE_MODELS
 CLASSICAL_ALL = MASTER_MODELS + CLASSICAL_STANDALONE_MODELS
 MODEL_GROUPS = {
     "classical-core": MASTER_MODELS,
     "classical-all": CLASSICAL_ALL,
+    "tfim": TFIM_MODELS,
+    "rydberg": RYDBERG_MODELS,
     "quantum": QUANTUM_MODELS,
     "classical+quantum": CLASSICAL_ALL + QUANTUM_MODELS,
     "all-available": AVAILABLE_MODELS,
@@ -59,32 +70,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--tag", default="canonical")
-    parser.add_argument(
-        "--groups",
-        nargs="*",
-        choices=sorted(MODEL_GROUPS),
-        default=None,
-        help="Named model groups. Defaults to classical-all when no models are supplied.",
-    )
-    parser.add_argument(
-        "--models",
-        nargs="*",
-        choices=sorted(AVAILABLE_MODELS),
-        default=None,
-        help="Individual models added to the selected groups.",
-    )
+    parser.add_argument("--groups", nargs="*", choices=sorted(MODEL_GROUPS), default=None)
+    parser.add_argument("--models", nargs="*", choices=sorted(AVAILABLE_MODELS), default=None)
     parser.add_argument(
         "--source",
         action="append",
         default=[],
         metavar="MODEL=RUN_DIRECTORY",
-        help="Use an existing model run instead of running that model again.",
     )
-    parser.add_argument(
-        "--no-run",
-        action="store_true",
-        help="Aggregation only; require an explicit --source for every selected model.",
-    )
+    parser.add_argument("--no-run", action="store_true")
     parser.add_argument("--n-folds", type=int, default=7)
     parser.add_argument("--min-train", type=int, default=2500)
     parser.add_argument("--val-size", type=int, default=504)
@@ -192,7 +186,13 @@ def compatibility_report(
             "requested": expected_folds,
             "source": actual_folds,
         }
-    status = "different" if differences else "incomplete" if missing or params_path is None else "passed"
+    status = (
+        "different"
+        if differences
+        else "incomplete"
+        if missing or params_path is None
+        else "passed"
+    )
     return {
         "status": status,
         "params_file": params_path,
@@ -253,6 +253,7 @@ def generated_sources(
         )
 
     child_run_id = args.out_dir.name
+
     master_models = [model for model in missing if model in MASTER_MODELS]
     if master_models:
         command = [
@@ -286,6 +287,24 @@ def generated_sources(
             REPO_ROOT / "results/canonical/run_canonical_tfim" / child_run_id
         )
         commands.append({"models": ["tfim_phase2_final"], "command": command, "log": str(log_path)})
+
+    rydberg_models = [model for model in missing if model in RYDBERG_MODELS]
+    if rydberg_models:
+        command = [
+            sys.executable,
+            str(RYDBERG_SCRIPT.relative_to(REPO_ROOT)),
+            "--run-id", child_run_id,
+            "--tag", "rydberg_historical",
+            "--models", *rydberg_models,
+            "--lookback", str(args.lookback),
+            *common_fold_args(args),
+        ]
+        log_path = args.out_dir / "child_rydberg.log"
+        run_child(command, log_path)
+        run_dir = REPO_ROOT / "results/canonical/run_canonical_rydberg" / child_run_id
+        for model in rydberg_models:
+            sources[model] = run_dir
+        commands.append({"models": rydberg_models, "command": command, "log": str(log_path)})
 
     if "lstm" in missing:
         command = [
@@ -385,8 +404,11 @@ def normalize_garch_predictions(frame: pd.DataFrame) -> pd.DataFrame:
     ]]
 
 
-def load_model_result(model: str, directory: Path) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    if model in MASTER_MODELS or model == "tfim_phase2_final":
+def load_model_result(
+    model: str,
+    directory: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    if model in MASTER_MODELS or model in QUANTUM_MODELS:
         metrics_path = unique_match(directory, "per_fold_metrics_*.csv")
         predictions_path = unique_match(directory, "predictions_*.csv")
         metrics = pd.read_csv(metrics_path)
@@ -407,13 +429,12 @@ def load_model_result(model: str, directory: Path) -> tuple[pd.DataFrame, pd.Dat
         raise ValueError(model)
     if metrics.empty or predictions.empty:
         raise ValueError(f"No rows for {model} in {directory}")
-    source = {
+    return metrics, predictions, {
         "model": model,
         "run_directory": str(directory),
         "metrics": str(metrics_path),
         "predictions": str(predictions_path),
     }
-    return metrics, predictions, source
 
 
 def main() -> None:
@@ -438,7 +459,10 @@ def main() -> None:
         prediction_frames.append(predictions)
         source["mode"] = "override" if model in overrides else "generated"
         source["compatibility"] = compatibility_report(
-            args, model, sources[model], metrics
+            args,
+            model,
+            sources[model],
+            metrics,
         )
         source_manifest.append(source)
 
@@ -461,16 +485,23 @@ def main() -> None:
                 "tag": args.tag,
                 "selected_groups": args.groups,
                 "selected_models": models,
-                "available_groups": {key: list(value) for key, value in MODEL_GROUPS.items()},
+                "available_groups": {
+                    key: list(value) for key, value in MODEL_GROUPS.items()
+                },
                 "sources": source_manifest,
                 "child_commands": child_commands,
                 "compatibility_policy": (
-                    "Source differences are recorded per model and do not block deliberate "
-                    "mixed-source comparisons."
+                    "Source differences are recorded per model and do not block "
+                    "deliberate mixed-source comparisons."
                 ),
                 "classification_note": (
-                    "TFIM and master-comparison models include q90/q95 evaluation. "
+                    "Master, TFIM, and Rydberg runners include q90/q95 evaluation. "
                     "GARCH and LSTM currently contribute regression metrics only."
+                ),
+                "rydberg_status": (
+                    "The six historical Rydberg models are opt-in reproducibility models. "
+                    "They preserve the underdeveloped two-channel volatility encoding and "
+                    "are not included in the default classical-all suite."
                 ),
             },
             indent=2,
