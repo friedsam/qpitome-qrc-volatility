@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Quantum reservoir computing for financial volatility prediction"
 requires-python = ">=3.10"
 dependencies = [
+    "kaggle>=2.0,<3",
     "matplotlib>=3.8,<4",
     "numpy>=1.26,<3",
     "pandas>=2.1,<3",

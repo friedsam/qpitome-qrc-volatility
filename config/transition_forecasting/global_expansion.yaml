@@ -1,0 +1,58 @@
+source:
+  name: global_stock_indices_historical_data
+  dataset_slug: guillemservera/global-stock-indices-historical-data
+  downloader: scripts/data/fetch_global_index_ohlc.py
+  downloader_dependency: kaggle>=2.0,<3
+  authentication:
+    preferred: KAGGLE_API_TOKEN
+    alternatives: [kaggle_auth_login, access_token_file, legacy_kaggle_json]
+    never_commit_credentials: true
+  expected_format: one_csv_per_index
+  required_columns: [date, high, low]
+  optional_columns: [open, close, volume]
+  license: CC-BY-NC-4.0
+  keep_separate_from_unrestricted_data: true
+
+audit:
+  min_history_years: 15
+  min_valid_ohlc_fraction: 0.98
+  reject_duplicate_dates: true
+  reject_invalid_ranges: true
+  report_long_gaps_days: 10
+
+transition:
+  volatility_estimator: log_parkinson_range
+  turbulent_quantile: 0.80
+  persistence_k: 10
+  persistence_m: 15
+  prior_window: 10
+  prior_max_turbulent: 2
+  separation_sessions: 60
+  episode_cluster_days: 7
+
+feasibility_targets:
+  minimum_raw_events: 250
+  minimum_global_clusters: 100
+  preferred_global_clusters: 150
+
+catalogue:
+  runner: scripts/data/build_global_transition_catalogue.py
+  inventory: results/transition_forecasting/audit_global_index_ohlc/global_index_audit_001/global_index_ohlc_inventory.csv
+  output_root: results/transition_forecasting/build_global_transition_catalogue
+  exclude_indices:
+    all_indices_data: consolidated_duplicate_panel
+    ^VIX_data: volatility_index_not_equity_index
+  overlapping_market_groups:
+    united_states: [^GSPC_data, ^NYA_data, ^DJI_data, ^IXIC_data, ^RUT_data, ^XAX_data]
+    australia: [^AORD_data, ^AXJO_data]
+    china_mainland: [000001.SS_data, 399001.SZ_data]
+  representative_priority:
+    united_states: [^GSPC_data, ^NYA_data, ^DJI_data, ^IXIC_data, ^RUT_data, ^XAX_data]
+    australia: [^AORD_data, ^AXJO_data]
+    china_mainland: [000001.SS_data, 399001.SZ_data]
+  outputs:
+    - raw_transition_catalogue.csv
+    - clustered_transition_catalogue.csv
+    - representative_transition_catalogue.csv
+    - global_episode_catalogue.csv
+    - transition_count_summary.json
