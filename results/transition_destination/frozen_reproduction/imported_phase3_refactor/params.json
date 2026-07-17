@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "run_id": "imported_phase3_refactor",
+  "parameters": {
+    "horizon_weeks": 8,
+    "neutral_zone_percentage_points": 1.0,
+    "split_date": "1999-12-17",
+    "path_weeks": 13,
+    "minimum_train": 60,
+    "momentum_penalty": 1.0,
+    "esn_seed": 20260712,
+    "rydberg_atoms": 6,
+    "rydberg_encodings": [
+      "return_only",
+      "return_uncertainty"
+    ]
+  }
+}
