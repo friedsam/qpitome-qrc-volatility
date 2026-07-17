@@ -14,7 +14,7 @@ def main() -> None:
         "--inventory",
         type=Path,
         default=Path(
-            "results/transition_forecasting/audit_global_index_ohlc/"
+            "results/transition_forecasting/quality/global_index_ohlc_audit/"
             "global_index_audit_001/global_index_ohlc_inventory.csv"
         ),
     )
@@ -22,7 +22,7 @@ def main() -> None:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("results/transition_forecasting/audit_global_ohlc_range_quality"),
+        default=Path("results/transition_forecasting/quality/global_ohlc_range_quality"),
     )
     parser.add_argument("--run-id", type=str)
     args = parser.parse_args()
