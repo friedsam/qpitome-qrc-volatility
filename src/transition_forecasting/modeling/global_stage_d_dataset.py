@@ -38,6 +38,52 @@ def _split(date: pd.Timestamp) -> str:
     return "train" if date < TRAIN_CUTOFF else "test"
 
 
+def _episode_split_assignments(catalogue: pd.DataFrame) -> dict[str, str]:
+    """Assign every global episode to exactly one chronological split.
+
+    A global episode can contain market-specific onsets on both sides of the
+    cutoff.  Using each row's onset independently leaks one episode across
+    train and test.  The episode's earliest onset is therefore the canonical
+    split date and is propagated to all rows and matched controls.
+    """
+    required = {"episode_id", "onset_date"}
+    missing = required.difference(catalogue.columns)
+    if missing:
+        raise ValueError(f"catalogue is missing required columns: {sorted(missing)}")
+
+    episode_dates = (
+        catalogue.assign(onset_date=pd.to_datetime(catalogue["onset_date"]))
+        .groupby("episode_id", sort=False)["onset_date"]
+        .min()
+    )
+    return {str(episode_id): _split(pd.Timestamp(date)) for episode_id, date in episode_dates.items()}
+
+
+def _validate_manifest(manifest: pd.DataFrame) -> None:
+    """Fail fast on leakage or incomplete positive/control groups."""
+    if manifest.empty:
+        raise ValueError("Stage D manifest is empty")
+
+    split_counts = manifest.groupby("episode_id")["split"].nunique()
+    leaking = split_counts[split_counts > 1]
+    if len(leaking):
+        raise ValueError(f"global episodes span train and test: {list(leaking.index.astype(str))}")
+
+    positives = manifest.loc[manifest["label"] == 1, "sample_id"].astype(str)
+    controls = manifest.loc[manifest["label"] == 0]
+    control_counts = controls.groupby("matched_positive_id").size()
+    incomplete = {
+        sample_id: int(control_counts.get(sample_id, 0))
+        for sample_id in positives
+        if int(control_counts.get(sample_id, 0)) != NEG_PER_POS
+    }
+    if incomplete:
+        preview = dict(list(incomplete.items())[:10])
+        raise ValueError(
+            f"positive samples without exactly {NEG_PER_POS} controls: {preview}"
+        )
+
+
 def build_global_stage_d_dataset(
     representative_catalogue_path: Path,
     inventory_path: Path,
@@ -48,6 +94,7 @@ def build_global_stage_d_dataset(
     )
     inventory = pd.read_csv(inventory_path)
     series_by_index = _load_series(catalogue, inventory)
+    episode_splits = _episode_split_assignments(catalogue)
 
     positives: list[dict[str, object]] = []
     onset_positions: dict[str, np.ndarray] = {}
@@ -58,6 +105,7 @@ def build_global_stage_d_dataset(
 
     for _, event in catalogue.iterrows():
         index_name = str(event["index"])
+        episode_id = str(event["episode_id"])
         series = series_by_index[index_name]
         onset = int(series.index.get_indexer([pd.Timestamp(event["onset_date"])])[0])
         for lead in LEADS:
@@ -68,12 +116,12 @@ def build_global_stage_d_dataset(
             target = series.iloc[origin + 1 : origin + 1 + HORIZON].to_numpy(dtype=float)
             positives.append(
                 {
-                    "sample_id": f"P_{event['episode_id']}_{index_name}_L{lead}",
+                    "sample_id": f"P_{episode_id}_{index_name}_L{lead}",
                     "label": 1,
                     "index": index_name,
                     "market_group": event["market_group"],
-                    "episode_id": event["episode_id"],
-                    "split": _split(pd.Timestamp(event["onset_date"])),
+                    "episode_id": episode_id,
+                    "split": episode_splits[episode_id],
                     "event_onset": event["onset_date"],
                     "origin_date": series.index[origin],
                     "origin_pos": origin,
@@ -147,6 +195,8 @@ def build_global_stage_d_dataset(
                     break
 
     manifest = pd.concat([positive_frame, pd.DataFrame(negatives)], ignore_index=True, sort=False)
+    _validate_manifest(manifest)
+
     sequences = []
     for _, row in manifest.iterrows():
         series = series_by_index[str(row["index"])]
@@ -155,13 +205,17 @@ def build_global_stage_d_dataset(
         sequences.append(values[:, None])
     tensor = np.asarray(sequences, dtype=float)
     balance = standardized_mean_differences(manifest)
+
+    train_episodes = set(manifest.loc[manifest["split"] == "train", "episode_id"].astype(str))
+    test_episodes = set(manifest.loc[manifest["split"] == "test", "episode_id"].astype(str))
     summary = {
         "positive_samples": int((manifest["label"] == 1).sum()),
         "negative_samples": int((manifest["label"] == 0).sum()),
         "total_samples": int(len(manifest)),
         "global_episodes": int(manifest["episode_id"].nunique()),
-        "train_episodes": int(manifest.loc[manifest["split"] == "train", "episode_id"].nunique()),
-        "test_episodes": int(manifest.loc[manifest["split"] == "test", "episode_id"].nunique()),
+        "train_episodes": len(train_episodes),
+        "test_episodes": len(test_episodes),
+        "episode_split_overlap": len(train_episodes.intersection(test_episodes)),
         "samples_by_lead": {
             str(int(lead)): int(count)
             for lead, count in manifest.groupby("lead").size().items()
