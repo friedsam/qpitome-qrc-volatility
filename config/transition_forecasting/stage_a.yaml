@@ -1,0 +1,21 @@
+train_cutoff: '2016-01-01'
+indices: [SPX, GDAXI, FCHI, FTSE, OMXSPI, N225, KS11, HSI]
+volatility_estimator: log_parkinson_range
+transition:
+  turbulent_quantile: 0.80
+  persistence_k: 10
+  persistence_m: 15
+  prior_window: 10
+  prior_max_turbulent: 2
+  separation_sessions: 60
+  episode_cluster_days: 7
+forecast:
+  input_windows: [20, 40]
+  leads: [1, 5, 10]
+  horizon: 10
+controls:
+  per_positive: 3
+  exclusion_sessions: 60
+  match_features: [level, mean5, mean20, slope5, slope20, std20, max20]
+  same_index: true
+  same_era: true
