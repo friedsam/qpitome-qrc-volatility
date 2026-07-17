@@ -105,7 +105,7 @@ SPECS = [
 def main() -> None:
     results = acquire_external_datasets(
         SPECS,
-        manifest_path=RAW / "external_dataset_manifest.json",
+        manifest_path=RAW / "external_datasets" / "manifest.json",
     )
     for result in results:
         print(f"{result.name}: {result.status} -> {result.path}")
