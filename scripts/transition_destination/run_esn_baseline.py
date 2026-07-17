@@ -33,11 +33,12 @@ def main() -> None:
         metadata["date"] = pd.to_datetime(metadata["date"]); metadata["outcome_available_date"] = pd.to_datetime(metadata["outcome_available_date"])
         w_in, w, bias = make_reservoir(paths.shape[2], args.n_units, args.spectral_radius, args.input_scale, args.seed)
         features = reservoir_features(paths, w_in, w, bias, args.leak)
-        predictions = evaluate_reservoir_features({"direct": features}, metadata, pd.Timestamp(args.split_date), args.minimum_train, args.penalty, args.momentum_penalty, "esn")
+        predictions = evaluate_reservoir_features({"": features}, metadata, pd.Timestamp(args.split_date), args.minimum_train, args.penalty, args.momentum_penalty, "esn")
         np.save(run.run_dir / "reservoir_features.npy", features)
         predictions.to_csv(run.run_dir / "predictions.csv", index=False)
         summarize_predictions(predictions).to_csv(run.run_dir / "metrics.csv", index=False)
-        for name in ("reservoir_features.npy", "predictions.csv", "metrics.csv"): run.record_output(name, run.run_dir / name)
+        for name in ("reservoir_features.npy", "predictions.csv", "metrics.csv"):
+            run.record_output(name, run.run_dir / name)
         run.finish(); print(run.run_dir)
     except Exception as exc:
         run.finish(status="failed", failure={"type": type(exc).__name__, "message": str(exc)}); raise
