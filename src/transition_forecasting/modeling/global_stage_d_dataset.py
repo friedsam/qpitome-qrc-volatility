@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from data.global_transition_catalogue import _load_generic_ohlc
-from data.transition_events import (
+from transition_forecasting.catalogue.global_transition_catalogue import _load_generic_ohlc
+from transition_forecasting.catalogue.transition_events import (
     HORIZON,
     LEADS,
     MATCH_FEATURES,

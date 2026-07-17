@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from data.early_ohlc_quality import write_early_ohlc_audit
+from transition_forecasting.quality.early_ohlc_quality import write_early_ohlc_audit
 from experiments.runs import begin_run
 
 

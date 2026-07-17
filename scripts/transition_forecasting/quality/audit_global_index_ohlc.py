@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from data.global_index_ohlc_audit import audit_directory
+from transition_forecasting.quality.global_index_ohlc_audit import audit_directory
 from experiments.runs import begin_run
 
 

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from data.global_transition_catalogue import _load_generic_ohlc
-from data.transition_events import HORIZON, LEADS, WINDOW, log_parkinson
+from transition_forecasting.catalogue.global_transition_catalogue import _load_generic_ohlc
+from transition_forecasting.catalogue.transition_events import HORIZON, LEADS, WINDOW, log_parkinson
 
 
 def assess_stage_d_feasibility(

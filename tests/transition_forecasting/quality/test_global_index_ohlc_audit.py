@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from data.global_index_ohlc_audit import audit_directory, audit_file
+from transition_forecasting.quality.global_index_ohlc_audit import audit_directory, audit_file
 
 
 def _write_ohlc(path: Path, *, periods: int = 20, invalid: bool = False) -> None:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from data.global_transition_validation import validate_global_catalogue
+from transition_forecasting.catalogue.global_transition_validation import validate_global_catalogue
 
 
 def test_validate_global_catalogue_reports_cluster_and_exposure_metrics(tmp_path: Path) -> None:

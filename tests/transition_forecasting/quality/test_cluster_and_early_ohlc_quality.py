@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from data.early_ohlc_quality import audit_early_ohlc_file
-from data.global_transition_catalogue import _cluster_dates
+from transition_forecasting.quality.early_ohlc_quality import audit_early_ohlc_file
+from transition_forecasting.catalogue.global_transition_catalogue import _cluster_dates
 
 
 def test_cluster_dates_uses_fixed_window_anchor() -> None:

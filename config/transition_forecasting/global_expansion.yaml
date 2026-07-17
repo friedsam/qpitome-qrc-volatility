@@ -1,7 +1,7 @@
 source:
   name: global_stock_indices_historical_data
   dataset_slug: guillemservera/global-stock-indices-historical-data
-  downloader: scripts/data/fetch_global_index_ohlc.py
+  downloader: scripts/transition_forecasting/quality/fetch_global_index_ohlc.py
   downloader_dependency: kaggle>=2.0,<3
   authentication:
     preferred: KAGGLE_API_TOKEN
@@ -36,7 +36,7 @@ feasibility_targets:
   preferred_global_clusters: 150
 
 catalogue:
-  runner: scripts/data/build_global_transition_catalogue.py
+  runner: scripts/transition_forecasting/catalogue/build_global_transition_catalogue.py
   inventory: results/transition_forecasting/quality/global_index_ohlc_audit/global_index_audit_001/global_index_ohlc_inventory.csv
   output_root: results/transition_forecasting/catalogue/global_transition_catalogue
   exclude_indices:

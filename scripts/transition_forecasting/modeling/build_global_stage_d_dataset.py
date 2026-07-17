@@ -4,12 +4,12 @@ import argparse
 import json
 from pathlib import Path
 
-from data.global_stage_d_feasibility import write_stage_d_feasibility
+from transition_forecasting.modeling.global_stage_d_dataset import write_global_stage_d_dataset
 from experiments.runs import begin_run
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Assess Stage D positive-sample feasibility for the global catalogue.")
+    parser = argparse.ArgumentParser(description="Build the global Stage D matched-control sequence dataset.")
     parser.add_argument(
         "--catalogue-dir",
         type=Path,
@@ -29,13 +29,13 @@ def main() -> None:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("results/transition_forecasting/modeling/stage_d_feasibility"),
+        default=Path("results/transition_forecasting/modeling/stage_d_dataset"),
     )
     parser.add_argument("--run-id", type=str)
     args = parser.parse_args()
 
     run_dir = begin_run(args.out_dir, args, run_id=args.run_id)
-    summary = write_stage_d_feasibility(
+    summary = write_global_stage_d_dataset(
         args.catalogue_dir / "representative_transition_catalogue.csv",
         args.inventory,
         run_dir,

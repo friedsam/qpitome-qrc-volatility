@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from data.transition_events import detect_onsets, event_anatomy, log_parkinson
+from transition_forecasting.catalogue.transition_events import detect_onsets, event_anatomy, log_parkinson
 
 TRAIN_CUTOFF = pd.Timestamp("2016-01-01")
 CLUSTER_DAYS = 7

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from data.transition_events import run_pipeline
+from transition_forecasting.catalogue.transition_events import run_pipeline
 from experiments.runs import begin_run
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from data.ohlc_range_quality import annual_range_quality
+from transition_forecasting.quality.ohlc_range_quality import annual_range_quality
 
 
 def audit_global_range_quality(

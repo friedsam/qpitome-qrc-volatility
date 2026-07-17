@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from data.global_transition_catalogue import write_global_transition_outputs
+from transition_forecasting.catalogue.global_transition_catalogue import write_global_transition_outputs
 from experiments.runs import begin_run
 
 
