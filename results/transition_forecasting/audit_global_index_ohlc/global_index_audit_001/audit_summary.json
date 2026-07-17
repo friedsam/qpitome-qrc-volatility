@@ -1,0 +1,9 @@
+{
+  "root": "data/raw/transition_forecasting/global_stock_indices_historical_data",
+  "csv_files": 37,
+  "eligible_files": 32,
+  "ineligible_files": 5,
+  "min_years": 15.0,
+  "min_valid_fraction": 0.98,
+  "maximum_span_years": 96.48658083328199
+}
