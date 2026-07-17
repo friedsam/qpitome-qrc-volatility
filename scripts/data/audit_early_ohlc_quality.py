@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("results/transition_forecasting/audit_early_ohlc_quality"),
+        default=Path("results/transition_forecasting/quality/early_ohlc_quality"),
     )
     parser.add_argument("--run-id", type=str)
     args = parser.parse_args()
