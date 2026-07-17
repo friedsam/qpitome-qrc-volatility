@@ -1,7 +1,16 @@
 {
-  "created_at_utc": "2026-07-15T00:46:16.279394+00:00",
+  "created_at_utc": "2026-07-15T04:06:39.849340+00:00",
   "policy": "remote_first_explicit_fallback_copy",
   "datasets": [
+    {
+      "name": "sp500_yahoo",
+      "path": "data/raw/monthly_market_features/sp500_yahoo_raw.csv",
+      "status": "downloaded",
+      "source": "Yahoo Finance:^GSPC",
+      "sha256": "75167a08c3375bafa2caad5762aa2a954e61e26ce9260282bb4b8ed052536fab",
+      "fallback_path": "data/fallback/monthly_market_features/sp500_yahoo_raw.csv",
+      "error": null
+    },
     {
       "name": "fred_tb3ms",
       "path": "data/raw/macro_fred_monthly/fred_TB3MS_three_month_tbill.csv",
