@@ -1,0 +1,29 @@
+source:
+  name: global_stock_indices_historical_data
+  expected_format: one_csv_per_index
+  required_columns: [date, high, low]
+  optional_columns: [open, close, volume]
+  license: CC-BY-NC-4.0
+  keep_separate_from_unrestricted_data: true
+
+audit:
+  min_history_years: 15
+  min_valid_ohlc_fraction: 0.98
+  reject_duplicate_dates: true
+  reject_invalid_ranges: true
+  report_long_gaps_days: 10
+
+transition:
+  volatility_estimator: log_parkinson_range
+  turbulent_quantile: 0.80
+  persistence_k: 10
+  persistence_m: 15
+  prior_window: 10
+  prior_max_turbulent: 2
+  separation_sessions: 60
+  episode_cluster_days: 7
+
+feasibility_targets:
+  minimum_raw_events: 250
+  minimum_global_clusters: 100
+  preferred_global_clusters: 150
