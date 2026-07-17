@@ -14,7 +14,7 @@ def main() -> None:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("results/transition_forecasting/audit_global_index_ohlc"),
+        default=Path("results/transition_forecasting/quality/global_index_ohlc_audit"),
     )
     parser.add_argument("--run-id", type=str)
     parser.add_argument("--min-years", type=float, default=15.0)
