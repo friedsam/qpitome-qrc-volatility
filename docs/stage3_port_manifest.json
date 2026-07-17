@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "manifest_id": "stage3-dev-port-plan-v1",
+  "created_date": "2026-07-16",
+  "target_branch": "stage3-dev",
+  "target_parent_commit": "7d0f7acecc62c13e52518a719eea2e1015b39bd6",
+  "source_branch": "phase3-refactor",
+  "source_commit": "a69e256634ef1a9819bc93614fefd15c711b3c9e",
+  "purpose": "Freeze provenance and scope before any Stage 3 scientific code is ported or changed.",
+  "scientific_changes_in_this_commit": false,
+  "authoritative_evidence_order": [
+    "code",
+    "committed results and manifests",
+    "commit history",
+    "tests",
+    "documentation"
+  ],
+  "commit_0_dependency": {
+    "description": "Canonical data, data-related source, scripts, tests, documentation, ignore rules, and packaging configuration synchronized from stage1-dev.",
+    "commit": "7d0f7acecc62c13e52518a719eea2e1015b39bd6"
+  },
+  "stage3_task": {
+    "name": "branch destination forecasting",
+    "target": "positive versus negative future cumulative weekly return after a causal uncertainty episode",
+    "primary_horizon_weeks": 8,
+    "primary_neutral_zone_percentage_points": 1.0,
+    "protected_baseline": "momentum_13w",
+    "primary_experimental_reservoir": "Rydberg",
+    "matched_reservoir_controls": ["ESN", "TFIM"]
+  },
+  "frozen_reference_results": {
+    "evaluation_episodes": 48,
+    "positive": 35,
+    "negative": 13,
+    "models": {
+      "historical_prior": {"roc_auc": 0.49340659340659343, "log_loss": 0.612656745280396, "brier": 0.21040940796716132},
+      "momentum_13w": {"roc_auc": 0.6637362637362637, "log_loss": 0.5510822250050053, "brier": 0.18425205724403895},
+      "momentum_plus_esn_offset": {"roc_auc": 0.5582417582417583, "log_loss": 0.5872519142880464, "brier": 0.20130581894344554},
+      "esn_direct": {"roc_auc": 0.5384615384615384, "log_loss": 0.6036734590872687, "brier": 0.20786581504238463},
+      "momentum_plus_rydberg_return_only": {"roc_auc": 0.6131868131868132, "log_loss": 0.5774875134851774, "brier": 0.19635972297483031},
+      "momentum_plus_rydberg_return_uncertainty": {"roc_auc": 0.6813186813186813, "log_loss": 0.5591484943152198, "brier": 0.18914799475395871}
+    },
+    "rydberg_paired_increment": {
+      "episodes_with_lower_loss": 22,
+      "episodes_with_higher_loss": 26,
+      "mean_loss_delta": 0.008066269310214575,
+      "bootstrap_fraction_below_zero": 0.3315
+    }
+  },
+  "port_inventory": {
+    "essential_stage3_task_spine": [
+      "scripts/modeling/transition_destination/audit_branch_destination_targets.py",
+      "scripts/modeling/transition_destination/analyze_branch_destination_structure.py",
+      "scripts/modeling/transition_destination/run_branch_destination_classical_baselines.py",
+      "scripts/modeling/transition_destination/prepare_branch_destination_paths.py",
+      "scripts/modeling/transition_destination/run_branch_destination_esn_baseline.py",
+      "scripts/modeling/transition_destination/prepare_branch_destination_rydberg_inputs.py",
+      "scripts/modeling/transition_destination/run_branch_destination_rydberg_simulator.py",
+      "scripts/modeling/transition_destination/analyze_branch_destination_rydberg_increment.py"
+    ],
+    "essential_reference_results": [
+      "results/modeling/transition_destination/branch_destination_classical_baselines__metrics.csv",
+      "results/modeling/transition_destination/branch_destination_esn_baseline__metrics.csv",
+      "results/modeling/transition_destination/branch_destination_rydberg_simulator__metrics.csv",
+      "results/modeling/transition_destination/branch_destination_rydberg_increment__paired_loss_summary.csv",
+      "results/modeling/transition_destination/**manifest*.json",
+      "results/modeling/transition_destination/**predictions*.csv",
+      "results/modeling/transition_destination/**paths*.csv",
+      "results/modeling/transition_destination/**standardization*.csv"
+    ],
+    "essential_shared_evaluation": [
+      "src/qpitome_qrc/evaluation/binary.py",
+      "src/qpitome_qrc/evaluation/historical_crossfit.py",
+      "src/qpitome_qrc/evaluation/residualization.py",
+      "src/qpitome_qrc/evaluation/scoring.py",
+      "src/qpitome_qrc/evaluation/metrics.py",
+      "src/qpitome_qrc/baselines/logistic_offset.py"
+    ],
+    "essential_diagnostic_methods": [
+      "scripts/modeling/day5_branching/residual_confirmation/run_day5_input_audit.py",
+      "scripts/modeling/day5_branching/residual_confirmation/run_day5_first_passage_sanity.py",
+      "scripts/modeling/day5_branching/residual_confirmation/run_day5_standard_feature_assay.py",
+      "scripts/modeling/day5_branching/residual_confirmation/run_day5_protected_input_residual.py",
+      "scripts/modeling/day5_branching/residual_confirmation/run_day5_nonlinear_input_residual.py",
+      "scripts/modeling/day5_branching/residual_confirmation/run_day5_residualized_rydberg_crossfit_shard.py",
+      "scripts/modeling/day5_branching/residual_confirmation/run_day5_higher_order_output_shard.py",
+      "scripts/modeling/day5_branching/spatial_rydberg/run_day5_rydberg_pca_reconstruction.py",
+      "scripts/modeling/day5_branching/baseline/run_cross_market_day5_regularized_controls.py"
+    ],
+    "essential_reservoir_code": [
+      "src/qpitome_qrc/qrc/local_detuning_reservoir.py",
+      "src/qpitome_qrc/qrc/rydberg_reservoir.py",
+      "src/qpitome_qrc/qrc/tfim_reservoir.py",
+      "Stage 3 ESN implementation and fixed configuration used by run_branch_destination_esn_baseline.py"
+    ],
+    "essential_aquila_qbraid": [
+      "qBraid-provider Aquila smoke-test script",
+      "qBraid AHS readiness and local-detuning utilities",
+      "hardware readiness runbooks",
+      "environment and dependency requirements",
+      "committed successful/failed smoke-test reports and job IDs",
+      "count normalization, loss, occupation, shot-variability, geometry, and waveform reporting"
+    ],
+    "likely_helpful": [
+      "compact directional and transition baselines",
+      "origin-regime priors and subgroup reports",
+      "nonlinear classical random-feature controls",
+      "strict cross-fit residual confirmation",
+      "cluster bootstrap confidence intervals",
+      "equal-market and equal-crisis weighting",
+      "calibration diagnostics",
+      "reversed-path, channel-order, memoryless, and shuffled controls",
+      "local/spatial Rydberg encoding and geometry sensitivity"
+    ],
+    "interesting_not_initial": [
+      "full higher-order observable sweeps",
+      "large spatial Rydberg sweeps",
+      "TFIM disorder and topology studies",
+      "virtual-node scaling",
+      "hardware-native bitstring reconstruction",
+      "shot-dependent rank-collapse analysis",
+      "cross-reservoir representation comparison"
+    ]
+  },
+  "explicit_exclusions": [
+    "direct AwsDevice authentication or submission",
+    "unapplied modeling_reorganization_manifest destination paths",
+    "old D1 target as an active Stage 3 target",
+    "missing historical spatial-Rydberg outputs represented as available results",
+    "undocumented notebooks without clear producer/consumer value",
+    "bulk historical outputs without adequate provenance",
+    "duplicate metric, logistic, or residualization implementations where shared code exists",
+    "scientific refactoring during the frozen reproduction commit"
+  ],
+  "known_uncertainties": [
+    "Several historical spatial-Rydberg shard and merged outputs are missing or have uncertain original locations.",
+    "No active GARCH implementation was recovered from phase3-refactor; GARCH may be added later as a new comparator but is not a recovered Stage 3 asset.",
+    "GitHub branch code search was unreliable for some historical terms; absence conclusions are conservative."
+  ],
+  "planned_commits": [
+    {"number": 2, "name": "Frozen Stage 3 reproduction", "rule": "Port without scientific changes and reproduce the committed 48-episode reference metrics."},
+    {"number": 3, "name": "General evaluation layer", "rule": "Generalize D1-specific utilities with compatibility wrappers and tests."},
+    {"number": 4, "name": "Reservoir abstraction", "rule": "Introduce common feature-generator contracts without forcing identical internal dynamics."},
+    {"number": 5, "name": "Stage 3 diagnostic harness", "rule": "Unify direct, protected-offset, residualized, Gaussian, shuffled, and regularization controls."},
+    {"number": 6, "name": "Local/spatial Rydberg upgrade", "rule": "Add channel-specific physical encoding after the frozen result is reproduced."},
+    {"number": 7, "name": "qBraid Aquila integration", "rule": "Port guarded qBraid-only hardware execution after simulator diagnostics justify transfer."}
+  ],
+  "commit_2_acceptance": [
+    "48 evaluation episodes",
+    "35 positive and 13 negative outcomes",
+    "identical target and outcome-maturity logic",
+    "identical frozen standardization and path construction",
+    "identical momentum metrics",
+    "identical ESN metrics",
+    "identical Rydberg metrics for both encodings",
+    "identical paired-loss summary",
+    "no immature-outcome leakage",
+    "reproducible seeds and machine-readable manifests"
+  ],
+  "maintenance_rules": [
+    "Do not infer historical provenance from current default output paths.",
+    "Do not delete, move, rename, or overwrite uncertain result artifacts.",
+    "Record every result migration before changing result paths.",
+    "Stop on ambiguous provenance, output collisions, unknown dynamic output directories, or unintended scientific changes.",
+    "Validate with relevant tests, compileall, git diff --check, and repository-maintenance audit when those tools are present."
+  ]
+}
