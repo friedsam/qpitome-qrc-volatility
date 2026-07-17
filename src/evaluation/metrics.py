@@ -81,12 +81,7 @@ def qlike(y_true: np.ndarray, y_pred: np.ndarray, eps: float = _EPS) -> float:
 
 
 def mincer_zarnowitz(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
-    """Fit realized = alpha + beta * forecast and return alpha, beta, R^2.
-
-    This is the descriptive Mincer-Zarnowitz regression needed for Phase 2.
-    Formal joint hypothesis testing alpha=0 and beta=1 can be added later with
-    statsmodels if needed.
-    """
+    """Fit realized = alpha + beta * forecast and return alpha, beta, R^2."""
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
 
