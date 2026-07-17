@@ -1,0 +1,53 @@
+{
+  "run_type": "persistent_volatility_transition_catalogue",
+  "parameters": {
+    "train_cutoff": "2016-01-01",
+    "persistence_k": 10,
+    "persistence_m": 15,
+    "separation_sessions": 60,
+    "cluster_days": 7,
+    "leads": [
+      1,
+      5,
+      10
+    ],
+    "horizon": 10,
+    "window": 40,
+    "negative_controls_per_positive": 3
+  },
+  "summary": {
+    "events": 53,
+    "global_episodes": 27,
+    "train_episodes": 14,
+    "test_episodes": 13,
+    "positive_samples": 159,
+    "negative_samples": 477,
+    "leads": [
+      1,
+      5,
+      10
+    ],
+    "horizon": 10,
+    "sequence_window": 40,
+    "max_abs_smd": 0.4833155282854288,
+    "controls_reused_across_leads": 48,
+    "rv_concordance_status": "disabled unless an exact date column is supplied",
+    "independence_unit": "global episode_id",
+    "pipeline_status": "completed_end_to_end"
+  },
+  "artifacts": [
+    "control_reuse_report.csv",
+    "global_episode_catalogue.csv",
+    "match_distance_distribution.png",
+    "matching_balance_smd.csv",
+    "preorigin_trajectories_lead1.png",
+    "preorigin_trajectories_lead10.png",
+    "preorigin_trajectories_lead5.png",
+    "sample_manifest.csv",
+    "sequence_tensors.npz",
+    "spx_onsets.png",
+    "summary_metrics.json",
+    "training_thresholds.csv",
+    "transition_catalogue.csv"
+  ]
+}

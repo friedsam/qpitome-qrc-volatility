@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-07-17T19:54:25.656055+00:00",
+  "parameters": {
+    "data_dir": "data/raw/transition_forecasting/spillover_volatility",
+    "out_dir": "results/transition_forecasting/build_transition_events",
+    "run_id": "stage_b_catalogue_001",
+    "seed": 42
+  },
+  "results_root": "results/transition_forecasting/build_transition_events",
+  "run_directory": "results/transition_forecasting/build_transition_events/stage_b_catalogue_001",
+  "run_id": "stage_b_catalogue_001",
+  "schema_version": 1
+}

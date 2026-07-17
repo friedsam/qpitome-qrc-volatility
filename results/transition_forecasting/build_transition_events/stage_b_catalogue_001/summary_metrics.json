@@ -1,0 +1,20 @@
+{
+  "events": 53,
+  "global_episodes": 27,
+  "train_episodes": 14,
+  "test_episodes": 13,
+  "positive_samples": 159,
+  "negative_samples": 477,
+  "leads": [
+    1,
+    5,
+    10
+  ],
+  "horizon": 10,
+  "sequence_window": 40,
+  "max_abs_smd": 0.4833155282854288,
+  "controls_reused_across_leads": 48,
+  "rv_concordance_status": "disabled unless an exact date column is supplied",
+  "independence_unit": "global episode_id",
+  "pipeline_status": "completed_end_to_end"
+}

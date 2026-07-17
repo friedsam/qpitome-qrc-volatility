@@ -1,0 +1,121 @@
+{
+  "ohlc": {
+    "SPX": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/SPX.csv",
+      "sha256": "fbc8a03d332894e8e4a3ffa21881f5e8bd2fe3f781952acd69985ab171c7d08a",
+      "rows": 3946,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    },
+    "GDAXI": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/GDAXI.csv",
+      "sha256": "0ba60bf6b17b15be97454daf93184376dd25aeafe14912b9c8ba29df0eccc2f3",
+      "rows": 3981,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    },
+    "FCHI": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/FCHI.csv",
+      "sha256": "07cde105ff877aee1aed3d12209496251b0d706f2dcf10a0ce8aa6a4e18c7dcb",
+      "rows": 4013,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    },
+    "FTSE": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/FTSE.csv",
+      "sha256": "8a8c3038934627454bfe231acbd8a8367c3e16649e82650f5a380d2a189b9add",
+      "rows": 3959,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    },
+    "OMXSPI": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/OMXSPI.csv",
+      "sha256": "108ae1061c64616b7cc37297fbde20136e6af4921b81ef4c5b7eb0d1697cc69d",
+      "rows": 3936,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    },
+    "N225": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/N225.csv",
+      "sha256": "ee211539ebc1cd5e14ab7268a07353107c147acd7b4d821cde3c4b2fe6da7ffa",
+      "rows": 3861,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    },
+    "KS11": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/KS11.csv",
+      "sha256": "70d0d5770f6cdcc84550e72d8fad4ba5b27a6d2b1698abe5c13ec7c76e22577b",
+      "rows": 3876,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    },
+    "HSI": {
+      "path": "data/raw/transition_forecasting/spillover_volatility/global index etf return/HSI.csv",
+      "sha256": "db81f0c848b3fa2a1803de4248e6a37ca35b391a8cb69c39253c5b517bf20f85",
+      "rows": 3887,
+      "start": "2006-10-24",
+      "end": "2022-06-28",
+      "missing": {
+        "High": 0,
+        "Low": 0
+      },
+      "invalid_ranges": 0
+    }
+  },
+  "rv_panel": {
+    "exists": true,
+    "path": "data/raw/transition_forecasting/spillover_volatility/rv_dataset.csv",
+    "sha256": "9f6065e3ac046a1a18512668fa71457dba5dc51bc1cb6e802a1441cd96a0098c",
+    "rows": 2615,
+    "columns": [
+      "Unnamed: 0",
+      ".SPX",
+      ".GDAXI",
+      ".FCHI",
+      ".FTSE",
+      ".OMXSPI",
+      ".N225",
+      ".KS11",
+      ".HSI"
+    ],
+    "has_exact_date_column": false,
+    "date_columns": [],
+    "usable_for_dated_concordance": false,
+    "note": "Undated rows must never be mapped to an inferred trading calendar."
+  }
+}

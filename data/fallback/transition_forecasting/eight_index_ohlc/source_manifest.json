@@ -1,0 +1,18 @@
+{
+  "source_repository": "bumhoson/SpilloverVolPrediction",
+  "source_commit": "f21cf71faf09249d028392fd92008891b876675f",
+  "archive_url": "https://github.com/bumhoson/SpilloverVolPrediction/archive/f21cf71faf09249d028392fd92008891b876675f.zip",
+  "archive_sha256": "09cf95e092e6e4695967dcc104e09ddddf2c39cb2178810ad5f51e7c1921b256",
+  "retrieved_files": [
+    "README.md",
+    "global index etf return/FCHI.csv",
+    "global index etf return/FTSE.csv",
+    "global index etf return/GDAXI.csv",
+    "global index etf return/HSI.csv",
+    "global index etf return/KS11.csv",
+    "global index etf return/N225.csv",
+    "global index etf return/OMXSPI.csv",
+    "global index etf return/SPX.csv",
+    "rv_dataset.csv"
+  ]
+}
