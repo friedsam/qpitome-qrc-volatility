@@ -77,6 +77,7 @@ def _load_generic_ohlc(path: Path) -> pd.DataFrame:
 
 
 def _cluster_dates(catalogue: pd.DataFrame) -> pd.DataFrame:
+    """Cluster unique onset dates in fixed windows anchored at each cluster start."""
     if catalogue.empty:
         result = catalogue.copy()
         result["episode_id"] = pd.Series(dtype=str)
@@ -85,7 +86,7 @@ def _cluster_dates(catalogue: pd.DataFrame) -> pd.DataFrame:
     clusters: list[list[pd.Timestamp]] = []
     for raw_date in dates:
         date = pd.Timestamp(raw_date)
-        if not clusters or (date - clusters[-1][-1]).days > CLUSTER_DAYS:
+        if not clusters or (date - clusters[-1][0]).days > CLUSTER_DAYS:
             clusters.append([date])
         else:
             clusters[-1].append(date)
