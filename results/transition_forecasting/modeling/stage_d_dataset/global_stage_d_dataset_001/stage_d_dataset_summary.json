@@ -1,0 +1,22 @@
+{
+  "positive_samples": 1143,
+  "negative_samples": 3429,
+  "total_samples": 4572,
+  "global_episodes": 198,
+  "train_episodes": 162,
+  "test_episodes": 37,
+  "samples_by_lead": {
+    "1": 1524,
+    "5": 1524,
+    "10": 1524
+  },
+  "sequence_shape": [
+    4572,
+    40,
+    1
+  ],
+  "max_abs_smd": 0.7269608440836295,
+  "controls_per_positive_target": 3,
+  "sequence_window": 40,
+  "target_horizon": 10
+}

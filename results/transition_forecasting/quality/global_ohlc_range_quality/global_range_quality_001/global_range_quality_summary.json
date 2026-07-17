@@ -1,0 +1,8 @@
+{
+  "indices_audited": 31,
+  "minimum_nonzero_fraction": 0.95,
+  "indices_with_delayed_effective_start": 14,
+  "indices_without_qualifying_year": 0,
+  "earliest_effective_start": "1962-01-01",
+  "latest_effective_start": "2007-01-01"
+}

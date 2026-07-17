@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-07-17T21:17:51.651761+00:00",
+  "parameters": {
+    "inventory": "results/transition_forecasting/audit_global_index_ohlc/global_index_audit_001/global_index_ohlc_inventory.csv",
+    "minimum_nonzero_fraction": 0.95,
+    "out_dir": "results/transition_forecasting/audit_global_ohlc_range_quality",
+    "run_id": "global_range_quality_001"
+  },
+  "results_root": "results/transition_forecasting/audit_global_ohlc_range_quality",
+  "run_directory": "results/transition_forecasting/audit_global_ohlc_range_quality/global_range_quality_001",
+  "run_id": "global_range_quality_001",
+  "schema_version": 1
+}

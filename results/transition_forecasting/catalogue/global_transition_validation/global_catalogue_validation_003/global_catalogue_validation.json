@@ -1,0 +1,15 @@
+{
+  "raw_index_events": 434,
+  "representative_market_events": 381,
+  "global_episodes": 198,
+  "singleton_market_episodes": 124,
+  "multi_market_episodes": 74,
+  "singleton_fraction": 0.6262626262626263,
+  "maximum_cluster_span_days": 7,
+  "chain_cluster_count": 0,
+  "median_markets_per_episode": 1.0,
+  "maximum_markets_per_episode": 16,
+  "episodes_with_at_least_3_markets": 34,
+  "episodes_with_at_least_5_markets": 17,
+  "market_count": 24
+}

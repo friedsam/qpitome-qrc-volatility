@@ -1,13 +1,14 @@
 {
-  "created_at_utc": "2026-07-17T20:48:47.925102+00:00",
+  "created_at_utc": "2026-07-17T21:20:38.971920+00:00",
   "parameters": {
     "data_dir": "data/raw/transition_forecasting/global_stock_indices_historical_data",
     "inventory": "results/transition_forecasting/audit_global_index_ohlc/global_index_audit_001/global_index_ohlc_inventory.csv",
     "out_dir": "results/transition_forecasting/build_global_transition_catalogue",
-    "run_id": "global_transition_catalogue_001"
+    "range_quality": "results/transition_forecasting/audit_global_ohlc_range_quality/global_range_quality_001/global_range_quality.csv",
+    "run_id": "global_transition_catalogue_003"
   },
   "results_root": "results/transition_forecasting/build_global_transition_catalogue",
-  "run_directory": "results/transition_forecasting/build_global_transition_catalogue/global_transition_catalogue_001",
-  "run_id": "global_transition_catalogue_001",
+  "run_directory": "results/transition_forecasting/build_global_transition_catalogue/global_transition_catalogue_003",
+  "run_id": "global_transition_catalogue_003",
   "schema_version": 1
 }

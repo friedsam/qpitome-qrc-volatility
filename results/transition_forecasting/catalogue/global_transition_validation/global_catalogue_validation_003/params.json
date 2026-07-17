@@ -1,0 +1,13 @@
+{
+  "created_at_utc": "2026-07-17T21:20:40.040632+00:00",
+  "parameters": {
+    "catalogue_dir": "results/transition_forecasting/build_global_transition_catalogue/global_transition_catalogue_003",
+    "inventory": "results/transition_forecasting/audit_global_index_ohlc/global_index_audit_001/global_index_ohlc_inventory.csv",
+    "out_dir": "results/transition_forecasting/validate_global_transition_catalogue",
+    "run_id": "global_catalogue_validation_003"
+  },
+  "results_root": "results/transition_forecasting/validate_global_transition_catalogue",
+  "run_directory": "results/transition_forecasting/validate_global_transition_catalogue/global_catalogue_validation_003",
+  "run_id": "global_catalogue_validation_003",
+  "schema_version": 1
+}
