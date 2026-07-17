@@ -14,7 +14,7 @@ def main() -> None:
         "--inventory",
         type=Path,
         default=Path(
-            "results/transition_forecasting/audit_global_index_ohlc/"
+            "results/transition_forecasting/quality/global_index_ohlc_audit/"
             "global_index_audit_001/global_index_ohlc_inventory.csv"
         ),
     )
@@ -22,14 +22,14 @@ def main() -> None:
         "--catalogue-dir",
         type=Path,
         default=Path(
-            "results/transition_forecasting/build_global_transition_catalogue/"
+            "results/transition_forecasting/catalogue/global_transition_catalogue/"
             "global_transition_catalogue_001"
         ),
     )
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("results/transition_forecasting/validate_global_transition_catalogue"),
+        default=Path("results/transition_forecasting/catalogue/global_transition_validation"),
     )
     parser.add_argument("--run-id", type=str)
     args = parser.parse_args()
