@@ -37,8 +37,8 @@ feasibility_targets:
 
 catalogue:
   runner: scripts/data/build_global_transition_catalogue.py
-  inventory: results/transition_forecasting/audit_global_index_ohlc/global_index_audit_001/global_index_ohlc_inventory.csv
-  output_root: results/transition_forecasting/build_global_transition_catalogue
+  inventory: results/transition_forecasting/quality/global_index_ohlc_audit/global_index_audit_001/global_index_ohlc_inventory.csv
+  output_root: results/transition_forecasting/catalogue/global_transition_catalogue
   exclude_indices:
     all_indices_data: consolidated_duplicate_panel
     ^VIX_data: volatility_index_not_equity_index
