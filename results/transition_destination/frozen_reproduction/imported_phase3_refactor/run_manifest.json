@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "run_id": "imported_phase3_refactor",
+  "workflow": "transition_destination_frozen_reproduction",
+  "status": "imported",
+  "created_at_utc": "2026-07-16T00:00:00Z",
+  "repository": {
+    "source_branch": "phase3-refactor",
+    "source_commit": "a69e256634ef1a9819bc93614fefd15c711b3c9e",
+    "import_branch": "stage3-dev"
+  },
+  "protocol": {
+    "target": "positive versus negative 8-week cumulative weekly return",
+    "neutral_zone_percentage_points": 1.0,
+    "split_date": "1999-12-17",
+    "path_weeks": 13,
+    "protected_baseline": "momentum_13w",
+    "evaluation": "prequential and outcome-maturity aware"
+  },
+  "reference_counts": {
+    "holdout_episodes": 48,
+    "positive": 35,
+    "negative": 13
+  },
+  "artifact_origin": "byte-identical copies of committed phase3-refactor artifacts",
+  "regenerated_on_import": false,
+  "compatibility_note": "Legacy loose result paths remain temporarily because the frozen scripts still reference them. Remove only after producer defaults are migrated and reproduction tests pass."
+}
