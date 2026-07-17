@@ -72,8 +72,7 @@ def _load_generic_ohlc(path: Path) -> pd.DataFrame:
         }
     ).dropna()
     result = result[(result.High > 0) & (result.Low > 0) & (result.High >= result.Low)]
-    result = result.drop_duplicates("Date", keep="last").set_index("Date").sort_index()
-    return result
+    return result.drop_duplicates("Date", keep="last").set_index("Date").sort_index()
 
 
 def _cluster_dates(catalogue: pd.DataFrame) -> pd.DataFrame:
@@ -108,14 +107,30 @@ def _representative_rank(index_name: str, market_group: str) -> int:
         return len(priority)
 
 
+def _effective_start_map(range_quality_path: Path) -> dict[str, pd.Timestamp]:
+    quality = pd.read_csv(range_quality_path)
+    required = {"index", "recommended_effective_start"}
+    if not required.issubset(quality.columns):
+        raise ValueError(f"{range_quality_path}: missing columns {sorted(required - set(quality.columns))}")
+    starts = pd.to_datetime(quality["recommended_effective_start"], errors="coerce")
+    if starts.isna().any():
+        bad = quality.loc[starts.isna(), "index"].astype(str).tolist()
+        raise ValueError(f"{range_quality_path}: missing effective starts for {bad}")
+    return dict(zip(quality["index"].astype(str), starts))
+
+
 def build_global_transition_catalogue(
     data_root: Path,
     inventory_path: Path,
+    range_quality_path: Path,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, object]]:
+    del data_root
     inventory = pd.read_csv(inventory_path)
     eligible = inventory[inventory["eligible"].astype(bool)].copy()
+    effective_starts = _effective_start_map(range_quality_path)
     raw_events: list[dict[str, object]] = []
     skipped: list[dict[str, str]] = []
+    applied_starts: dict[str, str] = {}
 
     for _, row in eligible.iterrows():
         index_name = str(row["index"])
@@ -125,12 +140,19 @@ def build_global_transition_catalogue(
         if index_name in EXCLUDED_INDICES:
             skipped.append({"index": index_name, "reason": EXCLUDED_INDICES[index_name]})
             continue
+        if index_name not in effective_starts:
+            skipped.append({"index": index_name, "reason": "missing_range_quality_effective_start"})
+            continue
+
+        effective_start = effective_starts[index_name]
         market_group = MARKET_GROUPS.get(index_name, index_name)
         frame = _load_generic_ohlc(path)
+        frame = frame[frame.index >= effective_start]
         series = log_parkinson(frame)
+        applied_starts[index_name] = str(effective_start.date())
         training = series[series.index < TRAIN_CUTOFF]
         if len(training) < MIN_TRAIN_DAYS:
-            skipped.append({"index": index_name, "reason": "insufficient_pre_2016_training_history"})
+            skipped.append({"index": index_name, "reason": "insufficient_pre_2016_training_history_after_range_filter"})
             continue
         threshold = float(training.quantile(0.80))
         for onset in detect_onsets(series, threshold):
@@ -142,6 +164,7 @@ def build_global_transition_catalogue(
                     "index": index_name,
                     "market_group": market_group,
                     "onset_date": onset_date,
+                    "effective_start": effective_start,
                     "threshold": threshold,
                     "train_days": int(len(training)),
                     "history_start": str(series.index.min().date()),
@@ -181,6 +204,8 @@ def build_global_transition_catalogue(
 
     summary = {
         "eligible_inventory_files": int(len(eligible)),
+        "range_quality_file": str(range_quality_path),
+        "effective_starts_applied": applied_starts,
         "excluded_or_skipped_indices": skipped,
         "raw_index_events": int(len(raw)),
         "global_temporal_clusters": int(clustered["episode_id"].nunique()) if not clustered.empty else 0,
@@ -204,12 +229,19 @@ def build_global_transition_catalogue(
 def write_global_transition_outputs(
     data_root: Path,
     inventory_path: Path,
+    range_quality_path: Path,
     run_dir: Path,
 ) -> dict[str, object]:
-    raw, clustered, representative, report = build_global_transition_catalogue(data_root, inventory_path)
+    raw, clustered, representative, report = build_global_transition_catalogue(
+        data_root,
+        inventory_path,
+        range_quality_path,
+    )
     raw.to_csv(run_dir / "raw_transition_catalogue.csv", index=False)
     clustered.to_csv(run_dir / "clustered_transition_catalogue.csv", index=False)
     representative.to_csv(run_dir / "representative_transition_catalogue.csv", index=False)
     pd.DataFrame(report["episodes"]).to_csv(run_dir / "global_episode_catalogue.csv", index=False)
-    (run_dir / "transition_count_summary.json").write_text(json.dumps(report["summary"], indent=2, default=str) + "\n")
+    (run_dir / "transition_count_summary.json").write_text(
+        json.dumps(report["summary"], indent=2, default=str) + "\n"
+    )
     return report["summary"]
