@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data/raw/raw_dataset_inventory.json"),
+        default=Path("data/raw/raw_dataset_inventory/manifest.json"),
     )
     parser.add_argument("--sample-size", type=int, default=3)
     return parser.parse_args()
