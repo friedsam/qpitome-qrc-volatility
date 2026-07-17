@@ -26,6 +26,14 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--range-quality",
+        type=Path,
+        default=Path(
+            "results/transition_forecasting/audit_global_ohlc_range_quality/"
+            "global_range_quality_001/global_range_quality.csv"
+        ),
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=Path("results/transition_forecasting/build_global_transition_catalogue"),
@@ -34,7 +42,12 @@ def main() -> None:
     args = parser.parse_args()
 
     run_dir = begin_run(args.out_dir, args, run_id=args.run_id)
-    summary = write_global_transition_outputs(args.data_dir, args.inventory, run_dir)
+    summary = write_global_transition_outputs(
+        args.data_dir,
+        args.inventory,
+        args.range_quality,
+        run_dir,
+    )
     print(json.dumps(summary, indent=2, default=str))
 
 
