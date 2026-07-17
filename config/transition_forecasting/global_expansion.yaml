@@ -34,3 +34,25 @@ feasibility_targets:
   minimum_raw_events: 250
   minimum_global_clusters: 100
   preferred_global_clusters: 150
+
+catalogue:
+  runner: scripts/data/build_global_transition_catalogue.py
+  inventory: results/transition_forecasting/audit_global_index_ohlc/global_index_audit_001/global_index_ohlc_inventory.csv
+  output_root: results/transition_forecasting/build_global_transition_catalogue
+  exclude_indices:
+    all_indices_data: consolidated_duplicate_panel
+    ^VIX_data: volatility_index_not_equity_index
+  overlapping_market_groups:
+    united_states: [^GSPC_data, ^NYA_data, ^DJI_data, ^IXIC_data, ^RUT_data, ^XAX_data]
+    australia: [^AORD_data, ^AXJO_data]
+    china_mainland: [000001.SS_data, 399001.SZ_data]
+  representative_priority:
+    united_states: [^GSPC_data, ^NYA_data, ^DJI_data, ^IXIC_data, ^RUT_data, ^XAX_data]
+    australia: [^AORD_data, ^AXJO_data]
+    china_mainland: [000001.SS_data, 399001.SZ_data]
+  outputs:
+    - raw_transition_catalogue.csv
+    - clustered_transition_catalogue.csv
+    - representative_transition_catalogue.csv
+    - global_episode_catalogue.csv
+    - transition_count_summary.json
