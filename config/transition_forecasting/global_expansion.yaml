@@ -1,5 +1,12 @@
 source:
   name: global_stock_indices_historical_data
+  dataset_slug: guillemservera/global-stock-indices-historical-data
+  downloader: scripts/data/fetch_global_index_ohlc.py
+  downloader_dependency: kaggle>=2.0,<3
+  authentication:
+    preferred: KAGGLE_API_TOKEN
+    alternatives: [kaggle_auth_login, access_token_file, legacy_kaggle_json]
+    never_commit_credentials: true
   expected_format: one_csv_per_index
   required_columns: [date, high, low]
   optional_columns: [open, close, volume]
