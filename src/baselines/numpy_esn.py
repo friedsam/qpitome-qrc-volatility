@@ -1,8 +1,8 @@
 """Deterministic NumPy echo-state reservoir used by the Phase 2/3 benchmarks.
 
-This module owns only the reservoir mechanics and log-target ridge readout.
-Evaluation geometry, preprocessing, model selection, and reporting belong to
-the experiment runners.
+This module owns only the reservoir mechanics and ridge readouts. Evaluation
+geometry, preprocessing, model selection, and reporting belong to experiment
+runners.
 """
 
 from __future__ import annotations
@@ -73,24 +73,42 @@ def esn_states(
     return np.asarray(rows)
 
 
+def fit_continuous_ridge_scores(
+    train_features: np.ndarray,
+    train_targets: np.ndarray,
+    score_features: dict[str, np.ndarray],
+    alpha: float,
+) -> dict[str, np.ndarray]:
+    """Fit a train-only standardized multi-output ridge readout.
+
+    Targets are used exactly as supplied. In particular, callers with targets
+    that are already log volatility must not apply another logarithm.
+    """
+    scaler = StandardScaler()
+    model = Ridge(alpha=alpha)
+    model.fit(scaler.fit_transform(train_features), np.asarray(train_targets, dtype=float))
+    return {
+        name: model.predict(scaler.transform(values))
+        for name, values in score_features.items()
+    }
+
+
 def fit_log_ridge_scores(
     features: dict[str, np.ndarray],
     targets: dict[str, np.ndarray],
     alpha: float,
 ) -> dict[str, np.ndarray]:
-    """Fit the historical standardized ridge readout on log volatility."""
-    scaler = StandardScaler()
-    model = Ridge(alpha=alpha)
+    """Fit the historical standardized ridge readout on positive volatility.
 
-    model.fit(
-        scaler.fit_transform(features["train"]),
+    This compatibility function preserves the original Phase 2/3 behavior.
+    New already-log targets should use ``fit_continuous_ridge_scores``.
+    """
+    return fit_continuous_ridge_scores(
+        features["train"],
         np.log(np.maximum(targets["train"], 1e-8)),
+        {split: features[split] for split in SPLIT_NAMES},
+        alpha,
     )
-
-    return {
-        split: model.predict(scaler.transform(features[split]))
-        for split in SPLIT_NAMES
-    }
 
 
 def historical_numpy_esn_grid(seeds: list[int]) -> list[dict]:
@@ -115,5 +133,4 @@ def historical_numpy_esn_grid(seeds: list[int]) -> list[dict]:
                 f"leak{row['leak']}_alpha{row['alpha']}_seed{seed}"
             )
             grid.append(row)
-
     return grid
