@@ -33,6 +33,17 @@ CONFIGS = (
     {"id": "weaker_input", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.10, "leak": 0.50},
     {"id": "faster_leak", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.30, "leak": 0.80},
 )
+REFINEMENT_CONFIGS = (
+    {"id": "weak_reference", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.10, "leak": 0.50},
+    {"id": "weak_input_005", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.05, "leak": 0.50},
+    {"id": "weak_input_015", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.15, "leak": 0.50},
+    {"id": "weak_fast", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.10, "leak": 0.80},
+    {"id": "weak_lower_radius", "n": 300, "conn": 0.02, "sr": 0.75, "inp": 0.10, "leak": 0.50},
+    {"id": "weak_short_memory", "n": 300, "conn": 0.02, "sr": 0.55, "inp": 0.10, "leak": 0.80},
+    {"id": "weak_small", "n": 150, "conn": 0.02, "sr": 0.90, "inp": 0.10, "leak": 0.50},
+    {"id": "weak_very_sparse", "n": 300, "conn": 0.005, "sr": 0.90, "inp": 0.10, "leak": 0.50},
+    {"id": "weak_less_sparse", "n": 300, "conn": 0.05, "sr": 0.90, "inp": 0.10, "leak": 0.50},
+)
 
 
 def _har_prediction(manifest: pd.DataFrame, y: np.ndarray, train_mask: np.ndarray) -> np.ndarray:
@@ -124,13 +135,18 @@ def run_screen(
     run_dir: Path,
     seeds: tuple[int, ...],
     max_configs: int,
+    profile: str = "initial",
 ) -> dict[str, object]:
+    if profile not in {"initial", "refinement"}:
+        raise ValueError(f"unknown profile: {profile}")
+    available_configs = CONFIGS if profile == "initial" else REFINEMENT_CONFIGS
+
     stage_d = load_stage_d_run(stage_d_run)
     manifest = stage_d.manifest.reset_index(drop=True)
     original = np.asarray(stage_d.sequences, dtype=float)
     rolling = pd.read_csv(rolling_manifest)
     sample_ids = manifest["sample_id"].astype(str).to_numpy()
-    configs = CONFIGS[: max(1, min(max_configs, len(CONFIGS)))]
+    configs = available_configs[: max(1, min(max_configs, len(available_configs)))]
     frames: list[pd.DataFrame] = []
 
     for fold in sorted(rolling["fold"].unique()):
@@ -167,7 +183,7 @@ def run_screen(
                     f"rmse={best['val_rmse']:.6f}", flush=True,
                 )
 
-                if config["id"] == "current":
+                if config["id"] in {"current", "weak_reference"}:
                     shuffled = _features(shuffle_cross_market_channels(hybrid, seed + 30000), config, seed)
                     frames.append(pd.DataFrame(_evaluate_features(
                         fold=int(fold), config=config, seed=seed, features=shuffled, y=y, har=har,
@@ -186,12 +202,13 @@ def run_screen(
     leaderboard.to_csv(run_dir / "market_parameter_leaderboard.csv", index=False)
     payload = {
         "test_evaluated": False,
+        "profile": profile,
         "input": "original Stage D level/difference/time plus six compact cross-market channels",
         "pooling": "final_mean_std",
         "washout": 10,
         "configs_run": len(configs),
         "seeds": list(seeds),
-        "shuffled_control": "current configuration only",
+        "shuffled_control": "reference configuration only",
         "best": leaderboard.iloc[0].to_dict(),
     }
     (run_dir / "summary.json").write_text(json.dumps(payload, indent=2) + "\n")
