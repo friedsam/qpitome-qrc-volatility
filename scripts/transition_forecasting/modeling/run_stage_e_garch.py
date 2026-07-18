@@ -14,21 +14,29 @@ from baselines.garch import (
     variance_path_to_log_volatility_path,
 )
 from experiments.runs import begin_run
-from transition_forecasting.modeling.stage_e_classical_baselines import (
-    TARGET_COLUMNS,
-    _metric_rows,
-)
+from transition_forecasting.modeling.stage_e_classical_baselines import TARGET_COLUMNS, _metric_rows
+
+
+def _is_usable_stage_d_run(path: Path) -> bool:
+    manifest_path = path / "sample_manifest.csv"
+    if not path.is_dir() or not manifest_path.exists():
+        return False
+    try:
+        manifest = pd.read_csv(manifest_path, usecols=lambda c: c in {"split", *TARGET_COLUMNS})
+    except Exception:
+        return False
+    return (
+        "split" in manifest.columns
+        and manifest["split"].astype(str).eq("val").any()
+        and set(TARGET_COLUMNS).issubset(manifest.columns)
+    )
 
 
 def _latest_complete_run(root: Path) -> Path:
-    candidates = sorted(
-        path
-        for path in root.iterdir()
-        if path.is_dir() and (path / "sample_manifest.csv").exists()
-    )
+    candidates = [path for path in root.iterdir() if _is_usable_stage_d_run(path)]
     if not candidates:
-        raise FileNotFoundError(f"no complete Stage D run found under {root}")
-    return candidates[-1]
+        raise FileNotFoundError(f"no Stage D run with validation samples found under {root}")
+    return max(candidates, key=lambda path: (path.stat().st_mtime, path.name))
 
 
 def _load_close_series(path: Path) -> pd.Series:
@@ -66,20 +74,25 @@ def run_stage_e_garch(
     config: GARCHConfig | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object]]:
     cfg = config or GARCHConfig()
-    required_manifest = {"sample_id", "episode_id", "index", "origin_date", "label", "lead", "split", *TARGET_COLUMNS}
+    required_manifest = {
+        "sample_id", "episode_id", "index", "origin_date", "label", "lead", "split", *TARGET_COLUMNS
+    }
     missing_manifest = required_manifest.difference(manifest.columns)
     if missing_manifest:
         raise ValueError(f"manifest missing columns: {sorted(missing_manifest)}")
-    required_inventory = {"index", "path"}
-    missing_inventory = required_inventory.difference(inventory.columns)
+    missing_inventory = {"index", "path"}.difference(inventory.columns)
     if missing_inventory:
         raise ValueError(f"inventory missing columns: {sorted(missing_inventory)}")
 
-    validation = manifest[manifest["split"].eq("val")].copy().reset_index(drop=True)
+    validation = manifest[manifest["split"].astype(str).eq("val")].copy().reset_index(drop=True)
+    if validation.empty:
+        raise ValueError("selected Stage D run contains no validation samples")
     validation["origin_date"] = pd.to_datetime(validation["origin_date"])
-    path_by_index = {
-        str(row["index"]): Path(str(row["path"])) for _, row in inventory.iterrows()
-    }
+
+    path_by_index = {str(row["index"]): Path(str(row["path"])) for _, row in inventory.iterrows()}
+    missing_markets = sorted(set(validation["index"].astype(str)) - set(path_by_index))
+    if missing_markets:
+        raise ValueError(f"inventory missing validation markets: {missing_markets}")
     closes = {
         index_name: _load_close_series(path_by_index[index_name])
         for index_name in sorted(validation["index"].astype(str).unique())
@@ -92,60 +105,58 @@ def run_stage_e_garch(
         returns = _return_history(closes[index_name], pd.Timestamp(row["origin_date"]), history)
         if len(returns) < minimum_history:
             prediction = np.full(len(TARGET_COLUMNS), np.nan)
-            diagnostics.append(
-                {
-                    "sample_id": row["sample_id"],
-                    "index": index_name,
-                    "history_rows": int(len(returns)),
-                    "converged": False,
-                    "convergence_flag": None,
-                    "fit_note": f"insufficient_history:{len(returns)}<{minimum_history}",
-                }
-            )
+            converged = False
+            convergence_flag = None
+            note = f"insufficient_history:{len(returns)}<{minimum_history}"
         else:
-            forecast = fit_garch_variance_path(
-                returns,
-                horizon=len(TARGET_COLUMNS),
-                config=cfg,
-            )
+            forecast = fit_garch_variance_path(returns, horizon=len(TARGET_COLUMNS), config=cfg)
+            converged = bool(forecast.converged)
+            convergence_flag = forecast.convergence_flag
+            note = forecast.note
             prediction = (
                 variance_path_to_log_volatility_path(
-                    forecast.variance_path,
-                    return_scale=cfg.return_scale,
+                    forecast.variance_path, return_scale=cfg.return_scale
                 )
-                if forecast.converged
+                if converged
                 else np.full(len(TARGET_COLUMNS), np.nan)
             )
-            diagnostics.append(
-                {
-                    "sample_id": row["sample_id"],
-                    "index": index_name,
-                    "history_rows": int(len(returns)),
-                    "converged": bool(forecast.converged),
-                    "convergence_flag": forecast.convergence_flag,
-                    "fit_note": forecast.note,
-                }
-            )
         predictions.append(prediction)
+        diagnostics.append(
+            {
+                "sample_id": row["sample_id"],
+                "index": index_name,
+                "history_rows": int(len(returns)),
+                "converged": converged,
+                "convergence_flag": convergence_flag,
+                "fit_note": note,
+            }
+        )
 
     y_true = validation[list(TARGET_COLUMNS)].to_numpy(dtype=float)
-    y_pred = np.asarray(predictions, dtype=float)
+    y_pred = np.vstack(predictions)
     finite_rows = np.all(np.isfinite(y_pred), axis=1)
 
-    output = validation[["sample_id", "episode_id", "index", "origin_date", "label", "lead", "split"]].copy()
+    output = validation[
+        ["sample_id", "episode_id", "index", "origin_date", "label", "lead", "split"]
+    ].copy()
     output.insert(0, "model", "garch_1_1_t")
     for h in range(len(TARGET_COLUMNS)):
         output[f"actual_h{h + 1}"] = y_true[:, h]
         output[f"predicted_h{h + 1}"] = y_pred[:, h]
-    diagnostics_frame = pd.DataFrame(diagnostics)
-    output = output.merge(diagnostics_frame, on=["sample_id", "index"], how="left", validate="one_to_one")
+    output = output.merge(
+        pd.DataFrame(diagnostics), on=["sample_id", "index"], how="left", validate="one_to_one"
+    )
 
-    metric_rows = _metric_rows(
-        "garch_1_1_t",
-        validation.loc[finite_rows].reset_index(drop=True),
-        y_true[finite_rows],
-        y_pred[finite_rows],
-    ) if finite_rows.any() else []
+    metric_rows = (
+        _metric_rows(
+            "garch_1_1_t",
+            validation.loc[finite_rows].reset_index(drop=True),
+            y_true[finite_rows],
+            y_pred[finite_rows],
+        )
+        if finite_rows.any()
+        else []
+    )
     metrics = pd.DataFrame(metric_rows)
     summary = {
         "selection_split": "val",
@@ -158,7 +169,7 @@ def run_stage_e_garch(
         "n_validation_samples": int(len(validation)),
         "n_converged": int(finite_rows.sum()),
         "n_failed": int((~finite_rows).sum()),
-        "convergence_rate": float(finite_rows.mean()) if len(finite_rows) else None,
+        "convergence_rate": float(finite_rows.mean()),
         "markets": int(validation["index"].nunique()),
     }
     return output, metrics, summary
@@ -200,22 +211,21 @@ def main() -> None:
     manifest = pd.read_csv(stage_d_run / "sample_manifest.csv")
     inventory = pd.read_csv(args.inventory)
     predictions, metrics, summary = run_stage_e_garch(
-        manifest,
-        inventory,
-        history=args.history,
-        minimum_history=args.minimum_history,
+        manifest, inventory, history=args.history, minimum_history=args.minimum_history
     )
     predictions.to_csv(run_dir / "validation_predictions.csv", index=False)
     metrics.to_csv(run_dir / "validation_metrics.csv", index=False)
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
 
-    pooled = metrics[(metrics["group_type"] == "pooled") & (metrics["horizon"] == "path")]
-    positive = metrics[(metrics["group_type"] == "label") & (metrics["group_value"] == "positive") & (metrics["horizon"] == "path")]
-    control = metrics[(metrics["group_type"] == "label") & (metrics["group_value"] == "control") & (metrics["horizon"] == "path")]
-    print(json.dumps(summary, indent=2))
-    if not pooled.empty:
+    print(json.dumps({"stage_d_run": str(stage_d_run), **summary}, indent=2))
+    if not metrics.empty:
+        path_rows = metrics[metrics["horizon"].eq("path")]
+        selected = path_rows[
+            (path_rows["group_type"].eq("pooled"))
+            | (path_rows["group_type"].eq("label"))
+        ]
         print("\nPath metrics:")
-        print(pd.concat([pooled, positive, control]).to_string(index=False))
+        print(selected.to_string(index=False))
 
 
 if __name__ == "__main__":
