@@ -1,0 +1,43 @@
+{
+  "positive_samples": 1143,
+  "negative_samples": 3429,
+  "total_samples": 4572,
+  "global_episodes": 198,
+  "train_episodes": 147,
+  "val_episodes": 15,
+  "test_episodes": 36,
+  "episode_split_overlap": 0,
+  "validation_cutoff": "2013-01-01",
+  "test_cutoff": "2016-01-01",
+  "samples_by_split": {
+    "test": 816,
+    "train": 3444,
+    "val": 312
+  },
+  "samples_by_lead": {
+    "1": 1524,
+    "5": 1524,
+    "10": 1524
+  },
+  "sequence_shape": [
+    4572,
+    40,
+    1
+  ],
+  "max_abs_smd": 0.7211067213587412,
+  "max_abs_pooled_smd_overall": 0.038839739850918355,
+  "stratified_balance": {
+    "n_strata_features": 651,
+    "n_stable_strata_features": 609,
+    "min_stable_stratum_positives": 5,
+    "max_abs_smd_all_strata": 0.7211067213587412,
+    "max_abs_smd_stable_strata": 0.7211067213587412,
+    "proportion_abs_smd_gt_0_10_all": 0.29493087557603687,
+    "proportion_abs_smd_gt_0_20_all": 0.05683563748079877,
+    "proportion_abs_smd_gt_0_10_stable": 0.2791461412151067,
+    "proportion_abs_smd_gt_0_20_stable": 0.04926108374384237
+  },
+  "controls_per_positive_target": 3,
+  "sequence_window": 40,
+  "target_horizon": 10
+}
