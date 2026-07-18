@@ -26,7 +26,7 @@ def build_ohlc_signals(panel: pd.DataFrame) -> dict[str, pd.DataFrame]:
     for ticker, group in panel.groupby("ticker", sort=True):
         frame = group[["date", "open", "high", "low", "close"]].copy()
         frame["date"] = pd.to_datetime(frame["date"], errors="raise", utc=True).dt.normalize()
-        frame = frame.sort_values("date").drop_duplicates("date")
+        frame = frame.sort_values("date").drop_duplicates("date").set_index("date")
         for column in ("open", "high", "low", "close"):
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
 
@@ -36,32 +36,31 @@ def build_ohlc_signals(panel: pd.DataFrame) -> dict[str, pd.DataFrame]:
         hl = np.log(h / l)
         co = np.log(c / o)
         oc = np.log(o / prev_c)
-
-        base = pd.DataFrame({"date": frame["date"]})
-        base["abs_close_return"] = cc.abs()
-        base["high_low"] = hl.abs()
-        base["parkinson"] = np.sqrt((hl.pow(2) / (4.0 * np.log(2.0))).clip(lower=0.0))
         gk_var = 0.5 * hl.pow(2) - (2.0 * np.log(2.0) - 1.0) * co.pow(2)
-        base["garman_klass"] = np.sqrt(gk_var.clip(lower=0.0))
         rs_var = np.log(h / c) * np.log(h / o) + np.log(l / c) * np.log(l / o)
-        base["rogers_satchell"] = np.sqrt(rs_var.clip(lower=0.0))
         tr = pd.concat([(h - l).abs(), (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(axis=1)
-        base["true_range_pct"] = tr / prev_c
-        base["overnight_abs"] = oc.abs()
 
-        signal = pd.DataFrame({"date": frame["date"]})
-        for column in base.columns.drop("date"):
-            values = base[column]
-            signal[column] = values
-            signal[f"log_{column}"] = np.log(values.clip(lower=1e-12))
+        base = {
+            "abs_close_return": cc.abs(),
+            "high_low": hl.abs(),
+            "parkinson": np.sqrt((hl.pow(2) / (4.0 * np.log(2.0))).clip(lower=0.0)),
+            "garman_klass": np.sqrt(gk_var.clip(lower=0.0)),
+            "rogers_satchell": np.sqrt(rs_var.clip(lower=0.0)),
+            "true_range_pct": tr / prev_c,
+            "overnight_abs": oc.abs(),
+        }
+        features: dict[str, pd.Series] = {}
+        for column, values in base.items():
+            features[column] = values
+            features[f"log_{column}"] = np.log(values.clip(lower=1e-12))
             for window in (3, 5, 10, 20):
                 mean = values.rolling(window, min_periods=window).mean()
                 rms = np.sqrt(values.pow(2).rolling(window, min_periods=window).mean())
-                signal[f"{column}_mean{window}"] = mean
-                signal[f"log_{column}_mean{window}"] = np.log(mean.clip(lower=1e-12))
-                signal[f"{column}_rms{window}"] = rms
-                signal[f"log_{column}_rms{window}"] = np.log(rms.clip(lower=1e-12))
-        output[str(ticker)] = signal.set_index("date")
+                features[f"{column}_mean{window}"] = mean
+                features[f"log_{column}_mean{window}"] = np.log(mean.clip(lower=1e-12))
+                features[f"{column}_rms{window}"] = rms
+                features[f"log_{column}_rms{window}"] = np.log(rms.clip(lower=1e-12))
+        output[str(ticker)] = pd.DataFrame(features, index=frame.index)
     return output
 
 
