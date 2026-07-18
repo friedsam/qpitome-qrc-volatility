@@ -1,0 +1,28 @@
+from __future__ import annotations
+
+MARKET_GROUP_TO_TICKER = {
+    "argentina": "^MERV",
+    "australia": "^AXJO",
+    "belgium": "^BFX",
+    "brazil": "^BVSP",
+    "canada": "^GSPTSE",
+    "chile": "^IPSA",
+    "china_mainland": "000001.SS",
+    "europe_regional": "^N100",
+    "eurozone_regional": "^STOXX50E",
+    "france": "^FCHI",
+    "germany": "^GDAXI",
+    "hong_kong": "^HSI",
+    "india": "^BSESN",
+    "indonesia": "^JKSE",
+    "israel": "^TA125.TA",
+    "japan": "^N225",
+    "malaysia": "^KLSE",
+    "mexico": "^MXX",
+    "new_zealand": "^NZ50",
+    "singapore": "^STI",
+    "south_korea": "^KS11",
+    "taiwan": "^TWII",
+    "united_kingdom": "^FTSE",
+    "united_states": "^GSPC",
+}
