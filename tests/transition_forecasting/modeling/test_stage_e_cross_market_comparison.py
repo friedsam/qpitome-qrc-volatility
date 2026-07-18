@@ -12,6 +12,15 @@ def test_metric_pair_zero_for_perfect_prediction() -> None:
     assert rmse == 0.0
 
 
+def test_mz_calibration_recovers_known_linear_relation() -> None:
+    forecast = np.arange(12, dtype=float).reshape(3, 4)
+    observed = 2.5 + 1.4 * forecast
+    alpha, beta, r_squared = MODULE.mz_calibration(observed, forecast)
+    assert np.isclose(alpha, 2.5)
+    assert np.isclose(beta, 1.4)
+    assert np.isclose(r_squared, 1.0)
+
+
 def test_hybrid_uses_original_stage_d_channels_not_reconstructed_own_channels() -> None:
     original = np.arange(2 * 5 * 3, dtype=float).reshape(2, 5, 3)
     compact = np.arange(2 * 5 * 9, dtype=float).reshape(2, 5, 9) + 1000.0
@@ -60,5 +69,5 @@ def test_ridge_scoring_ignores_nan_rows_outside_train_and_validation() -> None:
     )
     assert len(rows) == 1
     assert rows[0]["val_samples"] == 1
-    assert np.isfinite(rows[0]["val_qlike"])
-    assert np.isfinite(rows[0]["val_rmse"])
+    for field in ("val_qlike", "val_rmse", "mz_alpha", "mz_beta", "mz_r2"):
+        assert np.isfinite(rows[0][field])
