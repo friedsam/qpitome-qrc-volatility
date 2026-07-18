@@ -26,7 +26,7 @@ def build_range_formulas(panel: pd.DataFrame) -> dict[str, pd.DataFrame]:
     for ticker, group in panel.groupby("ticker", sort=True):
         frame = group[["date", "high", "low", "close"]].copy()
         frame["date"] = pd.to_datetime(frame["date"], errors="raise", utc=True).dt.normalize()
-        frame = frame.sort_values("date").drop_duplicates("date")
+        frame = frame.sort_values("date").drop_duplicates("date").set_index("date")
         for column in ("high", "low", "close"):
             frame[column] = pd.to_numeric(frame[column], errors="coerce").clip(lower=1e-12)
 
@@ -53,8 +53,7 @@ def build_range_formulas(panel: pd.DataFrame) -> dict[str, pd.DataFrame]:
             "parkinson_sigma": np.sqrt(log_range.pow(2) / (4.0 * np.log(2.0))),
             "annualized_parkinson_sigma": np.sqrt(252.0) * np.sqrt(log_range.pow(2) / (4.0 * np.log(2.0))),
         }
-        signal = pd.DataFrame(formulas, index=frame["date"])
-        output[str(ticker)] = signal
+        output[str(ticker)] = pd.DataFrame(formulas, index=frame.index)
     return output
 
 
@@ -86,6 +85,8 @@ def affine_metrics(y: np.ndarray, x: np.ndarray) -> dict[str, float]:
     finite = np.isfinite(x) & np.isfinite(y)
     x = x[finite]
     y = y[finite]
+    if len(x) < 3 or np.std(x) <= 0.0:
+        raise ValueError("candidate has fewer than three finite varying paired observations")
     slope, intercept = np.polyfit(x, y, deg=1)
     fitted = intercept + slope * x
     return {
@@ -98,11 +99,16 @@ def affine_metrics(y: np.ndarray, x: np.ndarray) -> dict[str, float]:
 
 
 def winsorize(values: np.ndarray, lower: float, upper: float) -> np.ndarray:
-    lo, hi = np.quantile(values[np.isfinite(values)], [lower, upper])
+    finite = values[np.isfinite(values)]
+    if len(finite) == 0:
+        raise ValueError("cannot winsorize an empty candidate")
+    lo, hi = np.quantile(finite, [lower, upper])
     return np.clip(values, lo, hi)
 
 
 def evaluate_candidate(pairs: pd.DataFrame, candidate: str) -> list[dict[str, object]]:
+    if pairs.empty:
+        raise ValueError(f"candidate {candidate!r} produced no aligned 40-day windows")
     y = pairs["stage"].to_numpy(dtype=float)
     x = pairs["raw"].to_numpy(dtype=float)
     rows: list[dict[str, object]] = []
@@ -121,7 +127,7 @@ def evaluate_candidate(pairs: pd.DataFrame, candidate: str) -> list[dict[str, ob
     market_fitted = np.empty_like(y)
     market_z_raw = np.empty_like(x)
     market_z_stage = np.empty_like(y)
-    for market_group, group in pairs.groupby("market_group"):
+    for _, group in pairs.groupby("market_group"):
         idx = group.index.to_numpy()
         xg = group["raw"].to_numpy(dtype=float)
         yg = group["stage"].to_numpy(dtype=float)
@@ -179,7 +185,7 @@ def main() -> None:
         rows.extend(candidate_rows)
         best = min(candidate_rows, key=lambda row: float(row["rmse"]))
         print(
-            f"{candidate:30s} best={best['normalization']:20s} "
+            f"{candidate:30s} pairs={len(pairs):7d} best={best['normalization']:20s} "
             f"corr={float(best['correlation']):.6f} rmse={float(best['rmse']):.6f}",
             flush=True,
         )
