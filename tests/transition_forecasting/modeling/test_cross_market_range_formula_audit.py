@@ -13,7 +13,7 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-def test_build_range_formulas_contains_expected_variants() -> None:
+def test_build_range_formulas_contains_expected_variants_and_values() -> None:
     dates = pd.date_range("2020-01-01", periods=50, freq="D", tz="UTC")
     close = np.linspace(100.0, 120.0, 50)
     panel = pd.DataFrame({
@@ -36,6 +36,9 @@ def test_build_range_formulas_contains_expected_variants() -> None:
         "annualized_parkinson_sigma",
     }
     assert expected.issubset(formulas.columns)
+    assert formulas.index.equals(pd.DatetimeIndex(dates, name="date"))
+    assert formulas["log_high_low"].notna().all()
+    assert np.allclose(formulas["log_high_low"], np.log(1.02 / 0.98))
 
 
 def test_per_market_affine_recovers_market_scaling() -> None:
@@ -48,3 +51,13 @@ def test_per_market_affine_recovers_market_scaling() -> None:
     per_market = next(row for row in rows if row["normalization"] == "per_market_affine")
     assert per_market["rmse"] < 1e-10
     assert per_market["correlation"] > 0.999999
+
+
+def test_empty_candidate_fails_with_clear_message() -> None:
+    empty = pd.DataFrame(columns=["market_group", "stage", "raw"])
+    try:
+        MODULE.evaluate_candidate(empty, "empty")
+    except ValueError as exc:
+        assert "no aligned 40-day windows" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
