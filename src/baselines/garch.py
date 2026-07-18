@@ -1,4 +1,4 @@
-"""GARCH volatility baseline mechanics for Phase 3.
+"""GARCH volatility baseline mechanics for Phase 3 and transition forecasting.
 
 This module owns only the econometric model mechanics. Dataset loading,
 walk-forward geometry, artifact writing, and reporting belong to experiment
@@ -134,6 +134,36 @@ def fit_garch_variance_path(
             parameters={},
             note=f"exception:{type(exc).__name__}:{exc}",
         )
+
+
+def variance_path_to_log_volatility_path(
+    variance_path: np.ndarray,
+    *,
+    return_scale: float = 100.0,
+    variance_floor: float = 1e-16,
+) -> np.ndarray:
+    """Convert scaled conditional variances to daily log-volatility.
+
+    ``arch`` is fit to returns multiplied by ``return_scale``. Dividing the
+    forecast variance by ``return_scale**2`` restores raw-return variance. The
+    Stage D target is daily log Parkinson volatility, so the comparable GARCH
+    quantity is ``log(sqrt(variance))`` at each forecast horizon, with no
+    annualization or path aggregation.
+    """
+
+    path = np.asarray(variance_path, dtype=float)
+    if path.ndim != 1 or len(path) == 0:
+        raise ValueError("variance_path must be a non-empty one-dimensional array")
+    if return_scale <= 0:
+        raise ValueError("return_scale must be positive")
+    if variance_floor <= 0:
+        raise ValueError("variance_floor must be positive")
+    if not np.all(np.isfinite(path)):
+        return np.full(path.shape, np.nan, dtype=float)
+    if np.any(path < 0):
+        raise ValueError("variance_path contains negative values")
+    raw_variance = np.maximum(path / (return_scale**2), variance_floor)
+    return 0.5 * np.log(raw_variance)
 
 
 def variance_path_to_realized_volatility(
