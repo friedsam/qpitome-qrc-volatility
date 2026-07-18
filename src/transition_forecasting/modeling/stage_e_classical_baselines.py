@@ -31,9 +31,9 @@ class StageEData:
 
 def load_stage_d_run(run_dir: Path) -> StageEData:
     manifest = pd.read_csv(run_dir / "sample_manifest.csv")
-    tensors = np.load(run_dir / "sequence_tensors.npz")
-    sequences = np.asarray(tensors["X"], dtype=float)
-    tensor_ids = tensors["sample_id"].astype(str)
+    with np.load(run_dir / "sequence_tensors.npz", allow_pickle=True) as tensors:
+        sequences = np.asarray(tensors["X"], dtype=float)
+        tensor_ids = tensors["sample_id"].astype(str)
     manifest_ids = manifest["sample_id"].astype(str).to_numpy()
     if sequences.ndim != 3 or sequences.shape[1:] != (40, 1):
         raise ValueError(f"expected sequence tensor shape (n, 40, 1), got {sequences.shape}")
