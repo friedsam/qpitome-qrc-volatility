@@ -27,23 +27,33 @@ def make_esn_weights(
     spectral_radius: float,
     input_scale: float,
     seed: int,
+    connectivity: float = 0.10,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Create the historical deterministic NumPy ESN input/recurrent weights."""
-    rng = np.random.default_rng(seed)
+    """Create deterministic ESN input/recurrent weights.
 
+    ``connectivity`` is the Bernoulli probability that a recurrent edge is
+    retained. The historical default remains 0.10.
+    """
+    if not 0.0 < connectivity <= 1.0:
+        raise ValueError("connectivity must lie in (0, 1]")
+
+    rng = np.random.default_rng(seed)
     W_in = rng.normal(
         0.0,
         input_scale,
         size=(n_reservoir, n_inputs),
     )
-
     W = rng.normal(
         0.0,
         1.0,
         size=(n_reservoir, n_reservoir),
     )
+    W *= rng.random(W.shape) < connectivity
 
-    W *= rng.random(W.shape) < 0.10
+    # Extremely sparse draws can contain no recurrent edge. Preserve a valid
+    # deterministic reservoir rather than allowing spectral scaling to collapse.
+    if not np.any(W):
+        W[rng.integers(0, n_reservoir), rng.integers(0, n_reservoir)] = 1.0
 
     return W_in, spectral_scale(W, spectral_radius)
 
@@ -133,4 +143,5 @@ def historical_numpy_esn_grid(seeds: list[int]) -> list[dict]:
                 f"leak{row['leak']}_alpha{row['alpha']}_seed{seed}"
             )
             grid.append(row)
+
     return grid
