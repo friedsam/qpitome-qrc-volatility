@@ -19,6 +19,7 @@ from transition_forecasting.modeling.stage_e_classical_baselines import (
 )
 
 ALPHAS = (10.0, 100.0, 1000.0, 10000.0)
+REFINEMENT_ALPHAS = (300.0, 1000.0, 3000.0, 10000.0)
 CONFIGS = (
     {"id": "baseline", "n": 300, "conn": 0.10, "sr": 0.90, "inp": 0.30, "leak": 0.30},
     {"id": "very_sparse", "n": 300, "conn": 0.005, "sr": 0.90, "inp": 0.30, "leak": 0.30},
@@ -32,6 +33,24 @@ CONFIGS = (
     {"id": "strong_input", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.70, "leak": 0.30},
     {"id": "small_sparse", "n": 150, "conn": 0.02, "sr": 0.90, "inp": 0.30, "leak": 0.30},
     {"id": "large_sparse", "n": 500, "conn": 0.02, "sr": 0.90, "inp": 0.30, "leak": 0.30},
+)
+REFINEMENT_CONFIGS = (
+    {"id": "short_ref", "n": 300, "conn": 0.02, "sr": 0.55, "inp": 0.30, "leak": 0.80},
+    {"id": "short_sr040", "n": 300, "conn": 0.02, "sr": 0.40, "inp": 0.30, "leak": 0.80},
+    {"id": "short_sr070", "n": 300, "conn": 0.02, "sr": 0.70, "inp": 0.30, "leak": 0.80},
+    {"id": "short_leak065", "n": 300, "conn": 0.02, "sr": 0.55, "inp": 0.30, "leak": 0.65},
+    {"id": "short_leak095", "n": 300, "conn": 0.02, "sr": 0.55, "inp": 0.30, "leak": 0.95},
+    {"id": "short_inp020", "n": 300, "conn": 0.02, "sr": 0.55, "inp": 0.20, "leak": 0.80},
+    {"id": "short_inp045", "n": 300, "conn": 0.02, "sr": 0.55, "inp": 0.45, "leak": 0.80},
+    {"id": "short_small", "n": 150, "conn": 0.02, "sr": 0.55, "inp": 0.30, "leak": 0.80},
+    {"id": "compact_ref", "n": 150, "conn": 0.02, "sr": 0.90, "inp": 0.30, "leak": 0.30},
+    {"id": "compact_n100", "n": 100, "conn": 0.02, "sr": 0.90, "inp": 0.30, "leak": 0.30},
+    {"id": "compact_n200", "n": 200, "conn": 0.02, "sr": 0.90, "inp": 0.30, "leak": 0.30},
+    {"id": "compact_conn001", "n": 150, "conn": 0.01, "sr": 0.90, "inp": 0.30, "leak": 0.30},
+    {"id": "compact_conn005", "n": 150, "conn": 0.05, "sr": 0.90, "inp": 0.30, "leak": 0.30},
+    {"id": "strong_ref", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.70, "leak": 0.30},
+    {"id": "strong_inp045", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.45, "leak": 0.30},
+    {"id": "strong_inp090", "n": 300, "conn": 0.02, "sr": 0.90, "inp": 0.90, "leak": 0.30},
 )
 
 
@@ -142,11 +161,17 @@ def run_screen(
     run_dir: Path,
     seeds: tuple[int, ...],
     max_configs: int,
+    profile: str = "initial",
 ) -> dict[str, object]:
+    if profile not in {"initial", "refinement"}:
+        raise ValueError(f"unknown profile: {profile}")
+    available_configs = CONFIGS if profile == "initial" else REFINEMENT_CONFIGS
+    alphas = ALPHAS if profile == "initial" else REFINEMENT_ALPHAS
+
     data = load_stage_d_run(stage_d_run)
     sequences = np.asarray(data.sequences, dtype=float)
     assignments = pd.read_csv(rolling_run / "rolling_fold_manifest.csv")
-    selected_configs = CONFIGS[: max(1, min(max_configs, len(CONFIGS)))]
+    selected_configs = available_configs[: max(1, min(max_configs, len(available_configs)))]
     all_results: list[pd.DataFrame] = []
 
     for index, config in enumerate(selected_configs, start=1):
@@ -156,7 +181,7 @@ def run_screen(
             f"inp={config['inp']} leak={config['leak']} ===",
             flush=True,
         )
-        all_results.append(evaluate_config(assignments, sequences, config, seeds=seeds))
+        all_results.append(evaluate_config(assignments, sequences, config, seeds=seeds, alphas=alphas))
         current = pd.concat(all_results, ignore_index=True)
         current.to_csv(run_dir / "parameter_results_live.csv", index=False)
         _, live = summarize(current)
@@ -177,9 +202,11 @@ def run_screen(
         "stage_d_run": str(stage_d_run),
         "rolling_run": str(rolling_run),
         "test_evaluated": False,
+        "profile": profile,
         "representation": "level_diff_time",
         "pooling": "final_mean_std",
         "washout": 10,
+        "alphas": list(alphas),
         "configs_run": len(selected_configs),
         "seeds": list(seeds),
         "best": leaderboard.iloc[0].to_dict(),
