@@ -51,12 +51,12 @@ def _load_stage_d_run(run_dir: Path) -> StageEData:
     return StageEData(manifest=manifest, sequences=sequences)
 
 
-def _scale_sequences(sequences: np.ndarray, train_mask: np.ndarray) -> np.ndarray:
+def _scale_sequences(sequences: np.ndarray, train_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     train = sequences[train_mask].reshape(-1, sequences.shape[-1])
     mean = train.mean(axis=0)
     scale = train.std(axis=0)
     scale = np.where(scale > 0.0, scale, 1.0)
-    return (sequences - mean[None, None, :]) / scale[None, None, :]
+    return (sequences - mean[None, None, :]) / scale[None, None, :], mean, scale
 
 
 def _har_predictions(
@@ -86,6 +86,65 @@ def _matrix_diagnostics(features: np.ndarray) -> dict[str, float]:
     }
 
 
+def _state_cache_path(cache_dir: Path, config: dict[str, object], seed: int) -> Path:
+    return cache_dir / f"reservoir_states__{config['name']}__seed{seed}.npz"
+
+
+def _load_or_build_states(
+    *,
+    scaled_sequences: np.ndarray,
+    manifest: pd.DataFrame,
+    config: dict[str, object],
+    seed: int,
+    cache_dir: Path | None,
+    input_mean: np.ndarray,
+    input_scale: np.ndarray,
+) -> tuple[np.ndarray, str]:
+    cache_path = None if cache_dir is None else _state_cache_path(cache_dir, config, seed)
+    sample_ids = manifest["sample_id"].astype(str).to_numpy()
+
+    if cache_path is not None and cache_path.exists():
+        with np.load(cache_path, allow_pickle=False) as cached:
+            states = np.asarray(cached["states"], dtype=float)
+            cached_ids = cached["sample_id"].astype(str)
+            cached_config = json.loads(str(cached["config_json"].item()))
+        if states.shape != (len(manifest), int(config["n"])):
+            raise ValueError(f"cached state shape mismatch in {cache_path}: {states.shape}")
+        if not np.array_equal(cached_ids, sample_ids):
+            raise ValueError(f"cached sample IDs do not match current Stage D data in {cache_path}")
+        expected = {key: config[key] for key in ("name", "n", "sr", "inp", "leak")}
+        if cached_config != expected:
+            raise ValueError(f"cached reservoir configuration mismatch in {cache_path}")
+        return states, "loaded"
+
+    W_in, W = make_esn_weights(
+        n_inputs=scaled_sequences.shape[-1],
+        n_reservoir=int(config["n"]),
+        spectral_radius=float(config["sr"]),
+        input_scale=float(config["inp"]),
+        seed=int(seed),
+    )
+    states = esn_states(scaled_sequences, W_in, W, float(config["leak"]))
+
+    if cache_path is not None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        config_json = json.dumps({key: config[key] for key in ("name", "n", "sr", "inp", "leak")}, sort_keys=True)
+        np.savez_compressed(
+            cache_path,
+            states=np.asarray(states, dtype=np.float64),
+            sample_id=sample_ids,
+            split=manifest["split"].astype(str).to_numpy(),
+            episode_id=manifest["episode_id"].astype(str).to_numpy(),
+            label=manifest["label"].to_numpy(),
+            lead=manifest["lead"].to_numpy(),
+            input_mean=np.asarray(input_mean, dtype=float),
+            input_scale=np.asarray(input_scale, dtype=float),
+            config_json=np.asarray(config_json),
+            seed=np.asarray(seed),
+        )
+    return states, "built"
+
+
 def run_regularization_audit(
     data: StageEData,
     *,
@@ -93,6 +152,7 @@ def run_regularization_audit(
     alphas: tuple[float, ...] = DEFAULT_ALPHAS,
     seeds: tuple[int, ...] = (1, 2, 3),
     har_alpha: float = 100.0,
+    reservoir_cache_dir: Path | None = None,
 ) -> pd.DataFrame:
     manifest = data.manifest.reset_index(drop=True)
     validate_split_integrity(manifest)
@@ -100,20 +160,21 @@ def run_regularization_audit(
     train_mask = manifest["split"].astype(str).eq("train").to_numpy()
     val_mask = manifest["split"].astype(str).eq("val").to_numpy()
     y = manifest[list(TARGET_COLUMNS)].to_numpy(dtype=float)
-    scaled_sequences = _scale_sequences(sequences, train_mask)
+    scaled_sequences, input_mean, input_scale = _scale_sequences(sequences, train_mask)
     har = _har_predictions(manifest, y, train_mask, har_alpha)
 
     rows: list[dict[str, object]] = []
     for config in configs:
         for seed in seeds:
-            W_in, W = make_esn_weights(
-                n_inputs=scaled_sequences.shape[-1],
-                n_reservoir=int(config["n"]),
-                spectral_radius=float(config["sr"]),
-                input_scale=float(config["inp"]),
+            states, state_source = _load_or_build_states(
+                scaled_sequences=scaled_sequences,
+                manifest=manifest,
+                config=config,
                 seed=int(seed),
+                cache_dir=reservoir_cache_dir,
+                input_mean=input_mean,
+                input_scale=input_scale,
             )
-            states = esn_states(scaled_sequences, W_in, W, float(config["leak"]))
             diagnostics = _matrix_diagnostics(states[train_mask])
             for formulation, baseline in (("direct", None), ("har_residual", har)):
                 train_target = y[train_mask] if baseline is None else y[train_mask] - baseline[train_mask]
@@ -134,6 +195,7 @@ def run_regularization_audit(
                         "input_scale": float(config["inp"]),
                         "leak": float(config["leak"]),
                         "seed": int(seed),
+                        "state_source": state_source,
                         "formulation": formulation,
                         "alpha": float(alpha),
                         "train_qlike": float(qlike_loss(y[train_mask], train_pred).mean()),
@@ -170,6 +232,7 @@ def summarize(audit: pd.DataFrame) -> dict[str, object]:
         "test_evaluated": False,
         "purpose": "diagnostic regularization ladder; no architecture selection",
         "alpha_grid": sorted(audit["alpha"].unique().tolist()),
+        "state_sources": sorted(audit["state_source"].unique().tolist()),
         "best_seed_averaged_rows": best.to_dict("records"),
     }
 
@@ -189,6 +252,11 @@ def main() -> None:
         type=Path,
         default=Path("results/transition_forecasting/modeling/stage_e_esn_regularization"),
     )
+    parser.add_argument(
+        "--reservoir-cache-dir",
+        type=Path,
+        help="Persistent directory for reusable reservoir-state NPZ files. Defaults to <run>/reservoir_features.",
+    )
     parser.add_argument("--run-id")
     args = parser.parse_args()
 
@@ -196,10 +264,12 @@ def main() -> None:
     resolved = vars(args).copy()
     resolved["stage_d_run"] = stage_d_run
     run_dir = begin_run(args.out_dir, resolved, run_id=args.run_id)
+    reservoir_cache_dir = args.reservoir_cache_dir or (run_dir / "reservoir_features")
     audit = run_regularization_audit(
         _load_stage_d_run(stage_d_run),
         seeds=tuple(args.seeds),
         har_alpha=args.har_alpha,
+        reservoir_cache_dir=reservoir_cache_dir,
     )
     grouped = (
         audit.groupby(["config", "n_reservoir", "formulation", "alpha"], as_index=False)
@@ -215,9 +285,22 @@ def main() -> None:
             mean_condition_number=("condition_number", "mean"),
         )
     )
+    feature_manifest = (
+        audit[["config", "n_reservoir", "spectral_radius", "input_scale", "leak", "seed", "state_source"]]
+        .drop_duplicates()
+        .sort_values(["config", "seed"])
+        .assign(
+            feature_file=lambda frame: frame.apply(
+                lambda row: str(_state_cache_path(reservoir_cache_dir, row.to_dict(), int(row["seed"]))),
+                axis=1,
+            )
+        )
+    )
     summary = summarize(audit)
+    summary["reservoir_cache_dir"] = str(reservoir_cache_dir)
     audit.to_csv(run_dir / "regularization_by_seed.csv", index=False)
     grouped.to_csv(run_dir / "regularization_summary.csv", index=False)
+    feature_manifest.to_csv(run_dir / "reservoir_feature_manifest.csv", index=False)
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps({"stage_d_run": str(stage_d_run), **summary}, indent=2))
 
