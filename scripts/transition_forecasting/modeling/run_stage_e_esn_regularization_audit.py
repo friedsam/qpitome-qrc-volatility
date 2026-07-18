@@ -105,7 +105,9 @@ def _load_or_build_states(
     expected_feature_count = int(config["n"]) + scaled_sequences.shape[-1]
 
     if cache_path is not None and cache_path.exists():
-        with np.load(cache_path, allow_pickle=False) as cached:
+        # Cache files are generated locally by this script. Early versions stored
+        # string metadata as object arrays, so allow_pickle is required for reuse.
+        with np.load(cache_path, allow_pickle=True) as cached:
             states = np.asarray(cached["states"], dtype=float)
             cached_ids = cached["sample_id"].astype(str)
             cached_config = json.loads(str(cached["config_json"].item()))
