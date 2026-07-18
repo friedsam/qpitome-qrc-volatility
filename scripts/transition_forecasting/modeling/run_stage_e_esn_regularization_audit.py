@@ -291,7 +291,7 @@ def main() -> None:
         .sort_values(["config", "seed"])
         .assign(
             feature_file=lambda frame: frame.apply(
-                lambda row: str(_state_cache_path(reservoir_cache_dir, row.to_dict(), int(row["seed"]))),
+                lambda row: str(reservoir_cache_dir / f"reservoir_states__{row['config']}__seed{int(row['seed'])}.npz"),
                 axis=1,
             )
         )
