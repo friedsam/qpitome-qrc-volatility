@@ -12,26 +12,13 @@ from sklearn.preprocessing import StandardScaler
 
 from baselines.numpy_esn import esn_states, make_esn_weights
 from experiments.runs import begin_run
-from transition_forecasting.modeling.stage_e_classical_baselines import (
-    HAR_FEATURES,
-    TARGET_COLUMNS,
-    qlike_loss,
-)
+from transition_forecasting.modeling.stage_e_classical_baselines import HAR_FEATURES, TARGET_COLUMNS, qlike_loss
 
 DATE_CANDIDATES = (
-    "event_date",
-    "anchor_date",
-    "sample_date",
-    "date",
-    "event_timestamp",
-    "timestamp",
+    "event_date", "anchor_date", "sample_date", "date", "event_timestamp", "timestamp",
+    "event_time", "anchor_time", "target_date",
 )
-GROUP_CANDIDATES = (
-    "global_cluster_id",
-    "global_event_id",
-    "cluster_id",
-    "episode_id",
-)
+GROUP_CANDIDATES = ("global_cluster_id", "global_event_id", "cluster_id", "episode_id")
 DEFAULT_CONFIGS = (
     {"name": "n300_sr0.9", "n": 300, "sr": 0.9, "inp": 0.3, "leak": 0.3},
     {"name": "n500_sr0.9", "n": 500, "sr": 0.9, "inp": 0.2, "leak": 0.5},
@@ -77,7 +64,6 @@ def chronological_split(
     group_column = group_column or _resolve_column(manifest, GROUP_CANDIDATES, "group")
     frame = manifest.copy()
     frame["_chronology"] = pd.to_datetime(frame[date_column], errors="raise", utc=True)
-
     group_dates = (
         frame.groupby(group_column, as_index=False)["_chronology"]
         .min()
@@ -85,6 +71,8 @@ def chronological_split(
         .reset_index(drop=True)
     )
     n_groups = len(group_dates)
+    if n_groups < 3:
+        raise ValueError("at least three chronological groups are required")
     train_end = max(1, min(n_groups - 2, int(np.floor(n_groups * train_fraction))))
     val_end = max(train_end + 1, min(n_groups - 1, int(np.floor(n_groups * (train_fraction + val_fraction)))))
     train_cut = group_dates.loc[train_end, "_chronology"]
@@ -92,9 +80,9 @@ def chronological_split(
     embargo = pd.Timedelta(days=int(embargo_days))
 
     group_split: dict[object, str] = {}
-    for row in group_dates.itertuples(index=False):
-        group_id = getattr(row, group_column)
-        date = getattr(row, "_chronology")
+    for _, row in group_dates.iterrows():
+        group_id = row[group_column]
+        date = row["_chronology"]
         if abs(date - train_cut) <= embargo or abs(date - val_cut) <= embargo:
             split = "purged"
         elif date < train_cut:
@@ -108,12 +96,9 @@ def chronological_split(
     frame["original_split"] = frame["split"].astype(str) if "split" in frame.columns else ""
     frame["split"] = frame[group_column].map(group_split)
     frame = frame.drop(columns="_chronology")
-
-    leakage = frame.groupby(group_column)["split"].nunique()
-    if (leakage > 1).any():
+    if frame.groupby(group_column)["split"].nunique().max() > 1:
         raise ValueError("chronological split leaked groups across partitions")
-    episode_leakage = frame.groupby("episode_id")["split"].nunique()
-    if (episode_leakage > 1).any():
+    if frame.groupby("episode_id")["split"].nunique().max() > 1:
         raise ValueError("chronological split leaked episodes across partitions")
 
     summary = {
@@ -148,10 +133,7 @@ def _har_predictions(manifest: pd.DataFrame, y: np.ndarray, train_mask: np.ndarr
 
 
 def _score(y: np.ndarray, prediction: np.ndarray, mask: np.ndarray) -> tuple[float, float]:
-    return (
-        float(qlike_loss(y[mask], prediction[mask]).mean()),
-        float(np.sqrt(np.mean((y[mask] - prediction[mask]) ** 2))),
-    )
+    return float(qlike_loss(y[mask], prediction[mask]).mean()), float(np.sqrt(np.mean((y[mask] - prediction[mask]) ** 2)))
 
 
 def run_study(
@@ -172,7 +154,6 @@ def run_study(
     har = _har_predictions(manifest, y, train_mask)
     residual = y - har
     rows: list[dict[str, object]] = []
-
     har_qlike, har_rmse = _score(y, har, val_mask)
     rows.append({"model": "har", "config": "har", "seed": 0, "alpha": 100.0, "val_qlike": har_qlike, "val_rmse": har_rmse})
 
@@ -191,14 +172,10 @@ def run_study(
     for config in configs:
         for seed in seeds:
             w_in, w = make_esn_weights(
-                n_inputs=scaled_sequences.shape[-1],
-                n_reservoir=int(config["n"]),
-                spectral_radius=float(config["sr"]),
-                input_scale=float(config["inp"]),
-                seed=int(seed),
+                n_inputs=scaled_sequences.shape[-1], n_reservoir=int(config["n"]),
+                spectral_radius=float(config["sr"]), input_scale=float(config["inp"]), seed=int(seed),
             )
             ordered = esn_states(scaled_sequences, w_in, w, float(config["leak"]))
-
             rng = np.random.default_rng(int(seed) + 20000)
             shuffled_sequences = scaled_sequences.copy()
             for sample in range(len(shuffled_sequences)):
@@ -207,11 +184,7 @@ def run_study(
 
             flat_scaled = scaled_sequences.reshape(len(scaled_sequences), -1)
             random_rng = np.random.default_rng(int(seed) + 10000)
-            projection = random_rng.normal(
-                0.0,
-                1.0 / np.sqrt(flat_scaled.shape[1]),
-                size=(flat_scaled.shape[1], int(config["n"])),
-            )
+            projection = random_rng.normal(0.0, 1.0 / np.sqrt(flat_scaled.shape[1]), size=(flat_scaled.shape[1], int(config["n"])))
             bias = random_rng.uniform(-1.0, 1.0, size=int(config["n"]))
             random_tanh = np.tanh(flat_scaled @ projection + bias)
 
@@ -223,12 +196,7 @@ def run_study(
             pca.fit(ordered_train)
             pca_all = pca.transform(ordered_all)
 
-            for model_name, features in (
-                ("full_esn", ordered),
-                ("pca10_esn", pca_all),
-                ("shuffled_esn", shuffled),
-                ("random_tanh", random_tanh),
-            ):
+            for model_name, features in (("full_esn", ordered), ("pca10_esn", pca_all), ("shuffled_esn", shuffled), ("random_tanh", random_tanh)):
                 feature_scaler = StandardScaler()
                 feature_train = feature_scaler.fit_transform(features[train_mask])
                 feature_all = feature_scaler.transform(features)
@@ -238,12 +206,8 @@ def run_study(
                     prediction = har + model.predict(feature_all)
                     qlike, rmse = _score(y, prediction, val_mask)
                     rows.append({
-                        "model": model_name,
-                        "config": config["name"],
-                        "seed": int(seed),
-                        "alpha": float(alpha),
-                        "val_qlike": qlike,
-                        "val_rmse": rmse,
+                        "model": model_name, "config": config["name"], "seed": int(seed), "alpha": float(alpha),
+                        "val_qlike": qlike, "val_rmse": rmse,
                     })
     return pd.DataFrame(rows)
 
@@ -257,22 +221,14 @@ def main() -> None:
     parser.add_argument("--val-fraction", type=float, default=0.08)
     parser.add_argument("--embargo-days", type=int, default=10)
     parser.add_argument("--seeds", nargs="+", type=int, default=[1, 2, 3])
-    parser.add_argument(
-        "--out-dir",
-        type=Path,
-        default=Path("results/transition_forecasting/modeling/stage_e_chronological_robustness"),
-    )
+    parser.add_argument("--out-dir", type=Path, default=Path("results/transition_forecasting/modeling/stage_e_chronological_robustness"))
     parser.add_argument("--run-id")
     args = parser.parse_args()
 
     manifest, sequences = _load_stage_d(args.stage_d_run)
     chronological, split_summary = chronological_split(
-        manifest,
-        train_fraction=args.train_fraction,
-        val_fraction=args.val_fraction,
-        embargo_days=args.embargo_days,
-        date_column=args.date_column,
-        group_column=args.group_column,
+        manifest, train_fraction=args.train_fraction, val_fraction=args.val_fraction,
+        embargo_days=args.embargo_days, date_column=args.date_column, group_column=args.group_column,
     )
     run_dir = begin_run(args.out_dir, vars(args), run_id=args.run_id)
     chronological.to_csv(run_dir / "chronological_manifest.csv", index=False)
@@ -280,34 +236,21 @@ def main() -> None:
     results.to_csv(run_dir / "chronological_results_by_seed.csv", index=False)
 
     seed_models = results[results["seed"] > 0]
-    grouped_seed = (
-        seed_models.groupby(["model", "config", "alpha"], as_index=False)
-        .agg(
-            mean_val_qlike=("val_qlike", "mean"),
-            std_val_qlike=("val_qlike", "std"),
-            mean_val_rmse=("val_rmse", "mean"),
-        )
+    grouped_seed = seed_models.groupby(["model", "config", "alpha"], as_index=False).agg(
+        mean_val_qlike=("val_qlike", "mean"), std_val_qlike=("val_qlike", "std"), mean_val_rmse=("val_rmse", "mean"),
     )
     deterministic = results[results["seed"] == 0].rename(columns={"val_qlike": "mean_val_qlike", "val_rmse": "mean_val_rmse"})
     deterministic["std_val_qlike"] = 0.0
-    summary_table = pd.concat(
-        [grouped_seed, deterministic[["model", "config", "alpha", "mean_val_qlike", "std_val_qlike", "mean_val_rmse"]]],
-        ignore_index=True,
-    )
-    best = (
-        summary_table.sort_values(["model", "mean_val_qlike", "mean_val_rmse"])
-        .groupby("model", as_index=False)
-        .first()
-        .sort_values("mean_val_qlike")
-    )
+    summary_table = pd.concat([
+        grouped_seed,
+        deterministic[["model", "config", "alpha", "mean_val_qlike", "std_val_qlike", "mean_val_rmse"]],
+    ], ignore_index=True)
+    best = summary_table.sort_values(["model", "mean_val_qlike", "mean_val_rmse"]).groupby("model", as_index=False).first().sort_values("mean_val_qlike")
     summary_table.to_csv(run_dir / "chronological_summary.csv", index=False)
     best.to_csv(run_dir / "chronological_best_by_model.csv", index=False)
     payload = {
-        "stage_d_run": str(args.stage_d_run),
-        "selection_split": "chronological_val",
-        "test_evaluated": False,
-        "split": split_summary,
-        "best_rows": best.to_dict("records"),
+        "stage_d_run": str(args.stage_d_run), "selection_split": "chronological_val", "test_evaluated": False,
+        "split": split_summary, "best_rows": best.to_dict("records"),
     }
     (run_dir / "summary.json").write_text(json.dumps(payload, indent=2) + "\n")
     print(json.dumps(payload, indent=2))
