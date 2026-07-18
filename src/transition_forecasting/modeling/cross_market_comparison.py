@@ -42,6 +42,23 @@ def metric_pair(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]:
     )
 
 
+def mz_calibration(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float, float]:
+    """Return pooled-path Mincer-Zarnowitz intercept, slope, and R-squared."""
+    observed = np.asarray(y_true, dtype=float).reshape(-1)
+    forecast = np.asarray(y_pred, dtype=float).reshape(-1)
+    if observed.shape != forecast.shape:
+        raise ValueError("MZ observed and forecast arrays must have the same shape")
+    if not np.isfinite(observed).all() or not np.isfinite(forecast).all():
+        raise ValueError("MZ inputs must be finite")
+    design = np.column_stack([np.ones(len(forecast)), forecast])
+    alpha, beta = np.linalg.lstsq(design, observed, rcond=None)[0]
+    fitted = alpha + beta * forecast
+    residual_sum = float(np.sum((observed - fitted) ** 2))
+    total_sum = float(np.sum((observed - observed.mean()) ** 2))
+    r_squared = 0.0 if total_sum <= 1e-15 else 1.0 - residual_sum / total_sum
+    return float(alpha), float(beta), float(r_squared)
+
+
 def scale_sequences_train_only(sequences: np.ndarray, train_mask: np.ndarray) -> np.ndarray:
     train = sequences[train_mask].reshape(-1, sequences.shape[-1])
     mean = train.mean(axis=0)
@@ -109,6 +126,31 @@ def _har_prediction(manifest: pd.DataFrame, y: np.ndarray, train_mask: np.ndarra
     return model.predict(scaler.transform(x))
 
 
+def _result_row(
+    *,
+    fold: int,
+    model_name: str,
+    seed: int,
+    alpha: float,
+    y_true: np.ndarray,
+    prediction: np.ndarray,
+) -> dict[str, object]:
+    qlike, rmse = metric_pair(y_true, prediction)
+    mz_alpha, mz_beta, mz_r2 = mz_calibration(y_true, prediction)
+    return {
+        "fold": int(fold),
+        "model": model_name,
+        "seed": int(seed),
+        "alpha": float(alpha),
+        "val_qlike": qlike,
+        "val_rmse": rmse,
+        "mz_alpha": mz_alpha,
+        "mz_beta": mz_beta,
+        "mz_r2": mz_r2,
+        "val_samples": int(len(y_true)),
+    }
+
+
 def _ridge_rows(
     *,
     fold: int,
@@ -134,16 +176,14 @@ def _ridge_rows(
         prediction = model.predict(val_x)
         if base_prediction is not None:
             prediction = base_prediction[val_mask] + prediction
-        qlike, rmse = metric_pair(target[val_mask], prediction)
-        rows.append({
-            "fold": int(fold),
-            "model": model_name,
-            "seed": int(seed),
-            "alpha": float(alpha),
-            "val_qlike": qlike,
-            "val_rmse": rmse,
-            "val_samples": int(val_mask.sum()),
-        })
+        rows.append(_result_row(
+            fold=fold,
+            model_name=model_name,
+            seed=seed,
+            alpha=float(alpha),
+            y_true=target[val_mask],
+            prediction=prediction,
+        ))
     return rows
 
 
@@ -164,17 +204,16 @@ def evaluate_fold(
 
     target = manifest[list(TARGET_COLUMNS)].to_numpy(dtype=float)
     har = _har_prediction(manifest, target, train_mask)
-    rows: list[dict[str, object]] = []
-    qlike, rmse = metric_pair(target[val_mask], har[val_mask])
-    rows.append({
-        "fold": fold,
-        "model": "har",
-        "seed": 0,
-        "alpha": 100.0,
-        "val_qlike": qlike,
-        "val_rmse": rmse,
-        "val_samples": int(val_mask.sum()),
-    })
+    rows: list[dict[str, object]] = [
+        _result_row(
+            fold=fold,
+            model_name="har",
+            seed=0,
+            alpha=100.0,
+            y_true=target[val_mask],
+            prediction=har[val_mask],
+        )
+    ]
 
     rows.extend(_ridge_rows(
         fold=fold,
@@ -273,18 +312,25 @@ def summarize_results(results: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame
         mean_val_qlike=("val_qlike", "mean"),
         std_seed_qlike=("val_qlike", "std"),
         mean_val_rmse=("val_rmse", "mean"),
+        mean_mz_alpha=("mz_alpha", "mean"),
+        mean_mz_beta=("mz_beta", "mean"),
+        mean_mz_r2=("mz_r2", "mean"),
         val_samples=("val_samples", "first"),
     )
     deterministic = results[results["seed"] == 0].rename(columns={
         "val_qlike": "mean_val_qlike",
         "val_rmse": "mean_val_rmse",
+        "mz_alpha": "mean_mz_alpha",
+        "mz_beta": "mean_mz_beta",
+        "mz_r2": "mean_mz_r2",
     })
     deterministic["std_seed_qlike"] = 0.0
     fold_grid = pd.concat([
         seeded_summary,
         deterministic[[
             "fold", "model", "alpha", "mean_val_qlike", "std_seed_qlike",
-            "mean_val_rmse", "val_samples",
+            "mean_val_rmse", "mean_mz_alpha", "mean_mz_beta", "mean_mz_r2",
+            "val_samples",
         ]],
     ], ignore_index=True)
     best_per_fold = (
@@ -297,6 +343,9 @@ def summarize_results(results: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame
         mean_val_qlike=("mean_val_qlike", "mean"),
         std_across_folds=("mean_val_qlike", "std"),
         mean_val_rmse=("mean_val_rmse", "mean"),
+        mean_mz_alpha=("mean_mz_alpha", "mean"),
+        mean_mz_beta=("mean_mz_beta", "mean"),
+        mean_mz_r2=("mean_mz_r2", "mean"),
     ).sort_values(["mean_val_qlike", "mean_val_rmse"])
     return best_per_fold, aggregate
 
@@ -349,6 +398,7 @@ def run_comparison(
         "test_evaluated": False,
         "comparison_basis": "original Stage D target/input with a common valid-sample intersection",
         "qlike_definition": "stage_e_classical_baselines.qlike_loss on log-volatility targets",
+        "mz_definition": "pooled-path OLS of observed log volatility on forecast with intercept",
         "best_model": aggregate.iloc[0].to_dict(),
         "aggregate": aggregate.to_dict(orient="records"),
     }
