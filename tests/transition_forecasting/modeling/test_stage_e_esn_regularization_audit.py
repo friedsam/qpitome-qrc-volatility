@@ -41,18 +41,39 @@ def _data() -> StageEData:
     return StageEData(pd.DataFrame(rows), np.asarray(sequences))
 
 
-def test_regularization_audit_crosses_alpha_and_formulation() -> None:
+def test_regularization_audit_crosses_alpha_and_formulation(tmp_path: Path) -> None:
+    config = {"name": "tiny", "n": 8, "sr": 0.7, "inp": 0.2, "leak": 0.3}
     audit = MODULE.run_regularization_audit(
         _data(),
-        configs=({"name": "tiny", "n": 8, "sr": 0.7, "inp": 0.2, "leak": 0.3},),
+        configs=(config,),
         alphas=(0.1, 10.0),
         seeds=(1,),
         har_alpha=1.0,
+        reservoir_cache_dir=tmp_path,
     )
     assert len(audit) == 4
     assert set(audit["formulation"]) == {"direct", "har_residual"}
     assert set(audit["alpha"]) == {0.1, 10.0}
+    assert set(audit["state_source"]) == {"built"}
     assert np.isfinite(audit[["train_qlike", "val_qlike", "coefficient_norm"]]).all().all()
+
+    cache_path = tmp_path / "reservoir_states__tiny__seed1.npz"
+    assert cache_path.exists()
+    with np.load(cache_path, allow_pickle=False) as cached:
+        assert cached["states"].shape == (24, 8)
+        assert cached["sample_id"].astype(str).tolist()[0] == "S1"
+        assert cached["split"].astype(str).tolist()[-1] == "test"
+
+    repeated = MODULE.run_regularization_audit(
+        _data(),
+        configs=(config,),
+        alphas=(0.1,),
+        seeds=(1,),
+        har_alpha=1.0,
+        reservoir_cache_dir=tmp_path,
+    )
+    assert set(repeated["state_source"]) == {"loaded"}
+
     summary = MODULE.summarize(audit)
     assert summary["test_evaluated"] is False
     assert len(summary["best_seed_averaged_rows"]) == 2
