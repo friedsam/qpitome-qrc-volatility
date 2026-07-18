@@ -5,23 +5,33 @@ import numpy as np
 from transition_forecasting.modeling import cross_market_comparison as MODULE
 
 
-def test_qlike_zero_for_perfect_prediction() -> None:
+def test_metric_pair_zero_for_perfect_prediction() -> None:
     y = np.array([[1.0, 2.0], [3.0, 4.0]])
-    assert MODULE.qlike(y, y) == 0.0
+    qlike, rmse = MODULE.metric_pair(y, y)
+    assert qlike == 0.0
+    assert rmse == 0.0
 
 
-def test_shuffled_control_preserves_own_and_time_channels() -> None:
-    x = np.arange(2 * 5 * 9, dtype=float).reshape(2, 5, 9)
-    shuffled = MODULE.shuffled_cross_market(x, seed=7)
-    assert np.array_equal(shuffled[:, :, :2], x[:, :, :2])
-    assert np.array_equal(shuffled[:, :, 8], x[:, :, 8])
-    assert not np.array_equal(shuffled[:, :, 2:8], x[:, :, 2:8])
+def test_hybrid_uses_original_stage_d_channels_not_reconstructed_own_channels() -> None:
+    original = np.arange(2 * 5 * 3, dtype=float).reshape(2, 5, 3)
+    compact = np.arange(2 * 5 * 9, dtype=float).reshape(2, 5, 9) + 1000.0
+    hybrid = MODULE.build_hybrid_sequences(original, compact)
+    assert hybrid.shape == (2, 5, 9)
+    assert np.array_equal(hybrid[:, :, :3], original)
+    assert np.array_equal(hybrid[:, :, 3:], compact[:, :, 2:8])
 
 
-def test_pooled_esn_features_are_deterministic_and_well_shaped() -> None:
-    rng = np.random.default_rng(3)
-    sequences = rng.normal(size=(4, 12, 3))
-    a = MODULE.pooled_esn_features(sequences, seed=11, reservoir_size=20, washout=2)
-    b = MODULE.pooled_esn_features(sequences, seed=11, reservoir_size=20, washout=2)
-    assert a.shape == (4, 60)
-    assert np.allclose(a, b)
+def test_shuffled_control_preserves_original_channels() -> None:
+    x = np.arange(2 * 8 * 9, dtype=float).reshape(2, 8, 9)
+    shuffled = MODULE.shuffle_cross_market_channels(x, seed=7)
+    assert np.array_equal(shuffled[:, :, :3], x[:, :, :3])
+    assert not np.array_equal(shuffled[:, :, 3:9], x[:, :, 3:9])
+
+
+def test_original_enrichment_adds_difference_and_time() -> None:
+    original = np.array([[[1.0], [3.0], [6.0]]])
+    enriched = MODULE.build_original_enriched_sequences(original)
+    assert enriched.shape == (1, 3, 3)
+    assert np.array_equal(enriched[0, :, 0], [1.0, 3.0, 6.0])
+    assert np.array_equal(enriched[0, :, 1], [0.0, 2.0, 3.0])
+    assert np.allclose(enriched[0, :, 2], [0.0, 0.5, 1.0])
