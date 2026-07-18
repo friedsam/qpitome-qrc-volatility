@@ -35,3 +35,30 @@ def test_original_enrichment_adds_difference_and_time() -> None:
     assert np.array_equal(enriched[0, :, 0], [1.0, 3.0, 6.0])
     assert np.array_equal(enriched[0, :, 1], [0.0, 2.0, 3.0])
     assert np.allclose(enriched[0, :, 2], [0.0, 0.5, 1.0])
+
+
+def test_ridge_scoring_ignores_nan_rows_outside_train_and_validation() -> None:
+    features = np.array([
+        [0.0, 1.0],
+        [1.0, 2.0],
+        [2.0, 3.0],
+        [3.0, 4.0],
+        [np.nan, np.nan],
+    ])
+    target = np.column_stack([np.arange(5, dtype=float), np.arange(5, dtype=float)])
+    train_mask = np.array([True, True, True, False, False])
+    val_mask = np.array([False, False, False, True, False])
+    rows = MODULE._ridge_rows(
+        fold=1,
+        model_name="test_ridge",
+        features=features,
+        target=target,
+        train_mask=train_mask,
+        val_mask=val_mask,
+        alphas=(1.0,),
+        seed=0,
+    )
+    assert len(rows) == 1
+    assert rows[0]["val_samples"] == 1
+    assert np.isfinite(rows[0]["val_qlike"])
+    assert np.isfinite(rows[0]["val_rmse"])
