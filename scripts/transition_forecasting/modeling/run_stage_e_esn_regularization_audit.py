@@ -102,13 +102,14 @@ def _load_or_build_states(
 ) -> tuple[np.ndarray, str]:
     cache_path = None if cache_dir is None else _state_cache_path(cache_dir, config, seed)
     sample_ids = manifest["sample_id"].astype(str).to_numpy()
+    expected_feature_count = int(config["n"]) + scaled_sequences.shape[-1]
 
     if cache_path is not None and cache_path.exists():
         with np.load(cache_path, allow_pickle=False) as cached:
             states = np.asarray(cached["states"], dtype=float)
             cached_ids = cached["sample_id"].astype(str)
             cached_config = json.loads(str(cached["config_json"].item()))
-        if states.shape != (len(manifest), int(config["n"])):
+        if states.shape != (len(manifest), expected_feature_count):
             raise ValueError(f"cached state shape mismatch in {cache_path}: {states.shape}")
         if not np.array_equal(cached_ids, sample_ids):
             raise ValueError(f"cached sample IDs do not match current Stage D data in {cache_path}")
@@ -125,6 +126,8 @@ def _load_or_build_states(
         seed=int(seed),
     )
     states = esn_states(scaled_sequences, W_in, W, float(config["leak"]))
+    if states.shape != (len(manifest), expected_feature_count):
+        raise ValueError(f"generated state shape mismatch: {states.shape}")
 
     if cache_path is not None:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
