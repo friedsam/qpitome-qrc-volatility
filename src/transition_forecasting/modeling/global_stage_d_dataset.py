@@ -20,6 +20,8 @@ from transition_forecasting.catalogue.transition_events import (
     standardized_mean_differences,
 )
 
+VALIDATION_CUTOFF = pd.Timestamp("2013-01-01")
+
 
 def _load_series(
     catalogue: pd.DataFrame,
@@ -35,16 +37,20 @@ def _load_series(
 
 
 def _split(date: pd.Timestamp) -> str:
-    return "train" if date < TRAIN_CUTOFF else "test"
+    if date < VALIDATION_CUTOFF:
+        return "train"
+    if date < TRAIN_CUTOFF:
+        return "val"
+    return "test"
 
 
 def _episode_split_assignments(catalogue: pd.DataFrame) -> dict[str, str]:
     """Assign every global episode to exactly one chronological split.
 
-    A global episode can contain market-specific onsets on both sides of the
-    cutoff.  Using each row's onset independently leaks one episode across
-    train and test.  The episode's earliest onset is therefore the canonical
-    split date and is propagated to all rows and matched controls.
+    A global episode can contain market-specific onsets around a cutoff. Using
+    each row's onset independently leaks one episode across splits. The
+    episode's earliest onset is therefore the canonical split date and is
+    propagated to all rows and matched controls.
     """
     required = {"episode_id", "onset_date"}
     missing = required.difference(catalogue.columns)
@@ -60,14 +66,14 @@ def _episode_split_assignments(catalogue: pd.DataFrame) -> dict[str, str]:
 
 
 def _validate_manifest(manifest: pd.DataFrame) -> None:
-    """Fail fast on leakage or incomplete positive/control groups."""
+    """Fail fast on split leakage or incomplete positive/control groups."""
     if manifest.empty:
         raise ValueError("Stage D manifest is empty")
 
     split_counts = manifest.groupby("episode_id")["split"].nunique()
     leaking = split_counts[split_counts > 1]
     if len(leaking):
-        raise ValueError(f"global episodes span train and test: {list(leaking.index.astype(str))}")
+        raise ValueError(f"global episodes span multiple splits: {list(leaking.index.astype(str))}")
 
     positives = manifest.loc[manifest["label"] == 1, "sample_id"].astype(str)
     controls = manifest.loc[manifest["label"] == 0]
@@ -206,16 +212,30 @@ def build_global_stage_d_dataset(
     tensor = np.asarray(sequences, dtype=float)
     balance = standardized_mean_differences(manifest)
 
-    train_episodes = set(manifest.loc[manifest["split"] == "train", "episode_id"].astype(str))
-    test_episodes = set(manifest.loc[manifest["split"] == "test", "episode_id"].astype(str))
+    split_episode_sets = {
+        split: set(manifest.loc[manifest["split"] == split, "episode_id"].astype(str))
+        for split in ("train", "val", "test")
+    }
+    overlap = (
+        split_episode_sets["train"].intersection(split_episode_sets["val"])
+        | split_episode_sets["train"].intersection(split_episode_sets["test"])
+        | split_episode_sets["val"].intersection(split_episode_sets["test"])
+    )
     summary = {
         "positive_samples": int((manifest["label"] == 1).sum()),
         "negative_samples": int((manifest["label"] == 0).sum()),
         "total_samples": int(len(manifest)),
         "global_episodes": int(manifest["episode_id"].nunique()),
-        "train_episodes": len(train_episodes),
-        "test_episodes": len(test_episodes),
-        "episode_split_overlap": len(train_episodes.intersection(test_episodes)),
+        "train_episodes": len(split_episode_sets["train"]),
+        "val_episodes": len(split_episode_sets["val"]),
+        "test_episodes": len(split_episode_sets["test"]),
+        "episode_split_overlap": len(overlap),
+        "validation_cutoff": VALIDATION_CUTOFF.date().isoformat(),
+        "test_cutoff": TRAIN_CUTOFF.date().isoformat(),
+        "samples_by_split": {
+            str(split): int(count)
+            for split, count in manifest.groupby("split").size().items()
+        },
         "samples_by_lead": {
             str(int(lead)): int(count)
             for lead, count in manifest.groupby("lead").size().items()
