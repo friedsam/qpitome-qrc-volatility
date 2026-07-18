@@ -46,7 +46,10 @@ def _load_manifest(run_dir: Path) -> pd.DataFrame:
 
 
 def _load_state_file(path: Path, manifest: pd.DataFrame) -> tuple[np.ndarray, dict[str, object]]:
-    with np.load(path, allow_pickle=False) as data:
+    # These NPZ files are generated locally by the paired regularization script.
+    # The first cache version stored string metadata as NumPy object arrays, so
+    # pickle support is required for backward-compatible reuse without rebuilding.
+    with np.load(path, allow_pickle=True) as data:
         states = np.asarray(data["states"], dtype=float)
         sample_ids = data["sample_id"].astype(str)
         config = json.loads(str(data["config_json"].item()))
