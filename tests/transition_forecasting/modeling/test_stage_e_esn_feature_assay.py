@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import numpy as np
@@ -61,3 +62,25 @@ def test_feature_assay_returns_all_tables() -> None:
     assert {"level", "mean5", "mean20"}.issubset(set(result["reconstruction"]["target"]))
     assert set(result["pls"]["n_components"]) == {1, 2}
     assert np.isfinite(result["pls"][["train_qlike", "val_qlike", "val_rmse"]]).all().all()
+
+
+def test_load_state_file_supports_object_string_metadata(tmp_path: Path) -> None:
+    manifest = _manifest()
+    states = np.arange(len(manifest) * 5, dtype=float).reshape(len(manifest), 5)
+    cache_path = tmp_path / "reservoir_states__tiny__seed1.npz"
+    config = {"name": "tiny", "n": 4, "sr": 0.9, "inp": 0.3, "leak": 0.3}
+
+    np.savez_compressed(
+        cache_path,
+        states=states,
+        sample_id=manifest["sample_id"].astype(object).to_numpy(),
+        config_json=np.asarray(json.dumps(config), dtype=object),
+        seed=np.asarray(1),
+    )
+
+    loaded_states, metadata = MODULE._load_state_file(cache_path, manifest)
+
+    assert np.array_equal(loaded_states, states)
+    assert metadata["name"] == "tiny"
+    assert metadata["n"] == 4
+    assert metadata["seed"] == 1
