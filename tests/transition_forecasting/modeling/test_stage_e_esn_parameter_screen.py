@@ -17,6 +17,18 @@ def test_connectivity_is_configurable_and_deterministic() -> None:
     assert np.isclose(np.max(np.abs(np.linalg.eigvals(sparse_a))), 0.9)
 
 
+def test_refinement_profile_is_curated_and_unique() -> None:
+    ids = [config["id"] for config in MODULE.REFINEMENT_CONFIGS]
+    parameter_sets = {
+        (config["n"], config["conn"], config["sr"], config["inp"], config["leak"])
+        for config in MODULE.REFINEMENT_CONFIGS
+    }
+
+    assert 12 <= len(ids) <= 18
+    assert len(ids) == len(set(ids)) == len(parameter_sets)
+    assert MODULE.REFINEMENT_ALPHAS == (300.0, 1000.0, 3000.0, 10000.0)
+
+
 def _data() -> tuple[pd.DataFrame, np.ndarray]:
     rows = []
     sequences = []
