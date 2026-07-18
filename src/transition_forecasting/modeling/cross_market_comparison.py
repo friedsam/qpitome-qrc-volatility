@@ -63,8 +63,6 @@ def build_original_enriched_sequences(original: np.ndarray) -> np.ndarray:
 def build_hybrid_sequences(original_enriched: np.ndarray, compact: np.ndarray) -> np.ndarray:
     if original_enriched.shape[:2] != compact.shape[:2]:
         raise ValueError("original and compact tensors are not aligned")
-    # Compact channels 2:8 contain only cross-market aggregates. Reconstructed
-    # own-market channels are deliberately excluded so Stage D remains the base.
     return np.concatenate([original_enriched, compact[:, :, 2:8]], axis=2)
 
 
@@ -125,7 +123,7 @@ def _ridge_rows(
 ) -> list[dict[str, object]]:
     scaler = StandardScaler()
     train_x = scaler.fit_transform(features[train_mask])
-    all_x = scaler.transform(features)
+    val_x = scaler.transform(features[val_mask])
     train_target = target[train_mask]
     if base_prediction is not None:
         train_target = train_target - base_prediction[train_mask]
@@ -133,10 +131,10 @@ def _ridge_rows(
     for alpha in alphas:
         model = Ridge(alpha=float(alpha))
         model.fit(train_x, train_target)
-        prediction = model.predict(all_x)
+        prediction = model.predict(val_x)
         if base_prediction is not None:
-            prediction = base_prediction + prediction
-        qlike, rmse = metric_pair(target[val_mask], prediction[val_mask])
+            prediction = base_prediction[val_mask] + prediction
+        qlike, rmse = metric_pair(target[val_mask], prediction)
         rows.append({
             "fold": int(fold),
             "model": model_name,
