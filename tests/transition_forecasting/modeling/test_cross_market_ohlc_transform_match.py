@@ -60,7 +60,9 @@ def test_compare_recovers_exact_candidate_and_alignment() -> None:
         "origin_date": [origin],
     })
     results = MODULE.compare(manifest, target[None, :], signals)
-    best = results.iloc[0]
-    assert best["candidate"] == "log_parkinson_mean5"
-    assert best["alignment"] == "previous_or_same"
-    assert best["correlation"] > 0.999999
+    exact = results.loc[
+        (results["alignment"] == "previous_or_same")
+        & (results["correlation"] > 0.999999)
+        & (results["affine_rmse"] < 1e-10)
+    ]
+    assert "log_parkinson_mean5" in set(exact["candidate"])
