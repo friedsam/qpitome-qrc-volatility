@@ -13,14 +13,16 @@ from transition_forecasting.modeling.global_stage_d_dataset import (
 def test_episode_split_is_assigned_once_from_earliest_onset():
     catalogue = pd.DataFrame(
         {
-            "episode_id": ["E1", "E1", "E2"],
-            "onset_date": pd.to_datetime(["2015-12-31", "2016-01-04", "2016-01-05"]),
+            "episode_id": ["E1", "E1", "E2", "E3"],
+            "onset_date": pd.to_datetime(
+                ["2012-12-31", "2013-01-04", "2014-06-01", "2016-01-05"]
+            ),
         }
     )
 
     assignments = _episode_split_assignments(catalogue)
 
-    assert assignments == {"E1": "train", "E2": "test"}
+    assert assignments == {"E1": "train", "E2": "val", "E3": "test"}
 
 
 def test_manifest_rejects_episode_split_overlap():
@@ -29,12 +31,12 @@ def test_manifest_rejects_episode_split_overlap():
             "sample_id": ["P1", "P2"],
             "label": [1, 1],
             "episode_id": ["E1", "E1"],
-            "split": ["train", "test"],
+            "split": ["train", "val"],
             "matched_positive_id": [None, None],
         }
     )
 
-    with pytest.raises(ValueError, match="span train and test"):
+    with pytest.raises(ValueError, match="span multiple splits"):
         _validate_manifest(manifest)
 
 
@@ -69,7 +71,7 @@ def test_manifest_accepts_complete_nonleaking_groups():
             "sample_id": "P1",
             "label": 1,
             "episode_id": "E1",
-            "split": "train",
+            "split": "val",
             "matched_positive_id": None,
         }
     ]
@@ -79,7 +81,7 @@ def test_manifest_accepts_complete_nonleaking_groups():
                 "sample_id": f"N{control_number}",
                 "label": 0,
                 "episode_id": "E1",
-                "split": "train",
+                "split": "val",
                 "matched_positive_id": "P1",
             }
         )
