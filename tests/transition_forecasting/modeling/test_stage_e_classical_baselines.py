@@ -6,6 +6,7 @@ import pytest
 
 from transition_forecasting.modeling.stage_e_classical_baselines import (
     StageEData,
+    load_stage_d_run,
     qlike_loss,
     run_classical_sanity_ladder,
     validate_split_integrity,
@@ -43,6 +44,19 @@ def _synthetic_data() -> StageEData:
             )
             sequences.append(sequence[:, None])
     return StageEData(pd.DataFrame(rows), np.asarray(sequences))
+
+
+def test_load_stage_d_run_accepts_object_sample_ids(tmp_path) -> None:
+    data = _synthetic_data()
+    data.manifest.to_csv(tmp_path / "sample_manifest.csv", index=False)
+    np.savez_compressed(
+        tmp_path / "sequence_tensors.npz",
+        X=data.sequences,
+        sample_id=data.manifest["sample_id"].to_numpy(dtype=object),
+    )
+    loaded = load_stage_d_run(tmp_path)
+    assert np.array_equal(loaded.sequences, data.sequences)
+    assert loaded.manifest["sample_id"].tolist() == data.manifest["sample_id"].tolist()
 
 
 def test_qlike_is_zero_for_exact_forecast() -> None:
