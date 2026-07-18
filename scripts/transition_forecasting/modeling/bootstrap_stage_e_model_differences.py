@@ -47,44 +47,44 @@ def paired_episode_bootstrap(
     actual = challenger_frame[actual_columns].to_numpy(dtype=float)
     challenger_pred = challenger_frame[predicted_columns].to_numpy(dtype=float)
     reference_pred = reference_frame[predicted_columns].to_numpy(dtype=float)
-    sample_delta = qlike_loss(actual, challenger_pred).mean(axis=1) - qlike_loss(
-        actual, reference_pred
-    ).mean(axis=1)
 
     frame = challenger_frame[id_columns].copy()
-    frame["sample_delta_qlike"] = sample_delta
-    episode_delta = frame.groupby("episode_id", as_index=False).agg(
-        label=("label", "first"),
-        lead=("lead", "first"),
-        delta_qlike=("sample_delta_qlike", "mean"),
+    frame["sample_delta_qlike"] = (
+        qlike_loss(actual, challenger_pred).mean(axis=1)
+        - qlike_loss(actual, reference_pred).mean(axis=1)
     )
 
-    groups: list[tuple[str, str, pd.Series]] = [
-        ("pooled", "all", pd.Series(True, index=episode_delta.index)),
-        ("label", "positive", episode_delta["label"].eq(1)),
-        ("label", "control", episode_delta["label"].eq(0)),
+    group_specs: list[tuple[str, str, pd.Series]] = [
+        ("pooled", "all", pd.Series(True, index=frame.index)),
+        ("label", "positive", frame["label"].eq(1)),
+        ("label", "control", frame["label"].eq(0)),
     ]
-    for lead in sorted(episode_delta["lead"].unique()):
-        groups.append(("lead", str(int(lead)), episode_delta["lead"].eq(lead)))
-        groups.append(
+    for lead in sorted(frame["lead"].unique()):
+        group_specs.append(("lead", str(int(lead)), frame["lead"].eq(lead)))
+        group_specs.append(
             (
                 "lead_label",
                 f"L{int(lead)}_positive",
-                episode_delta["lead"].eq(lead) & episode_delta["label"].eq(1),
+                frame["lead"].eq(lead) & frame["label"].eq(1),
             )
         )
-        groups.append(
+        group_specs.append(
             (
                 "lead_label",
                 f"L{int(lead)}_control",
-                episode_delta["lead"].eq(lead) & episode_delta["label"].eq(0),
+                frame["lead"].eq(lead) & frame["label"].eq(0),
             )
         )
 
     rng = np.random.default_rng(seed)
     rows: list[dict[str, object]] = []
-    for group_type, group_value, mask in groups:
-        values = episode_delta.loc[mask, "delta_qlike"].to_numpy(dtype=float)
+    for group_type, group_value, mask in group_specs:
+        grouped = (
+            frame.loc[mask]
+            .groupby("episode_id", as_index=False)["sample_delta_qlike"]
+            .mean()
+        )
+        values = grouped["sample_delta_qlike"].to_numpy(dtype=float)
         if values.size == 0:
             continue
         draws = rng.choice(values, size=(n_bootstrap, values.size), replace=True).mean(axis=1)
