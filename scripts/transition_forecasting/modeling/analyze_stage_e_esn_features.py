@@ -28,14 +28,18 @@ RIDGE_ALPHAS = (1.0, 10.0, 100.0, 1000.0, 10000.0)
 def _latest_stage_d_run(root: Path) -> Path:
     candidates = [
         path for path in root.iterdir()
-        if path.is_dir() and (path / "sample_manifest.csv").exists()
+        if path.is_dir()
+        and (path / "sample_manifest.csv").exists()
+        and (path / "sequence_tensors.npz").exists()
     ]
     if not candidates:
-        raise FileNotFoundError(f"no Stage D run found under {root}")
+        raise FileNotFoundError(f"no complete Stage D run found under {root}")
     return max(candidates, key=lambda path: (path.stat().st_mtime, path.name))
 
 
 def _load_manifest(run_dir: Path) -> pd.DataFrame:
+    if not (run_dir / "sequence_tensors.npz").exists():
+        raise FileNotFoundError(f"incomplete Stage D run lacks sequence_tensors.npz: {run_dir}")
     manifest = pd.read_csv(run_dir / "sample_manifest.csv").reset_index(drop=True)
     validate_split_integrity(manifest)
     return manifest
