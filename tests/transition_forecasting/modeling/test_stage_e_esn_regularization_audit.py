@@ -60,7 +60,7 @@ def test_regularization_audit_crosses_alpha_and_formulation(tmp_path: Path) -> N
     cache_path = tmp_path / "reservoir_states__tiny__seed1.npz"
     assert cache_path.exists()
     with np.load(cache_path, allow_pickle=False) as cached:
-        assert cached["states"].shape == (24, 8)
+        assert cached["states"].shape == (24, 9)
         assert cached["sample_id"].astype(str).tolist()[0] == "S1"
         assert cached["split"].astype(str).tolist()[-1] == "test"
 
