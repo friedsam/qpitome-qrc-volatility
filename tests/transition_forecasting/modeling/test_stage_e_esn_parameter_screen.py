@@ -1,18 +1,10 @@
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
 from baselines.numpy_esn import make_esn_weights
-
-SCRIPT = Path("scripts/transition_forecasting/modeling/run_stage_e_esn_parameter_screen.py")
-SPEC = importlib.util.spec_from_file_location("stage_e_esn_parameter_screen", SCRIPT)
-assert SPEC is not None and SPEC.loader is not None
-MODULE = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(MODULE)
+from transition_forecasting.modeling import esn_parameter_screen as MODULE
 
 
 def test_connectivity_is_configurable_and_deterministic() -> None:
@@ -47,7 +39,7 @@ def _data() -> tuple[pd.DataFrame, np.ndarray]:
     return pd.DataFrame(rows), np.asarray(sequences[:24])
 
 
-def test_small_config_evaluation_produces_finite_scores() -> None:
+def test_small_config_evaluation_produces_finite_scores_and_mz() -> None:
     assignments, sequences = _data()
     config = {"id": "tiny", "n": 8, "conn": 0.2, "sr": 0.7, "inp": 0.2, "leak": 0.5}
     results = MODULE.evaluate_config(
@@ -61,4 +53,6 @@ def test_small_config_evaluation_produces_finite_scores() -> None:
     assert set(results["fold"]) == {1, 2}
     assert set(results["config_id"]) == {"tiny"}
     assert "test_qlike" not in results.columns
-    assert np.isfinite(results[["val_qlike", "val_rmse"]]).all().all()
+    assert np.isfinite(
+        results[["val_qlike", "val_rmse", "mz_alpha", "mz_beta", "mz_r2"]]
+    ).all().all()
