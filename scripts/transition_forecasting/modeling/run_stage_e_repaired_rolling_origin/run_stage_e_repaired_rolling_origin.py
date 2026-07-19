@@ -7,24 +7,38 @@ from pathlib import Path
 import pandas as pd
 
 from experiments.runs import begin_run
-from transition_forecasting.modeling.stage_e_sequence_models import (
-    evaluate_fold_fixed,
-    load_rematched_rolling,
+from transition_forecasting.modeling.stage_e_fixed_spec_diagnostics import (
+    evaluate_fold_fixed_with_mz,
+)
+from transition_forecasting.modeling.stage_e_sequence_models import load_rematched_rolling
+
+MZ_COLUMNS = (
+    "mz_intercept",
+    "mz_slope",
+    "mz_r2",
+    "mz_joint_f",
+    "mz_joint_p",
+    "mz_horizon_mean_intercept",
+    "mz_horizon_mean_slope",
+    "mz_horizon_mean_r2",
+    "mz_horizon_mean_abs_slope_error",
 )
 
 
 def _aggregate(results: pd.DataFrame) -> pd.DataFrame:
+    aggregations: dict[str, tuple[str, str]] = {
+        "val_qlike": ("val_qlike", "mean"),
+        "val_rmse": ("val_rmse", "mean"),
+        "seed_sd_qlike": ("val_qlike", "std"),
+        "seed_sd_rmse": ("val_rmse", "std"),
+        "train_samples": ("train_samples", "first"),
+        "val_samples": ("val_samples", "first"),
+        "seeds": ("seed", "nunique"),
+    }
+    aggregations.update({column: (column, "mean") for column in MZ_COLUMNS})
     return (
         results.groupby(["fold", "model"], as_index=False)
-        .agg(
-            val_qlike=("val_qlike", "mean"),
-            val_rmse=("val_rmse", "mean"),
-            seed_sd_qlike=("val_qlike", "std"),
-            seed_sd_rmse=("val_rmse", "std"),
-            train_samples=("train_samples", "first"),
-            val_samples=("val_samples", "first"),
-            seeds=("seed", "nunique"),
-        )
+        .agg(**aggregations)
         .fillna(0.0)
     )
 
@@ -33,23 +47,24 @@ def _pooled(per_fold: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     for model, group in per_fold.groupby("model", sort=True):
         weight = group["val_samples"].astype(float)
-        rows.append(
-            {
-                "model": str(model),
-                "folds": int(group["fold"].nunique()),
-                "mean_fold_qlike": float(group["val_qlike"].mean()),
-                "median_fold_qlike": float(group["val_qlike"].median()),
-                "weighted_qlike": float((group["val_qlike"] * weight).sum() / weight.sum()),
-                "mean_fold_rmse": float(group["val_rmse"].mean()),
-                "weighted_rmse": float((group["val_rmse"] * weight).sum() / weight.sum()),
-            }
-        )
+        row: dict[str, object] = {
+            "model": str(model),
+            "folds": int(group["fold"].nunique()),
+            "mean_fold_qlike": float(group["val_qlike"].mean()),
+            "median_fold_qlike": float(group["val_qlike"].median()),
+            "weighted_qlike": float((group["val_qlike"] * weight).sum() / weight.sum()),
+            "mean_fold_rmse": float(group["val_rmse"].mean()),
+            "weighted_rmse": float((group["val_rmse"] * weight).sum() / weight.sum()),
+        }
+        for column in MZ_COLUMNS:
+            row[f"weighted_{column}"] = float((group[column] * weight).sum() / weight.sum())
+        rows.append(row)
     return pd.DataFrame(rows).sort_values("weighted_qlike").reset_index(drop=True)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Evaluate fixed compact models on the strict rematched rolling dataset."
+        description="Evaluate fixed compact models with RMSE, QLIKE, and MZ diagnostics."
     )
     parser.add_argument("--chronology-run", type=Path, required=True)
     parser.add_argument("--sequence-alpha", type=float, default=100.0)
@@ -74,7 +89,7 @@ def main() -> None:
         fold_manifest = manifest.loc[mask].reset_index(drop=True)
         fold_tensors = tensors[mask.to_numpy()]
         rows.append(
-            evaluate_fold_fixed(
+            evaluate_fold_fixed_with_mz(
                 fold_manifest,
                 fold_tensors,
                 fold=fold,
@@ -99,6 +114,10 @@ def main() -> None:
         "esn_alpha": float(args.esn_alpha),
         "seeds": [int(seed) for seed in args.seeds],
         "models": sorted(raw["model"].unique()),
+        "metrics": ["RMSE", "QLIKE", "Mincer-Zarnowitz"],
+        "mz_regression": "observed log-volatility = intercept + slope * forecast log-volatility",
+        "mz_ideal": {"intercept": 0.0, "slope": 1.0},
+        "mz_path_handling": "pooled sample-horizon observations plus mean per-horizon diagnostics",
         "test_rows_used": 0,
         "selection_policy": "fixed specifications; no per-fold validation tuning",
         "best_weighted_qlike_model": str(pooled.iloc[0]["model"]),
@@ -107,7 +126,18 @@ def main() -> None:
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
     print("\nPooled fixed-spec results:\n")
-    print(pooled.to_string(index=False))
+    display_columns = [
+        "model",
+        "folds",
+        "weighted_qlike",
+        "weighted_rmse",
+        "weighted_mz_intercept",
+        "weighted_mz_slope",
+        "weighted_mz_r2",
+        "weighted_mz_joint_p",
+        "weighted_mz_horizon_mean_abs_slope_error",
+    ]
+    print(pooled[display_columns].to_string(index=False))
 
 
 if __name__ == "__main__":
