@@ -8,10 +8,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from transition_forecasting.modeling.fold_selection import (
+    DEVELOPMENT_FOLD_SPLITS,
+    select_balanced_episode_rows,
+    validate_fold_manifest_schema,
+)
 from transition_forecasting.qrc.rydberg_dense import RydbergDenseConfig, evolve_sequence
-
-
-FOLD_SPLITS = ("train", "val")
 
 
 def _standardize_rows(values: np.ndarray) -> np.ndarray:
@@ -42,57 +44,6 @@ def _load_bad_ids(path: Path | None) -> set[str]:
     return set(frame["sample_id"].astype(str))
 
 
-def _select_manifest_rows(
-    manifest: pd.DataFrame,
-    *,
-    fold: int,
-    lead: int,
-    max_per_class: int,
-    bad_ids: set[str],
-    seed: int,
-) -> pd.DataFrame:
-    rows = manifest.loc[
-        manifest["fold"].eq(fold)
-        & manifest["fold_split"].isin(FOLD_SPLITS)
-        & manifest["lead"].eq(lead)
-    ].copy()
-    rows["sample_id"] = rows["sample_id"].astype(str)
-    rows = rows.loc[~rows["sample_id"].isin(bad_ids)]
-    rows = rows.sort_values(
-        ["fold_split", "label", "episode_id", "origin_date", "sample_id"]
-    )
-    rows = rows.drop_duplicates(
-        ["fold_split", "label", "episode_id"], keep="first"
-    )
-
-    selected_parts: list[pd.DataFrame] = []
-    for split_offset, fold_split in enumerate(FOLD_SPLITS):
-        split_rows = rows.loc[rows["fold_split"].eq(fold_split)]
-        class_parts: list[pd.DataFrame] = []
-        for label in (0, 1):
-            group = split_rows.loc[split_rows["label"].eq(label)].copy()
-            rng = np.random.default_rng(seed + 1000 * fold + 100 * split_offset + label)
-            if len(group) > max_per_class:
-                positions = np.sort(
-                    rng.choice(len(group), size=max_per_class, replace=False)
-                )
-                group = group.iloc[positions]
-            class_parts.append(group)
-
-        counts = {label: len(class_parts[label]) for label in (0, 1)}
-        if counts[0] == 0 or counts[1] == 0:
-            raise RuntimeError(
-                f"fold {fold} split {fold_split}: selection lacks one class: {counts}"
-            )
-        n_balanced = min(counts[0], counts[1])
-        selected_parts.extend([part.head(n_balanced) for part in class_parts])
-
-    selected = pd.concat(selected_parts, ignore_index=True)
-    return selected.sort_values(
-        ["fold_split", "label", "episode_id", "sample_id"]
-    ).reset_index(drop=True)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Fold-aware, quality-gated Rydberg chronology mechanism assay."
@@ -114,25 +65,7 @@ def main() -> None:
     args = parser.parse_args()
 
     manifest = pd.read_csv(args.manifest)
-    required = {
-        "sample_id",
-        "label",
-        "episode_id",
-        "origin_date",
-        "lead",
-        "fold",
-        "fold_split",
-    }
-    missing = required.difference(manifest.columns)
-    if missing:
-        raise ValueError(f"manifest missing columns: {sorted(missing)}")
-    observed_splits = set(manifest["fold_split"].dropna().astype(str).unique())
-    expected_splits = {"train", "val", "test"}
-    if observed_splits != expected_splits:
-        raise ValueError(
-            f"unexpected fold_split values {sorted(observed_splits)}; "
-            f"expected {sorted(expected_splits)} from the classical Stage E pipeline"
-        )
+    validate_fold_manifest_schema(manifest)
     bad_ids = _load_bad_ids(args.contaminated_samples)
 
     config = RydbergDenseConfig(
@@ -152,12 +85,13 @@ def main() -> None:
         if not tensor_path.exists():
             raise FileNotFoundError(f"missing fold tensor: {tensor_path}")
 
-        selected = _select_manifest_rows(
+        selected = select_balanced_episode_rows(
             manifest,
             fold=fold,
             lead=args.lead,
             max_per_class=args.max_per_class,
-            bad_ids=bad_ids,
+            excluded_sample_ids=bad_ids,
+            splits=DEVELOPMENT_FOLD_SPLITS,
             seed=args.seed,
         )
         selected = selected.copy()
@@ -195,15 +129,12 @@ def main() -> None:
                     }
                 )
                 continue
+
             sequence = _standardize_rows(sequence.reshape(1, -1))[0]
             local = _local_pattern(sequence, config.n_atoms)
             conditions = {
                 "ordered": (sequence, True, False),
-                "shuffled": (
-                    sequence[rng.permutation(len(sequence))],
-                    True,
-                    False,
-                ),
+                "shuffled": (sequence[rng.permutation(len(sequence))], True, False),
                 "reversed": (sequence[::-1], True, False),
                 "reset": (sequence, True, True),
                 "interaction_off": (sequence, False, False),
@@ -248,8 +179,7 @@ def main() -> None:
         columns="condition",
         values="value",
     ).reset_index()
-    comparison_names = ("shuffled", "reversed", "reset", "interaction_off")
-    for condition in comparison_names:
+    for condition in ("shuffled", "reversed", "reset", "interaction_off"):
         wide[f"abs_ordered_minus_{condition}"] = np.abs(
             wide["ordered"] - wide[condition]
         )
@@ -300,14 +230,16 @@ def main() -> None:
         "generated_globally_unique_sample_ids": int(features["sample_id"].nunique()),
         "skipped_invalid_rows": int(len(skipped)),
         "test_rows_used": int(features["fold_split"].eq("test").sum()),
+        "selection_source": "transition_forecasting.modeling.fold_selection.select_balanced_episode_rows",
         "purpose": "fold-aware balanced mechanism confirmation; no forecasting claim",
     }
     if summary["test_rows_used"] != 0:
         raise RuntimeError("test rows entered the assay")
+
     expected_groups = {
         (fold, fold_split, label)
         for fold in args.folds
-        for fold_split in FOLD_SPLITS
+        for fold_split in DEVELOPMENT_FOLD_SPLITS
         for label in (0, 1)
     }
     observed_groups = set(
