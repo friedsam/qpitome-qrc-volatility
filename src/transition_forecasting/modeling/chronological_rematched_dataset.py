@@ -10,7 +10,10 @@ from transition_forecasting.modeling.chronological_control_matching import (
     MatchConfig,
     rematch_controls_within_partition,
 )
-from transition_forecasting.modeling.chronological_splits import rolling_origin_assignments
+from transition_forecasting.modeling.chronological_splits import (
+    IntervalColumns,
+    rolling_origin_assignments,
+)
 
 
 def load_candidate_pool(run_dir: Path) -> tuple[pd.DataFrame, np.ndarray]:
@@ -30,11 +33,23 @@ def load_candidate_pool(run_dir: Path) -> tuple[pd.DataFrame, np.ndarray]:
     return manifest, tensor
 
 
-def _positive_interval_columns(positives: pd.DataFrame) -> pd.DataFrame:
+def _validate_positive_intervals(positives: pd.DataFrame) -> pd.DataFrame:
+    required = {"origin_date", "input_start_date", "target_end_date"}
+    missing = required.difference(positives.columns)
+    if missing:
+        raise ValueError(
+            "Stage D must be rebuilt with exact interval columns before chronological rematching: "
+            f"{sorted(missing)}"
+        )
     frame = positives.copy()
-    frame["origin_date"] = pd.to_datetime(frame["origin_date"], errors="raise", utc=True)
-    frame["input_start_date"] = frame["origin_date"] - pd.to_timedelta(60, unit="D")
-    frame["target_end_date"] = frame["origin_date"] + pd.to_timedelta(20, unit="D")
+    for column in required:
+        frame[column] = pd.to_datetime(frame[column], errors="raise", utc=True)
+    invalid = ~(
+        (frame["input_start_date"] <= frame["origin_date"])
+        & (frame["origin_date"] < frame["target_end_date"])
+    )
+    if invalid.any():
+        raise ValueError(f"invalid positive trading-row intervals: {int(invalid.sum())}")
     return frame
 
 
@@ -81,15 +96,17 @@ def build_rematched_rolling_dataset(
     positives = stage_d_manifest[stage_d_manifest["label"].eq(1)].reset_index(drop=True).copy()
     positive_source_rows = stage_d_manifest.index[stage_d_manifest["label"].eq(1)].to_numpy(dtype=int)
     positives["_positive_tensor_row"] = positive_source_rows
-    positives = _positive_interval_columns(positives)
+    positives = _validate_positive_intervals(positives)
 
     assignments, fold_summaries, split_audit = rolling_origin_assignments(
         positives,
         n_folds=n_folds,
         test_fraction=test_fraction,
         embargo_days=embargo_days,
-        input_lookback_days=60,
-        target_horizon_days=20,
+        columns=IntervalColumns(
+            input_start="input_start_date",
+            target_end="target_end_date",
+        ),
     )
 
     output_frames: list[pd.DataFrame] = []
@@ -177,6 +194,8 @@ def build_rematched_rolling_dataset(
         "split_audit": split_audit,
         "fold_summaries": fold_summaries,
         "fold_match_quality": fold_quality,
+        "positive_intervals": "exact_trading_rows",
+        "candidate_intervals": "exact_trading_rows",
         "test_evaluated": False,
     }
     return manifest, tensor, audit, summary
