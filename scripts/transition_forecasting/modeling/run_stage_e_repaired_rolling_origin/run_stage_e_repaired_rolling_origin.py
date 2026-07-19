@@ -14,7 +14,7 @@ from transition_forecasting.modeling.stage_e_sequence_models import (
 
 
 def _aggregate(results: pd.DataFrame) -> pd.DataFrame:
-    per_fold_model = (
+    return (
         results.groupby(["fold", "model"], as_index=False)
         .agg(
             val_qlike=("val_qlike", "mean"),
@@ -27,7 +27,24 @@ def _aggregate(results: pd.DataFrame) -> pd.DataFrame:
         )
         .fillna(0.0)
     )
-    return per_fold_model
+
+
+def _pooled(per_fold: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for model, group in per_fold.groupby("model", sort=True):
+        weight = group["val_samples"].astype(float)
+        rows.append(
+            {
+                "model": str(model),
+                "folds": int(group["fold"].nunique()),
+                "mean_fold_qlike": float(group["val_qlike"].mean()),
+                "median_fold_qlike": float(group["val_qlike"].median()),
+                "weighted_qlike": float((group["val_qlike"] * weight).sum() / weight.sum()),
+                "mean_fold_rmse": float(group["val_rmse"].mean()),
+                "weighted_rmse": float((group["val_rmse"] * weight).sum() / weight.sum()),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("weighted_qlike").reset_index(drop=True)
 
 
 def main() -> None:
@@ -69,30 +86,7 @@ def main() -> None:
 
     raw = pd.concat(rows, ignore_index=True)
     per_fold = _aggregate(raw)
-    pooled = (
-        per_fold.groupby("model", as_index=False)
-        .apply(
-            lambda group: pd.Series(
-                {
-                    "folds": int(group["fold"].nunique()),
-                    "mean_fold_qlike": float(group["val_qlike"].mean()),
-                    "median_fold_qlike": float(group["val_qlike"].median()),
-                    "weighted_qlike": float(
-                        (group["val_qlike"] * group["val_samples"]).sum()
-                        / group["val_samples"].sum()
-                    ),
-                    "mean_fold_rmse": float(group["val_rmse"].mean()),
-                    "weighted_rmse": float(
-                        (group["val_rmse"] * group["val_samples"]).sum()
-                        / group["val_samples"].sum()
-                    ),
-                }
-            ),
-            include_groups=False,
-        )
-        .reset_index(drop=True)
-        .sort_values("weighted_qlike")
-    )
+    pooled = _pooled(per_fold)
 
     raw.to_csv(run_dir / "fixed_spec_seed_results.csv", index=False)
     per_fold.to_csv(run_dir / "fixed_spec_fold_results.csv", index=False)
