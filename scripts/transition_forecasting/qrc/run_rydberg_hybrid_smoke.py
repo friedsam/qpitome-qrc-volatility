@@ -11,20 +11,42 @@ import pandas as pd
 from transition_forecasting.qrc.rydberg_dense import RydbergDenseConfig, evolve_sequence
 
 
+def _safe_array(bundle: np.lib.npyio.NpzFile, name: str) -> np.ndarray | None:
+    try:
+        array = np.asarray(bundle[name])
+    except ValueError as exc:
+        if "Object arrays cannot be loaded" in str(exc):
+            return None
+        raise
+    if array.dtype == object:
+        return None
+    return array
+
+
 def _choose_sequence_array(bundle: np.lib.npyio.NpzFile, key: str | None) -> tuple[str, np.ndarray]:
     if key is not None:
-        array = np.asarray(bundle[key])
+        array = _safe_array(bundle, key)
+        if array is None:
+            raise ValueError(f"{key} is an object array and cannot be used as a numeric sequence tensor")
         if array.ndim < 2:
             raise ValueError(f"{key} must be at least 2-D; got {array.shape}")
         return key, array
-    candidates = []
+
+    candidates: list[tuple[str, np.ndarray]] = []
     for name in bundle.files:
-        array = np.asarray(bundle[name])
+        array = _safe_array(bundle, name)
+        if array is None:
+            continue
         if array.ndim in (2, 3) and array.shape[0] > 1 and array.shape[1] >= 5:
             candidates.append((name, array))
+
     if not candidates:
-        shapes = {name: list(np.asarray(bundle[name]).shape) for name in bundle.files}
-        raise ValueError(f"No sequence-like NPZ array found. Arrays: {shapes}")
+        inventory = {}
+        for name in bundle.files:
+            array = _safe_array(bundle, name)
+            inventory[name] = None if array is None else list(array.shape)
+        raise ValueError(f"No numeric sequence-like NPZ array found. Arrays: {inventory}")
+
     candidates.sort(key=lambda item: (item[1].ndim != 3, -item[1].shape[1]))
     return candidates[0]
 
@@ -77,9 +99,19 @@ def main() -> None:
     outdir = args.out_root / run_id
     outdir.mkdir(parents=True, exist_ok=False)
 
-    with np.load(args.tensor, allow_pickle=False) as bundle:
+    # This repository-generated NPZ contains metadata stored as object arrays.
+    # Loading with pickle enabled is acceptable only for this trusted local artifact.
+    with np.load(args.tensor, allow_pickle=True) as bundle:
         array_key, raw = _choose_sequence_array(bundle, args.array_key)
-        inventory = {name: list(np.asarray(bundle[name]).shape) for name in bundle.files}
+        inventory = {}
+        for name in bundle.files:
+            array = np.asarray(bundle[name])
+            inventory[name] = {
+                "shape": list(array.shape),
+                "dtype": str(array.dtype),
+                "object_array": bool(array.dtype == object),
+            }
+
     sequences = _to_sequences(raw, args.channel)
     if sequences.shape[1] < args.sequence_length:
         raise ValueError(f"requested {args.sequence_length} steps but tensor has {sequences.shape[1]}")
