@@ -11,6 +11,9 @@ import pandas as pd
 from transition_forecasting.qrc.rydberg_dense import RydbergDenseConfig, evolve_sequence
 
 
+FOLD_SPLITS = ("train", "val")
+
+
 def _standardize_rows(values: np.ndarray) -> np.ndarray:
     center = values.mean(axis=1, keepdims=True)
     scale = values.std(axis=1, keepdims=True)
@@ -50,7 +53,7 @@ def _select_manifest_rows(
 ) -> pd.DataFrame:
     rows = manifest.loc[
         manifest["fold"].eq(fold)
-        & manifest["fold_split"].isin(["train", "validation"])
+        & manifest["fold_split"].isin(FOLD_SPLITS)
         & manifest["lead"].eq(lead)
     ].copy()
     rows["sample_id"] = rows["sample_id"].astype(str)
@@ -63,7 +66,7 @@ def _select_manifest_rows(
     )
 
     selected_parts: list[pd.DataFrame] = []
-    for split_offset, fold_split in enumerate(("train", "validation")):
+    for split_offset, fold_split in enumerate(FOLD_SPLITS):
         split_rows = rows.loc[rows["fold_split"].eq(fold_split)]
         class_parts: list[pd.DataFrame] = []
         for label in (0, 1):
@@ -123,6 +126,13 @@ def main() -> None:
     missing = required.difference(manifest.columns)
     if missing:
         raise ValueError(f"manifest missing columns: {sorted(missing)}")
+    observed_splits = set(manifest["fold_split"].dropna().astype(str).unique())
+    expected_splits = {"train", "val", "test"}
+    if observed_splits != expected_splits:
+        raise ValueError(
+            f"unexpected fold_split values {sorted(observed_splits)}; "
+            f"expected {sorted(expected_splits)} from the classical Stage E pipeline"
+        )
     bad_ids = _load_bad_ids(args.contaminated_samples)
 
     config = RydbergDenseConfig(
@@ -297,7 +307,7 @@ def main() -> None:
     expected_groups = {
         (fold, fold_split, label)
         for fold in args.folds
-        for fold_split in ("train", "validation")
+        for fold_split in FOLD_SPLITS
         for label in (0, 1)
     }
     observed_groups = set(
