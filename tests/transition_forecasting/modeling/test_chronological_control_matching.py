@@ -104,3 +104,51 @@ def test_matching_never_borrows_candidates_from_another_partition() -> None:
     assert matched["fold_split"].eq("val").all()
     assert audit.iloc[0]["controls_selected"] == 1
     assert not bool(audit.iloc[0]["complete_match"])
+
+
+def test_same_origin_is_not_reused_across_forecast_leads() -> None:
+    positives = pd.DataFrame(
+        [
+            {
+                "sample_id": f"P_L{lead}",
+                "episode_id": f"E_L{lead}",
+                "market_group": "M",
+                "event_onset": pd.Timestamp("2010-01-01"),
+                "label": 1,
+                "fold": 1,
+                "fold_split": "train",
+                "index": "IDX",
+                "lead": lead,
+                **_features(0.0),
+            }
+            for lead in (1, 5, 10)
+        ]
+    )
+    candidates = pd.DataFrame(
+        [
+            {
+                "fold": 1,
+                "fold_split": "train",
+                "index": "IDX",
+                "lead": lead,
+                "origin_pos": position,
+                "origin_date": pd.Timestamp("2009-01-01") + pd.Timedelta(days=position),
+                "input_start_date": pd.Timestamp("2008-11-01") + pd.Timedelta(days=position),
+                "target_end_date": pd.Timestamp("2009-02-01") + pd.Timedelta(days=position),
+                **_features(float(position)),
+            }
+            for lead in (1, 5, 10)
+            for position in range(9)
+        ]
+    )
+
+    matched, audit = rematch_controls_within_partition(
+        positives,
+        candidates,
+        config=MatchConfig(controls_per_positive=3),
+    )
+
+    assert len(matched) == 9
+    assert audit["complete_match"].all()
+    assert not matched.duplicated(["fold", "fold_split", "index", "origin_date"]).any()
+    assert matched["origin_date"].nunique() == 9
