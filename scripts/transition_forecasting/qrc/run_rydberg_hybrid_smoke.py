@@ -32,6 +32,11 @@ def _choose_sequence_array(bundle: np.lib.npyio.NpzFile, key: str | None) -> tup
             raise ValueError(f"{key} must be at least 2-D; got {array.shape}")
         return key, array
 
+    if "X" in bundle.files:
+        array = _safe_array(bundle, "X")
+        if array is not None and array.ndim in (2, 3):
+            return "X", array
+
     candidates: list[tuple[str, np.ndarray]] = []
     for name in bundle.files:
         array = _safe_array(bundle, name)
@@ -60,9 +65,9 @@ def _to_sequences(array: np.ndarray, channel: int) -> np.ndarray:
 
 
 def _standardize_rows(sequences: np.ndarray) -> np.ndarray:
-    center = np.nanmean(sequences, axis=1, keepdims=True)
-    scale = np.nanstd(sequences, axis=1, keepdims=True)
-    scale[~np.isfinite(scale) | (scale < 1e-8)] = 1.0
+    center = sequences.mean(axis=1, keepdims=True)
+    scale = sequences.std(axis=1, keepdims=True)
+    scale[scale < 1e-8] = 1.0
     result = (sequences - center) / scale
     if not np.isfinite(result).all():
         raise ValueError("non-finite standardized sequence values")
@@ -99,8 +104,6 @@ def main() -> None:
     outdir = args.out_root / run_id
     outdir.mkdir(parents=True, exist_ok=False)
 
-    # This repository-generated NPZ contains metadata stored as object arrays.
-    # Loading with pickle enabled is acceptable only for this trusted local artifact.
     with np.load(args.tensor, allow_pickle=True) as bundle:
         array_key, raw = _choose_sequence_array(bundle, args.array_key)
         inventory = {}
@@ -111,20 +114,34 @@ def main() -> None:
                 "dtype": str(array.dtype),
                 "object_array": bool(array.dtype == object),
             }
+        valid = np.asarray(bundle["valid"], dtype=bool) if "valid" in bundle.files else np.ones(raw.shape[0], dtype=bool)
+        sample_ids = np.asarray(bundle["sample_id"], dtype=object) if "sample_id" in bundle.files else np.arange(raw.shape[0], dtype=object)
+        channel_names = [str(value) for value in np.asarray(bundle["channel_names"])] if "channel_names" in bundle.files else []
 
     sequences = _to_sequences(raw, args.channel)
     if sequences.shape[1] < args.sequence_length:
         raise ValueError(f"requested {args.sequence_length} steps but tensor has {sequences.shape[1]}")
-    sequences = _standardize_rows(sequences[:, -args.sequence_length:])
-    n_samples = min(args.max_samples, len(sequences))
-    sequences = sequences[:n_samples]
+
+    sequences = sequences[:, -args.sequence_length:]
+    finite_rows = np.isfinite(sequences).all(axis=1)
+    eligible = valid & finite_rows
+    eligible_indices = np.flatnonzero(eligible)
+    if not len(eligible_indices):
+        raise ValueError("no rows are both valid and fully finite for the selected channel/window")
+
+    selected_indices = eligible_indices[: min(args.max_samples, len(eligible_indices))]
+    sequences = _standardize_rows(sequences[selected_indices])
+    selected_sample_ids = sample_ids[selected_indices]
+    n_samples = len(sequences)
 
     config = RydbergDenseConfig()
     probes = tuple(sorted(set((max(1, args.sequence_length // 2), args.sequence_length))))
     rng = np.random.default_rng(args.seed)
     records: list[dict[str, object]] = []
 
-    for sample_index, sequence in enumerate(sequences):
+    for local_index, sequence in enumerate(sequences):
+        source_index = int(selected_indices[local_index])
+        sample_id = str(selected_sample_ids[local_index])
         local = _local_pattern(sequence, config.n_atoms)
         shuffled = sequence[rng.permutation(len(sequence))]
         reversed_sequence = sequence[::-1]
@@ -147,7 +164,9 @@ def main() -> None:
             for feature_index, value in enumerate(features):
                 records.append(
                     {
-                        "sample_index": sample_index,
+                        "sample_index": local_index,
+                        "source_row_index": source_index,
+                        "sample_id": sample_id,
                         "condition": condition,
                         "feature_index": feature_index,
                         "value": float(value),
@@ -155,7 +174,7 @@ def main() -> None:
                 )
 
     frame = pd.DataFrame(records)
-    wide = frame.pivot(index=["sample_index", "feature_index"], columns="condition", values="value").reset_index()
+    wide = frame.pivot(index=["sample_index", "source_row_index", "sample_id", "feature_index"], columns="condition", values="value").reset_index()
     for condition in ("shuffled", "reversed", "reset", "interaction_off"):
         wide[f"abs_ordered_minus_{condition}"] = np.abs(wide["ordered"] - wide[condition])
 
@@ -165,6 +184,12 @@ def main() -> None:
         "selected_array_key": array_key,
         "selected_array_shape": list(raw.shape),
         "channel": args.channel,
+        "channel_name": channel_names[args.channel] if args.channel < len(channel_names) else None,
+        "valid_rows_total": int(valid.sum()),
+        "fully_finite_rows_for_selected_window": int(finite_rows.sum()),
+        "eligible_rows": int(eligible.sum()),
+        "selected_source_rows": [int(value) for value in selected_indices],
+        "selected_sample_ids": [str(value) for value in selected_sample_ids],
         "samples": n_samples,
         "sequence_length": args.sequence_length,
         "probe_steps": list(probes),
