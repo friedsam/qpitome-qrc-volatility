@@ -161,6 +161,8 @@ def build_global_stage_d_dataset(
                 "index": index_name, "market_group": event["market_group"],
                 "episode_id": episode_id, "split": episode_splits[episode_id],
                 "event_onset": event["onset_date"], "origin_date": series.index[origin],
+                "input_start_date": series.index[origin - WINDOW + 1],
+                "target_end_date": series.index[origin + HORIZON],
                 "origin_pos": origin, "lead": lead, "matched_positive_id": None,
                 "match_distance": np.nan, **features,
                 **{f"target_x_h{i + 1}": float(value) for i, value in enumerate(target)},
@@ -204,6 +206,8 @@ def build_global_stage_d_dataset(
                     "index": index_name, "market_group": positive["market_group"],
                     "episode_id": positive["episode_id"], "split": split,
                     "event_onset": positive["event_onset"], "origin_date": series.index[position],
+                    "input_start_date": series.index[position - WINDOW + 1],
+                    "target_end_date": series.index[position + HORIZON],
                     "origin_pos": position, "lead": int(lead),
                     "matched_positive_id": positive["sample_id"],
                     "match_distance": float(distances.iloc[candidate_index]),
@@ -255,6 +259,7 @@ def build_global_stage_d_dataset(
         "controls_per_positive_target": NEG_PER_POS,
         "sequence_window": WINDOW,
         "target_horizon": HORIZON,
+        "exact_interval_columns": ["input_start_date", "origin_date", "target_end_date"],
     }
     manifest.attrs["pooled_balance"] = pooled_balance
     return manifest, tensor, balance, summary
