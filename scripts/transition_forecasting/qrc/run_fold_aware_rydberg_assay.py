@@ -55,31 +55,39 @@ def _select_manifest_rows(
     ].copy()
     rows["sample_id"] = rows["sample_id"].astype(str)
     rows = rows.loc[~rows["sample_id"].isin(bad_ids)]
-    rows = rows.sort_values(["label", "episode_id", "origin_date", "sample_id"])
-    rows = rows.drop_duplicates(["label", "episode_id"], keep="first")
-
-    rng = np.random.default_rng(seed + fold)
-    chosen: list[pd.DataFrame] = []
-    for label in (0, 1):
-        group = rows.loc[rows["label"].eq(label)].copy()
-        if len(group) > max_per_class:
-            positions = np.sort(rng.choice(len(group), size=max_per_class, replace=False))
-            group = group.iloc[positions]
-        chosen.append(group)
-
-    selected = pd.concat(chosen, ignore_index=True)
-    counts = selected["label"].value_counts().to_dict()
-    if counts.get(0, 0) == 0 or counts.get(1, 0) == 0:
-        raise RuntimeError(f"fold {fold}: selection lacks one class: {counts}")
-    n_balanced = min(counts[0], counts[1])
-    selected = pd.concat(
-        [
-            selected.loc[selected["label"].eq(label)].head(n_balanced)
-            for label in (0, 1)
-        ],
-        ignore_index=True,
+    rows = rows.sort_values(
+        ["fold_split", "label", "episode_id", "origin_date", "sample_id"]
     )
-    return selected.sort_values(["label", "episode_id", "sample_id"]).reset_index(drop=True)
+    rows = rows.drop_duplicates(
+        ["fold_split", "label", "episode_id"], keep="first"
+    )
+
+    selected_parts: list[pd.DataFrame] = []
+    for split_offset, fold_split in enumerate(("train", "validation")):
+        split_rows = rows.loc[rows["fold_split"].eq(fold_split)]
+        class_parts: list[pd.DataFrame] = []
+        for label in (0, 1):
+            group = split_rows.loc[split_rows["label"].eq(label)].copy()
+            rng = np.random.default_rng(seed + 1000 * fold + 100 * split_offset + label)
+            if len(group) > max_per_class:
+                positions = np.sort(
+                    rng.choice(len(group), size=max_per_class, replace=False)
+                )
+                group = group.iloc[positions]
+            class_parts.append(group)
+
+        counts = {label: len(class_parts[label]) for label in (0, 1)}
+        if counts[0] == 0 or counts[1] == 0:
+            raise RuntimeError(
+                f"fold {fold} split {fold_split}: selection lacks one class: {counts}"
+            )
+        n_balanced = min(counts[0], counts[1])
+        selected_parts.extend([part.head(n_balanced) for part in class_parts])
+
+    selected = pd.concat(selected_parts, ignore_index=True)
+    return selected.sort_values(
+        ["fold_split", "label", "episode_id", "sample_id"]
+    ).reset_index(drop=True)
 
 
 def main() -> None:
@@ -103,7 +111,15 @@ def main() -> None:
     args = parser.parse_args()
 
     manifest = pd.read_csv(args.manifest)
-    required = {"sample_id", "label", "episode_id", "origin_date", "lead", "fold", "fold_split"}
+    required = {
+        "sample_id",
+        "label",
+        "episode_id",
+        "origin_date",
+        "lead",
+        "fold",
+        "fold_split",
+    }
     missing = required.difference(manifest.columns)
     if missing:
         raise ValueError(f"manifest missing columns: {sorted(missing)}")
@@ -118,6 +134,7 @@ def main() -> None:
     rng = np.random.default_rng(args.seed)
     feature_rows: list[dict[str, object]] = []
     selection_rows: list[pd.DataFrame] = []
+    skipped_rows: list[dict[str, object]] = []
     channel_name: str | None = None
 
     for fold in args.folds:
@@ -149,18 +166,34 @@ def main() -> None:
 
         missing_ids = sorted(set(selected["sample_id"]) - set(row_by_id))
         if missing_ids:
-            raise RuntimeError(f"fold {fold}: {len(missing_ids)} selected IDs absent from tensor")
+            raise RuntimeError(
+                f"fold {fold}: {len(missing_ids)} selected IDs absent from tensor"
+            )
 
         for record in selected.itertuples(index=False):
             tensor_row = row_by_id[str(record.sample_id)]
             sequence = x[tensor_row, -args.sequence_length :, args.channel]
             if not valid[tensor_row] or not np.isfinite(sequence).all():
+                skipped_rows.append(
+                    {
+                        "fold": fold,
+                        "fold_split": record.fold_split,
+                        "sample_id": str(record.sample_id),
+                        "label": int(record.label),
+                        "tensor_valid": bool(valid[tensor_row]),
+                        "finite_window": bool(np.isfinite(sequence).all()),
+                    }
+                )
                 continue
             sequence = _standardize_rows(sequence.reshape(1, -1))[0]
             local = _local_pattern(sequence, config.n_atoms)
             conditions = {
                 "ordered": (sequence, True, False),
-                "shuffled": (sequence[rng.permutation(len(sequence))], True, False),
+                "shuffled": (
+                    sequence[rng.permutation(len(sequence))],
+                    True,
+                    False,
+                ),
                 "reversed": (sequence[::-1], True, False),
                 "reset": (sequence, True, True),
                 "interaction_off": (sequence, False, False),
@@ -192,14 +225,24 @@ def main() -> None:
     if features.empty:
         raise RuntimeError("no valid assay features were generated")
     selection = pd.concat(selection_rows, ignore_index=True)
+    skipped = pd.DataFrame(skipped_rows)
     wide = features.pivot(
-        index=["fold", "fold_split", "sample_id", "episode_id", "label", "feature_index"],
+        index=[
+            "fold",
+            "fold_split",
+            "sample_id",
+            "episode_id",
+            "label",
+            "feature_index",
+        ],
         columns="condition",
         values="value",
     ).reset_index()
     comparison_names = ("shuffled", "reversed", "reset", "interaction_off")
     for condition in comparison_names:
-        wide[f"abs_ordered_minus_{condition}"] = np.abs(wide["ordered"] - wide[condition])
+        wide[f"abs_ordered_minus_{condition}"] = np.abs(
+            wide["ordered"] - wide[condition]
+        )
 
     summary_table = (
         wide.groupby(["fold", "fold_split", "label"], dropna=False)
@@ -209,7 +252,10 @@ def main() -> None:
             ordered_vs_shuffled_mae=("abs_ordered_minus_shuffled", "mean"),
             ordered_vs_reversed_mae=("abs_ordered_minus_reversed", "mean"),
             ordered_vs_reset_mae=("abs_ordered_minus_reset", "mean"),
-            ordered_vs_interaction_off_mae=("abs_ordered_minus_interaction_off", "mean"),
+            ordered_vs_interaction_off_mae=(
+                "abs_ordered_minus_interaction_off",
+                "mean",
+            ),
         )
         .reset_index()
     )
@@ -218,14 +264,19 @@ def main() -> None:
     outdir = args.out_root / run_id
     outdir.mkdir(parents=True, exist_ok=False)
     selection.to_csv(outdir / "selected_samples.csv", index=False)
+    if not skipped.empty:
+        skipped.to_csv(outdir / "skipped_invalid_samples.csv", index=False)
     features.to_csv(outdir / "features_long.csv.gz", index=False)
     wide.to_csv(outdir / "paired_feature_differences.csv.gz", index=False)
     summary_table.to_csv(outdir / "summary_by_fold_split_label.csv", index=False)
 
+    generated_pairs = features[["fold", "sample_id"]].drop_duplicates()
     summary = {
         "manifest": str(args.manifest),
         "tensor_root": str(args.tensor_root),
-        "contaminated_samples": str(args.contaminated_samples) if args.contaminated_samples else None,
+        "contaminated_samples": (
+            str(args.contaminated_samples) if args.contaminated_samples else None
+        ),
         "excluded_bad_sample_ids_available": len(bad_ids),
         "folds": args.folds,
         "lead": args.lead,
@@ -235,12 +286,29 @@ def main() -> None:
         "probe_steps": list(probes),
         "config": config.__dict__,
         "selected_rows": int(len(selection)),
-        "generated_samples": int(features["sample_id"].nunique()),
+        "generated_fold_sample_pairs": int(len(generated_pairs)),
+        "generated_globally_unique_sample_ids": int(features["sample_id"].nunique()),
+        "skipped_invalid_rows": int(len(skipped)),
         "test_rows_used": int(features["fold_split"].eq("test").sum()),
         "purpose": "fold-aware balanced mechanism confirmation; no forecasting claim",
     }
     if summary["test_rows_used"] != 0:
         raise RuntimeError("test rows entered the assay")
+    expected_groups = {
+        (fold, fold_split, label)
+        for fold in args.folds
+        for fold_split in ("train", "validation")
+        for label in (0, 1)
+    }
+    observed_groups = set(
+        summary_table[["fold", "fold_split", "label"]].itertuples(
+            index=False, name=None
+        )
+    )
+    missing_groups = sorted(expected_groups - observed_groups)
+    if missing_groups:
+        raise RuntimeError(f"missing fold/split/class output groups: {missing_groups}")
+
     (outdir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(summary_table.to_string(index=False))
     print(json.dumps(summary, indent=2))
