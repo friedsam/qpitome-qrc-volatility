@@ -13,6 +13,8 @@ class IntervalColumns:
     label: str = "label"
     episode: str = "episode_id"
     sample_id: str = "sample_id"
+    input_start: str | None = None
+    target_end: str | None = None
 
 
 def _as_utc(series: pd.Series) -> pd.Series:
@@ -38,11 +40,18 @@ def _interval_bounds(
     *,
     input_lookback_days: int,
     target_horizon_days: int,
-) -> tuple[pd.Series, pd.Series]:
+) -> tuple[pd.Series, pd.Series, str]:
+    if columns.input_start is not None or columns.target_end is not None:
+        if columns.input_start is None or columns.target_end is None:
+            raise ValueError("input_start and target_end must be supplied together")
+        missing = {columns.input_start, columns.target_end}.difference(frame.columns)
+        if missing:
+            raise ValueError(f"manifest is missing exact interval columns: {sorted(missing)}")
+        return _as_utc(frame[columns.input_start]), _as_utc(frame[columns.target_end]), "exact_columns"
     origin = _as_utc(frame[columns.origin])
     start = origin - pd.to_timedelta(int(input_lookback_days), unit="D")
     end = origin + pd.to_timedelta(int(target_horizon_days), unit="D")
-    return start, end
+    return start, end, "calendar_approximation"
 
 
 def _purge_cross_partition_overlaps(
@@ -107,7 +116,7 @@ def rolling_origin_assignments(
     frame, duplicate_count = _deduplicate_samples(frame, columns)
     frame["_origin"] = _as_utc(frame[columns.origin])
     frame["chronology_group"] = _chronology_groups(frame, columns)
-    frame["interval_start"], frame["interval_end"] = _interval_bounds(
+    frame["interval_start"], frame["interval_end"], interval_source = _interval_bounds(
         frame,
         columns,
         input_lookback_days=input_lookback_days,
@@ -190,8 +199,9 @@ def rolling_origin_assignments(
         "input_samples": int(len(manifest)),
         "deduplicated_samples": int(len(frame)),
         "duplicate_index_origin_removed": duplicate_count,
-        "input_lookback_days": int(input_lookback_days),
-        "target_horizon_days": int(target_horizon_days),
+        "interval_source": interval_source,
+        "input_lookback_days": None if interval_source == "exact_columns" else int(input_lookback_days),
+        "target_horizon_days": None if interval_source == "exact_columns" else int(target_horizon_days),
         "embargo_days": int(embargo_days),
         "control_groups_use_actual_origin": True,
         "positive_groups_use_episode_id": True,
