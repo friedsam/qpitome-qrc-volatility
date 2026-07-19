@@ -61,12 +61,14 @@ def _purge_cross_partition_overlaps(
         indices = rows.index.to_list()
         for left_position, left_index in enumerate(indices):
             left_split = frame.at[left_index, split_column]
+            if left_split not in order:
+                continue
             left_end = frame.at[left_index, interval_end]
             for right_index in indices[left_position + 1 :]:
                 if frame.at[right_index, interval_start] > left_end:
                     break
                 right_split = frame.at[right_index, split_column]
-                if left_split == right_split:
+                if right_split not in order or left_split == right_split:
                     continue
                 later_index = right_index if order[right_split] >= order[left_split] else left_index
                 if frame.at[later_index, split_column] != "purged_overlap":
@@ -100,7 +102,9 @@ def rolling_origin_assignments(
     if not 0.0 < test_fraction < 1.0:
         raise ValueError("test_fraction must lie in (0, 1)")
 
-    frame, duplicate_count = _deduplicate_samples(manifest.reset_index(drop=True), columns)
+    frame = manifest.reset_index(drop=True).copy()
+    frame["_source_row"] = np.arange(len(frame), dtype=int)
+    frame, duplicate_count = _deduplicate_samples(frame, columns)
     frame["_origin"] = _as_utc(frame[columns.origin])
     frame["chronology_group"] = _chronology_groups(frame, columns)
     frame["interval_start"], frame["interval_end"] = _interval_bounds(
@@ -144,7 +148,10 @@ def rolling_origin_assignments(
         near_boundary = (fold_frame["interval_end"] >= boundary - embargo) & (
             fold_frame["interval_start"] <= boundary + embargo
         )
-        fold_frame.loc[near_boundary & fold_frame["fold_split"].isin(["train", "val"]), "fold_split"] = "purged_embargo"
+        fold_frame.loc[
+            near_boundary & fold_frame["fold_split"].isin(["train", "val"]),
+            "fold_split",
+        ] = "purged_embargo"
 
         overlap_purged = _purge_cross_partition_overlaps(
             fold_frame,
@@ -167,7 +174,9 @@ def rolling_origin_assignments(
                 "boundary": str(boundary),
                 "train_groups": int(train["chronology_group"].nunique()),
                 "val_groups": int(val["chronology_group"].nunique()),
-                "test_groups": int(fold_frame.loc[fold_frame["fold_split"].eq("test"), "chronology_group"].nunique()),
+                "test_groups": int(
+                    fold_frame.loc[fold_frame["fold_split"].eq("test"), "chronology_group"].nunique()
+                ),
                 "train_samples": int(len(train)),
                 "val_samples": int(len(val)),
                 "purged_embargo_samples": int(fold_frame["fold_split"].eq("purged_embargo").sum()),
