@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from transition_forecasting.modeling.chronological_splits import rolling_origin_assignments
+from transition_forecasting.modeling.chronological_splits import (
+    IntervalColumns,
+    rolling_origin_assignments,
+)
 
 
 def _manifest() -> pd.DataFrame:
@@ -84,3 +87,25 @@ def test_duplicate_index_origin_rows_are_removed_and_source_rows_preserved() -> 
     assert assignments["_source_row"].between(0, len(manifest) - 1).all()
     for _, fold in assignments.groupby("fold"):
         assert not fold.duplicated(["index", "origin_date"]).any()
+
+
+def test_exact_interval_columns_replace_calendar_approximation() -> None:
+    manifest = _manifest()
+    manifest["input_start_date"] = pd.to_datetime(manifest["origin_date"]) - pd.offsets.BDay(39)
+    manifest["target_end_date"] = pd.to_datetime(manifest["origin_date"]) + pd.offsets.BDay(10)
+
+    assignments, _, audit = rolling_origin_assignments(
+        manifest,
+        n_folds=3,
+        test_fraction=0.17,
+        embargo_days=10,
+        columns=IntervalColumns(
+            input_start="input_start_date",
+            target_end="target_end_date",
+        ),
+    )
+
+    assert audit["interval_source"] == "exact_columns"
+    first = assignments.iloc[0]
+    assert pd.Timestamp(first["interval_start"]) == pd.Timestamp(first["input_start_date"], tz="UTC")
+    assert pd.Timestamp(first["interval_end"]) == pd.Timestamp(first["target_end_date"], tz="UTC")
