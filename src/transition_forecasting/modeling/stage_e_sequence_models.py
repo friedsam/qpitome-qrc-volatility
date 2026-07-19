@@ -28,6 +28,24 @@ def load_stage_d(run_dir: Path) -> tuple[pd.DataFrame, np.ndarray]:
     return manifest, sequences
 
 
+def load_rematched_rolling(run_dir: Path) -> tuple[pd.DataFrame, np.ndarray]:
+    manifest = pd.read_csv(run_dir / "rematched_rolling_manifest.csv").reset_index(drop=True)
+    with np.load(run_dir / "rematched_rolling_tensors.npz", allow_pickle=True) as data:
+        sequences = np.asarray(data["X"], dtype=float)
+        tensor_ids = data["sample_id"].astype(str)
+        tensor_folds = data["fold"].astype(int)
+        tensor_splits = data["fold_split"].astype(str)
+    if sequences.shape != (len(manifest), 40, 1):
+        raise ValueError(f"expected rematched tensors shaped (n, 40, 1), got {sequences.shape}")
+    if not np.array_equal(tensor_ids, manifest["sample_id"].astype(str).to_numpy()):
+        raise ValueError("rematched manifest and tensor sample IDs are not aligned")
+    if not np.array_equal(tensor_folds, manifest["fold"].astype(int).to_numpy()):
+        raise ValueError("rematched manifest and tensor folds are not aligned")
+    if not np.array_equal(tensor_splits, manifest["fold_split"].astype(str).to_numpy()):
+        raise ValueError("rematched manifest and tensor splits are not aligned")
+    return manifest, sequences
+
+
 def chronology_audit(manifest: pd.DataFrame, *, date_column: str = "origin_date") -> pd.DataFrame:
     frame = manifest.copy()
     frame["_date"] = pd.to_datetime(frame[date_column], errors="raise", utc=True)
@@ -158,4 +176,97 @@ def evaluate_fold(
                         "val_rmse": rmse,
                     }
                 )
+    return pd.DataFrame(rows)
+
+
+def evaluate_fold_fixed(
+    manifest: pd.DataFrame,
+    sequences: np.ndarray,
+    *,
+    fold: int,
+    seeds: tuple[int, ...] = (1, 2, 3),
+    sequence_alpha: float = 100.0,
+    esn_alpha: float = 1000.0,
+    pca_components: int = 10,
+    config: dict[str, object] | None = None,
+) -> pd.DataFrame:
+    """Evaluate a preregistered compact model set without validation tuning."""
+    config = dict(DEFAULT_ESN_CONFIG if config is None else config)
+    train_mask = manifest["fold_split"].eq("train").to_numpy()
+    val_mask = manifest["fold_split"].eq("val").to_numpy()
+    if not train_mask.any() or not val_mask.any():
+        raise ValueError(f"fold {fold} has an empty train or validation partition")
+    if manifest["fold_split"].eq("test").any():
+        manifest = manifest[~manifest["fold_split"].eq("test")].reset_index(drop=True)
+        sequences = sequences[~np.asarray(manifest.index < 0)] if False else sequences[: len(sequences)]
+        train_mask = manifest["fold_split"].eq("train").to_numpy()
+        val_mask = manifest["fold_split"].eq("val").to_numpy()
+
+    y = manifest[list(TARGET_COLUMNS)].to_numpy(dtype=float)
+    har = har_predictions(manifest, y, train_mask)
+    residual = y - har
+    rows: list[dict[str, object]] = []
+
+    def append(model: str, seed: int, alpha: float, prediction: np.ndarray) -> None:
+        qlike, rmse = metrics(y, prediction, val_mask)
+        rows.append(
+            {
+                "fold": int(fold),
+                "model": model,
+                "seed": int(seed),
+                "alpha": float(alpha),
+                "train_samples": int(train_mask.sum()),
+                "val_samples": int(val_mask.sum()),
+                "val_qlike": qlike,
+                "val_rmse": rmse,
+            }
+        )
+
+    append("har", 0, 100.0, har)
+
+    flat = sequences.reshape(len(sequences), -1)
+    flat_scaler = StandardScaler()
+    flat_train = flat_scaler.fit_transform(flat[train_mask])
+    flat_all = flat_scaler.transform(flat)
+    sequence_model = Ridge(alpha=float(sequence_alpha))
+    sequence_model.fit(flat_train, y[train_mask])
+    append("sequence_ridge", 0, sequence_alpha, sequence_model.predict(flat_all))
+
+    scaled_sequences = scale_sequences(sequences, train_mask)
+    for seed in seeds:
+        w_in, w = make_esn_weights(
+            n_inputs=scaled_sequences.shape[-1],
+            n_reservoir=int(config["n"]),
+            spectral_radius=float(config["sr"]),
+            input_scale=float(config["inp"]),
+            seed=int(seed),
+        )
+        ordered = esn_states(scaled_sequences, w_in, w, float(config["leak"]))
+        rng = np.random.default_rng(int(seed) + 20000)
+        shuffled_sequences = scaled_sequences.copy()
+        for sample in range(len(shuffled_sequences)):
+            permutation = rng.permutation(shuffled_sequences.shape[1])
+            shuffled_sequences[sample] = shuffled_sequences[sample, permutation, :]
+        shuffled = esn_states(shuffled_sequences, w_in, w, float(config["leak"]))
+
+        ordered_scaler = StandardScaler()
+        ordered_train = ordered_scaler.fit_transform(ordered[train_mask])
+        ordered_all = ordered_scaler.transform(ordered)
+        count = min(int(pca_components), ordered_train.shape[0], ordered_train.shape[1])
+        pca = PCA(n_components=count, svd_solver="full")
+        pca_train = pca.fit_transform(ordered_train)
+        pca_all = pca.transform(ordered_all)
+
+        shuffled_scaler = StandardScaler()
+        shuffled_train = shuffled_scaler.fit_transform(shuffled[train_mask])
+        shuffled_all = shuffled_scaler.transform(shuffled)
+
+        for model_name, x_train, x_all in (
+            ("pca10_esn", pca_train, pca_all),
+            ("shuffled_esn", shuffled_train, shuffled_all),
+        ):
+            readout = Ridge(alpha=float(esn_alpha))
+            readout.fit(x_train, residual[train_mask])
+            append(model_name, seed, esn_alpha, har + readout.predict(x_all))
+
     return pd.DataFrame(rows)
