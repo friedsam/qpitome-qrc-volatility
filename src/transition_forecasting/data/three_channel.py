@@ -45,17 +45,17 @@ def build_three_channel_dataset(
         arrays = {name: archive[name] for name in archive.files}
     if "X" not in arrays:
         raise KeyError("sequence_tensors.npz does not contain X")
-    x = np.asarray(arrays["X"], dtype=np.float32)
+    x = np.asarray(arrays["X"])
     if x.ndim != 3 or x.shape[-1] != 1:
         raise ValueError(f"Expected one-channel tensor shaped (n, time, 1), got {x.shape}")
     if not np.isfinite(x).all():
         raise ValueError("Source tensor contains non-finite values")
 
-    level = x[:, :, 0].astype(np.float64)
+    level = x[:, :, 0]
     relative_rate = np.diff(level, axis=1, prepend=level[:, :1])
     volatility = np.exp(np.clip(level, -20.0, 20.0))
     absolute_rate = np.diff(volatility, axis=1, prepend=volatility[:, :1])
-    x3 = np.stack((level, relative_rate, absolute_rate), axis=-1).astype(np.float32)
+    x3 = np.stack((level, relative_rate, absolute_rate), axis=-1)
     if not np.isfinite(x3).all():
         raise ValueError("Derived three-channel tensor contains non-finite values")
 
@@ -80,9 +80,11 @@ def build_three_channel_dataset(
     }
     manifest["representation"] = {
         "shape": list(x3.shape),
+        "dtype": str(x3.dtype),
         "channels": CHANNEL_NAMES.tolist(),
         "rate_initialization": "zero at first stored row",
         "sample_identity_and_order_preserved": True,
+        "level_channel_bitwise_identical_to_1d": True,
     }
     manifest["test_evaluated"] = False
     manifest.pop("files", None)
@@ -94,6 +96,7 @@ def build_three_channel_dataset(
         "source_dir": str(source_dir),
         "output_dir": str(output_dir),
         "shape": list(x3.shape),
+        "dtype": str(x3.dtype),
         "channels": CHANNEL_NAMES.tolist(),
         "samples_preserved": int(x3.shape[0]),
         "test_evaluated": False,
