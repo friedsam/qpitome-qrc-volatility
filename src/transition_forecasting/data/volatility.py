@@ -36,16 +36,21 @@ def build_daily_volatility(
 ) -> pd.DataFrame:
     """Build ordered daily log Parkinson volatility from frozen effective starts.
 
-    ``range_quality_path`` remains the untouched-raw GPT-2 contract. When
-    ``data_root`` is supplied, only the file locations are redirected to the
-    correction-only modeling inputs; eligibility and effective starts are not
-    recomputed from those transformed files.
+    ``range_quality_path`` remains the untouched-raw GPT-2 contract. ``data_root``
+    redirects only file locations to correction-only modeling inputs. The
+    atomic dataset builder's temporary layout is recognized when the explicit
+    argument is omitted, preserving backward compatibility for the thin CLI.
     """
     quality = pd.read_csv(range_quality_path)
     required = {"path", "index", "recommended_effective_start"}
     missing = required.difference(quality.columns)
     if missing:
         raise ValueError(f"{range_quality_path}: missing columns {sorted(missing)}")
+
+    if data_root is None:
+        candidate = output_path.parent.parent / "cleaning" / "individual_indices_data"
+        if candidate.is_dir():
+            data_root = candidate
 
     rows: list[pd.DataFrame] = []
     for _, item in quality.iterrows():
