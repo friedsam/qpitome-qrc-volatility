@@ -14,6 +14,7 @@ def consolidate_cleaned_ohlc(cleaned_root: Path, output_path: Path) -> pd.DataFr
     frames: list[pd.DataFrame] = []
     for path in sorted(Path(cleaned_root).glob("*.csv")):
         frame = pd.read_csv(path)
+        frame = frame.dropna(axis=1, how="all")
         frame.insert(0, "index", path.stem)
         frames.append(frame)
     if not frames:
