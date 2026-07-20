@@ -112,8 +112,25 @@ Controls must be rematched after any upstream change. Old controls may not be re
 - Construction occurs in temporary storage.
 - A failed build must not leave a partial canonical directory.
 - The canonical directory is replaced only after build-time validation.
-- The standard workflow then runs `validate_processed_dataset.py` and records `processed_dataset_audit.json` in the run directory.
+- The standard workflow runs `validate_processed_dataset.py` and records `processed_dataset_audit.json` in the run directory.
+- The same workflow runs `analyze_cleanup_evidence.py` and records the complete cleanup evidence package.
 - A failed audit makes the workflow fail and the dataset must not be treated as submission-ready.
+
+## Cleanup evidence package
+
+Each completed transition-process run writes:
+
+- `cleanup_evidence/cleanup_evidence.json`
+- `cleanup_evidence/final_cleanup_report.md`
+- `cleanup_evidence/residual_extremes.csv`
+- `cleanup_evidence/matching_quality.csv`
+- `cleanup_evidence/sample_attribution.csv`
+- `cleanup_evidence/effective_starts.csv`
+- `cleanup_evidence/transformation_scenarios.csv`
+- `cleanup_evidence/baseline_sample_delta.csv`
+- `cleanup_evidence/baseline_event_delta.csv`
+
+The sample-delta comparison is produced automatically when the historical Stage D manifest is available. The event-delta comparison is produced when a historical reference event catalogue is supplied. Missing historical references are reported explicitly and do not prevent an agent run from completing.
 
 ## Required automated checks
 
@@ -131,7 +148,7 @@ The post-build audit verifies:
 - forbidden transformations remain disabled;
 - file hashes and row counts are recorded.
 
-Matching tests additionally verify deterministic construction, exact controls per positive, no control reuse, incomplete-control rejection, and split-leakage rejection.
+Matching and cleanup tests additionally verify deterministic construction, exact controls per positive, no control reuse, incomplete-control rejection, split-leakage rejection, robust-extreme detection, event overlap, match-distance summaries, transformation-scenario accounting, baseline sample deltas, baseline event deltas, and complete report generation.
 
 ## Change control
 
@@ -143,4 +160,4 @@ Time constraints may require multiple related fixes in one commit. This does not
 - exact before/after counts where applicable;
 - no silent methodological changes.
 
-A successful command exit alone is not evidence of dataset validity. The dataset is submission-ready only when build validation, automated tests, and the post-build audit pass.
+A successful command exit alone is not evidence of dataset validity. The dataset is submission-ready only when build validation, automated tests, the post-build audit, and cleanup evidence generation pass.
