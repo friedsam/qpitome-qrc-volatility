@@ -75,10 +75,16 @@ def build_cleaned_ohlc(
     *,
     expected_structural_flags: int = 12,
     expected_affected_indices: int = 2,
+    apply_structural_corrections: bool = True,
     force: bool = False,
     policy: StructuralBadPrintPolicy = StructuralBadPrintPolicy(),
 ) -> dict[str, object]:
-    """Build cleaned individual-index OHLC files and complete correction provenance."""
+    """Build cleaned OHLC files and record detected structural bad prints.
+
+    ``apply_structural_corrections=False`` is a temporary parity-control mode. It
+    records the same detected rows but retains them in the output so the rebuilt
+    historical pipeline can be compared against GPT-2's artifacts.
+    """
     raw_root = Path(raw_root)
     output_root = Path(output_root)
 
@@ -109,11 +115,16 @@ def build_cleaned_ohlc(
         if len(flagged):
             flagged.insert(1, "source_path", str(source))
             flagged["reason"] = "structural_bad_print"
-            flagged["action"] = "drop"
+            flagged["action"] = (
+                "drop" if apply_structural_corrections else "retain_for_parity_control"
+            )
             structural_rows.append(flagged)
 
         flagged_dates = set(pd.to_datetime(flagged["date"])) if len(flagged) else set()
-        cleaned = canonical.loc[~canonical["date"].isin(flagged_dates)].copy()
+        if apply_structural_corrections:
+            cleaned = canonical.loc[~canonical["date"].isin(flagged_dates)].copy()
+        else:
+            cleaned = canonical.copy()
         cleaned = cleaned.drop(columns=["source_row"], errors="ignore")
         preferred = [
             column
@@ -135,7 +146,8 @@ def build_cleaned_ohlc(
                 "output_sha256": sha256_file(destination),
                 "source_rows": int(len(pd.read_csv(source))),
                 "basic_removed_rows": int(len(basic_corrections)),
-                "structural_removed_rows": int(len(flagged)),
+                "structural_detected_rows": int(len(flagged)),
+                "structural_removed_rows": int(len(flagged)) if apply_structural_corrections else 0,
                 "final_rows": int(len(cleaned)),
             }
         )
@@ -166,15 +178,18 @@ def build_cleaned_ohlc(
     all_corrections.to_csv(output_root / "row_corrections.csv", index=False)
     pd.DataFrame(file_records).to_csv(output_root / "file_manifest.csv", index=False)
 
+    structural_removed_rows = int(len(structural)) if apply_structural_corrections else 0
     manifest: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "built_at_utc": datetime.now(timezone.utc).isoformat(),
         "raw_root": str(raw_root),
         "output_root": str(output_root),
         "policy": policy.to_dict(),
         "source_files": len(source_files),
         "basic_removed_rows": int(len(basic)),
-        "structural_removed_rows": int(len(structural)),
+        "structural_detected_rows": int(len(structural)),
+        "structural_removed_rows": structural_removed_rows,
+        "structural_corrections_applied": apply_structural_corrections,
         "affected_indices": affected_indices,
         "final_rows": int(sum(int(record["final_rows"]) for record in file_records)),
         "rules": [
@@ -183,7 +198,11 @@ def build_cleaned_ohlc(
             "drop missing, nonnumeric, zero, or negative OHLC rows",
             "drop rows with high below low",
             "sort by date and keep the last duplicate-date row",
-            "drop rows flagged by the frozen causal structural bad-print policy",
+            (
+                "drop rows flagged by the frozen causal structural bad-print policy"
+                if apply_structural_corrections
+                else "retain flagged structural bad prints only for parity-control reconstruction"
+            ),
             "do not interpolate, forward fill, winsorize, clip, or synthesize dates",
         ],
     }
