@@ -21,6 +21,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-structural-flags", type=int, default=12)
     parser.add_argument("--expected-affected-indices", type=int, default=2)
     parser.add_argument("--controls-per-positive", type=int, default=3)
+    parser.add_argument(
+        "--parity-control-no-structural-removal",
+        action="store_true",
+        help=(
+            "Temporary experimental mode: detect and document structural bad prints "
+            "but retain them to reconstruct the pre-correction lineage."
+        ),
+    )
     parser.add_argument("--force", action="store_true")
     return parser.parse_args()
 
@@ -33,6 +41,7 @@ def main() -> int:
         expected_structural_flags=args.expected_structural_flags,
         expected_affected_indices=args.expected_affected_indices,
         controls_per_positive=args.controls_per_positive,
+        apply_structural_corrections=not args.parity_control_no_structural_removal,
         force=args.force,
     )
     print(json.dumps(report, indent=2))
