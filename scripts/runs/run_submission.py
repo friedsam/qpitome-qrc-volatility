@@ -44,53 +44,8 @@ TRANSITION_RAW_DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
 TRANSITION_PROCESS_COMMANDS: tuple[tuple[str, ...], ...] = (
     (
         sys.executable,
-        "scripts/transition_forecasting/quality/build_canonical_clean_ohlc.py",
-    ),
-    (
-        sys.executable,
-        "scripts/transition_forecasting/quality/audit_global_index_ohlc.py",
-        "--data-dir",
-        "data/processed/transition_forecasting/canonical_ohlc/individual_indices_data",
-        "--out-dir",
-        "results/transition_forecasting/quality/global_index_ohlc_audit",
-        "--run-id",
-        "canonical_001",
-    ),
-    (
-        sys.executable,
-        "scripts/transition_forecasting/quality/audit_global_ohlc_range_quality.py",
-        "--inventory",
-        "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
-        "--out-dir",
-        "results/transition_forecasting/quality/global_ohlc_range_quality",
-        "--run-id",
-        "canonical_001",
-    ),
-    (
-        sys.executable,
-        "scripts/transition_forecasting/catalogue/build_global_transition_catalogue.py",
-        "--data-dir",
-        "data/processed/transition_forecasting/canonical_ohlc/individual_indices_data",
-        "--inventory",
-        "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
-        "--range-quality",
-        "results/transition_forecasting/quality/global_ohlc_range_quality/canonical_001/global_range_quality.csv",
-        "--out-dir",
-        "results/transition_forecasting/catalogue/global_transition_catalogue",
-        "--run-id",
-        "canonical_001",
-    ),
-    (
-        sys.executable,
-        "scripts/transition_forecasting/modeling/build_global_stage_d_dataset.py",
-        "--representative-catalogue",
-        "results/transition_forecasting/catalogue/global_transition_catalogue/canonical_001/representative_transition_catalogue.csv",
-        "--inventory",
-        "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
-        "--out-dir",
-        "results/transition_forecasting/modeling/global_stage_d_dataset",
-        "--run-id",
-        "canonical_001",
+        "scripts/transition_forecasting/build_processed_dataset.py",
+        "--force",
     ),
 )
 
@@ -114,14 +69,13 @@ REQUIRED_TRANSITION_RAW_DATA_OUTPUTS: tuple[str, ...] = (
 )
 
 REQUIRED_TRANSITION_PROCESS_OUTPUTS: tuple[str, ...] = (
-    "data/processed/transition_forecasting/canonical_ohlc/manifest.json",
-    "data/processed/transition_forecasting/canonical_ohlc/row_corrections.csv",
-    "data/processed/transition_forecasting/canonical_ohlc/file_manifest.csv",
-    "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
-    "results/transition_forecasting/quality/global_ohlc_range_quality/canonical_001/global_range_quality.csv",
-    "results/transition_forecasting/catalogue/global_transition_catalogue/canonical_001/representative_transition_catalogue.csv",
-    "results/transition_forecasting/modeling/global_stage_d_dataset/canonical_001/sample_manifest.csv",
-    "results/transition_forecasting/modeling/global_stage_d_dataset/canonical_001/sequence_tensors.npz",
+    "data/processed/transition_forecasting/global_transition_dataset/cleaned_ohlc.csv.gz",
+    "data/processed/transition_forecasting/global_transition_dataset/daily_volatility.csv.gz",
+    "data/processed/transition_forecasting/global_transition_dataset/transition_catalogue.csv",
+    "data/processed/transition_forecasting/global_transition_dataset/sample_manifest.csv",
+    "data/processed/transition_forecasting/global_transition_dataset/sequence_tensors.npz",
+    "data/processed/transition_forecasting/global_transition_dataset/row_corrections.csv",
+    "data/processed/transition_forecasting/global_transition_dataset/manifest.json",
 )
 
 
@@ -190,14 +144,22 @@ def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord
     log_path = run_dir / f"{index:02d}_{command_name}.log"
     started = utc_now()
     start_clock = time.monotonic()
+    actual_argv = list(argv)
+    if "build_processed_dataset.py" in actual_argv:
+        actual_argv.extend(["--log-dir", str(run_dir)])
     with log_path.open("w", encoding="utf-8") as log:
-        log.write(f"$ {' '.join(argv)}\n\n")
+        log.write(f"$ {' '.join(actual_argv)}\n\n")
         log.flush()
         completed = subprocess.run(
-            tuple(argv), cwd=REPO_ROOT, stdout=log, stderr=subprocess.STDOUT, text=True, check=False
+            tuple(actual_argv),
+            cwd=REPO_ROOT,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
         )
     return CommandRecord(
-        argv=list(argv),
+        argv=actual_argv,
         started_at_utc=started,
         finished_at_utc=utc_now(),
         duration_seconds=round(time.monotonic() - start_clock, 6),
