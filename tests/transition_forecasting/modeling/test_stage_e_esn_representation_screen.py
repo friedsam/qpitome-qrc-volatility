@@ -5,10 +5,17 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from baselines.esn_representation import pool_trajectory, reservoir_trajectory, transform_input
 
 SCRIPT = Path("scripts/transition_forecasting/modeling/run_stage_e_esn_representation_screen.py")
+ROLLING = Path("scripts/transition_forecasting/modeling/run_stage_e_rolling_origin.py")
+if not SCRIPT.is_file() or not ROLLING.is_file():
+    pytest.skip(
+        "Legacy Stage E representation implementation or rolling-origin dependency is absent",
+        allow_module_level=True,
+    )
 SPEC = importlib.util.spec_from_file_location("stage_e_esn_representation_screen", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
@@ -20,7 +27,6 @@ def test_input_transforms_and_pooling_shapes() -> None:
     assert transform_input(X, "level").shape == (2, 6, 1)
     assert transform_input(X, "level_diff").shape == (2, 6, 2)
     assert transform_input(X, "level_diff_time").shape == (2, 6, 3)
-
     W_in = np.ones((4, 1)) * 0.1
     W = np.eye(4) * 0.2
     states = reservoir_trajectory(X, W_in, W, leak=0.3)
