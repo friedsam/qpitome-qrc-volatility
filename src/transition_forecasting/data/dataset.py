@@ -7,8 +7,6 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pandas as pd
-
 from transition_forecasting.catalogue.global_transition_catalogue import (
     write_global_transition_outputs,
 )
@@ -65,7 +63,6 @@ def _file_inventory(root: Path) -> dict[str, dict[str, object]]:
 
 
 def _promote_candidate(candidate: Path, output_dir: Path, *, force: bool) -> None:
-    """Atomically promote a validated candidate and remove the transient backup."""
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     if output_dir.exists() and not force:
         raise FileExistsError(f"Refusing to overwrite existing dataset: {output_dir}")
@@ -93,9 +90,14 @@ def build_processed_dataset(
     expected_structural_flags: int = 12,
     expected_affected_indices: int = 2,
     controls_per_positive: int = 3,
+    apply_structural_corrections: bool = True,
     force: bool = False,
 ) -> dict[str, object]:
-    """Build, validate, and atomically publish the canonical transition dataset."""
+    """Build, validate, and atomically publish one processed dataset.
+
+    ``apply_structural_corrections=False`` exists only for temporary parity
+    reconstruction on the experimental branch and is not a submission mode.
+    """
     raw_root = Path(raw_root).resolve()
     output_dir = Path(output_dir).resolve()
     individual_raw = raw_root / "individual_indices_data"
@@ -123,6 +125,7 @@ def build_processed_dataset(
             cleaning_root,
             expected_structural_flags=expected_structural_flags,
             expected_affected_indices=expected_affected_indices,
+            apply_structural_corrections=apply_structural_corrections,
         )
         cleaned_root = cleaning_root / "individual_indices_data"
 
@@ -166,8 +169,12 @@ def build_processed_dataset(
 
         raw_acquisition_manifest = raw_root / "raw_acquisition_manifest.json"
         manifest: dict[str, object] = {
-            "schema_version": 2,
+            "schema_version": 3,
             "dataset": "global_transition_dataset",
+            "build_mode": (
+                "corrected" if apply_structural_corrections else "parity_control_no_structural_removal"
+            ),
+            "temporary_parity_control": not apply_structural_corrections,
             "built_at_utc": utc_now(),
             "raw_root": str(raw_root),
             "raw_acquisition_manifest_sha256": (
@@ -182,12 +189,14 @@ def build_processed_dataset(
                 "winsorization": False,
                 "arbitrary_clipping": False,
                 "synthetic_dates": False,
-                "structural_bad_prints_removed_before_volatility": True,
-                "controls_rematched_after_correction": True,
+                "structural_bad_prints_detected": True,
+                "structural_bad_prints_removed_before_volatility": apply_structural_corrections,
+                "controls_rematched_after_correction": apply_structural_corrections,
             },
             "counts": {
                 "cleaned_ohlc_rows": int(len(cleaned)),
                 "daily_volatility_rows": int(len(daily)),
+                "structural_detected_rows": int(cleaning_summary["structural_detected_rows"]),
                 "structural_removed_rows": int(cleaning_summary["structural_removed_rows"]),
                 "affected_indices": int(cleaning_summary["affected_indices"]),
                 "transition_events": int(transition_summary["representative_market_events"]),
@@ -237,6 +246,8 @@ def build_processed_dataset(
 
     return {
         "output_dir": str(output_dir),
+        "build_mode": manifest["build_mode"],
+        "temporary_parity_control": manifest["temporary_parity_control"],
         "files": _file_inventory(output_dir),
         "counts": manifest["counts"],
         "test_evaluated": False,
