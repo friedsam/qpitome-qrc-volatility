@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "run_id": "transition_raw_existing_001",
+  "workflow": "transition-raw-data",
+  "status": "succeeded",
+  "started_at_utc": "2026-07-20T02:59:36.482636+00:00",
+  "finished_at_utc": "2026-07-20T02:59:37.713505+00:00",
+  "repository": {
+    "commit": "d106f711767778d400a1d5e06b484cb051576ec1",
+    "branch": "stage1-dev-ext",
+    "working_tree_status": "?? results/transition_forecasting/modeling/analyze_stage_e_fold_stability/\n?? results/transition_forecasting/modeling/build_global_stage_d_dataset/\n?? results/transition_forecasting/modeling/build_stage_e_chronological_dataset/\n?? results/transition_forecasting/modeling/cross_market_compact_tensors/\n?? results/transition_forecasting/modeling/cross_market_ohlc_transform_match/\n?? results/transition_forecasting/modeling/cross_market_panel_audit/\n?? results/transition_forecasting/modeling/cross_market_range_formula_audit/\n?? results/transition_forecasting/modeling/cross_market_transform_match/\n?? results/transition_forecasting/modeling/cross_market_window_availability/\n?? results/transition_forecasting/modeling/run_stage_e_compact_diagnostics/\n?? results/transition_forecasting/modeling/run_stage_e_pls_diagnostics/\n?? results/transition_forecasting/modeling/run_stage_e_quality_gated_order_bootstrap/\n?? results/transition_forecasting/modeling/run_stage_e_rate_channel_assay/\n?? results/transition_forecasting/modeling/run_stage_e_repaired_rolling_origin/\n?? results/transition_forecasting/modeling/run_stage_e_representation_confirmation/\n?? results/transition_forecasting/modeling/run_stage_e_representation_screen/\n?? results/transition_forecasting/modeling/run_stage_e_resumable_esn_sweep/\n?? results/transition_forecasting/modeling/stage_e_classical_sanity/\n?? results/transition_forecasting/modeling/stage_e_cross_market_comparison/\n?? results/transition_forecasting/modeling/stage_e_cross_market_integrated/\n?? results/transition_forecasting/modeling/stage_e_cross_market_parameter_screen/\n?? results/transition_forecasting/modeling/stage_e_esn_control_study/\n?? results/transition_forecasting/modeling/stage_e_esn_feature_assay/\n?? results/transition_forecasting/modeling/stage_e_esn_regularization/\n?? results/transition_forecasting/modeling/stage_e_esn_reservoir_features/\n?? results/transition_forecasting/modeling/stage_e_garch/\n?? results/transition_forecasting/modeling/stage_e_numpy_esn/\n?? results/transition_forecasting/qrc/\n?? results/transition_forecasting/quality/stage_e_bad_print_intersection/\n?? results/transition_forecasting/quality/structural_bad_prints/"
+  },
+  "environment": {
+    "python": "3.11.15 | packaged by conda-forge | (main, Jun 11 2026, 03:29:05) [Clang 19.1.7 ]",
+    "python_executable": "/opt/anaconda3/envs/qrc-volatility/bin/python",
+    "platform": "macOS-14.2.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cwd": "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility",
+    "environment": {
+      "CONDA_DEFAULT_ENV": "qrc-volatility"
+    }
+  },
+  "commands": [
+    {
+      "argv": [
+        "/opt/anaconda3/envs/qrc-volatility/bin/python",
+        "scripts/transition_forecasting/quality/fetch_global_index_ohlc.py",
+        "--source-mode",
+        "auto"
+      ],
+      "started_at_utc": "2026-07-20T02:59:36.720391+00:00",
+      "finished_at_utc": "2026-07-20T02:59:37.691378+00:00",
+      "duration_seconds": 0.97101,
+      "returncode": 0,
+      "log_path": "results/runs/transition_raw_existing_001/01_fetch_global_index_ohlc.log"
+    }
+  ],
+  "required_outputs": {
+    "data/raw/transition_forecasting/global_stock_indices_historical_data/all_indices_data.csv": {
+      "exists": true,
+      "size_bytes": 26195895,
+      "sha256": "000a8ff4ebcad59439f1a24b4166cf8a21b5c682e535ddb2b95987ce12967bf5"
+    },
+    "data/raw/transition_forecasting/global_stock_indices_historical_data/source_manifest.json": {
+      "exists": true,
+      "size_bytes": 618,
+      "sha256": "eae0249588d804db71891ec6bc08703d27d91242aefc7a11df0e684a18b25a50"
+    },
+    "data/raw/transition_forecasting/global_stock_indices_historical_data/raw_acquisition_manifest.json": {
+      "exists": true,
+      "size_bytes": 8254,
+      "sha256": "2d9789ebe92f16418871ed9cbc5f24da36497109118346d508214edfdd59edc5"
+    }
+  },
+  "failure": null
+}

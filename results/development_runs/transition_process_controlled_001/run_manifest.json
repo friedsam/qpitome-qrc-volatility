@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "run_id": "transition_process_controlled_001",
+  "workflow": "transition-process",
+  "status": "failed",
+  "started_at_utc": "2026-07-20T05:03:41.343609+00:00",
+  "finished_at_utc": "2026-07-20T05:06:01.152361+00:00",
+  "repository": {
+    "commit": "4d8e68cbb7e2b1f8f70f7d560c2551ef276b18b1",
+    "branch": "stage1-dev-ext",
+    "working_tree_status": "?? results/transition_forecasting/modeling/analyze_stage_e_fold_stability/\n?? results/transition_forecasting/modeling/cross_market_compact_tensors/\n?? results/transition_forecasting/modeling/cross_market_ohlc_transform_match/\n?? results/transition_forecasting/modeling/cross_market_panel_audit/\n?? results/transition_forecasting/modeling/cross_market_range_formula_audit/\n?? results/transition_forecasting/modeling/cross_market_transform_match/\n?? results/transition_forecasting/modeling/cross_market_window_availability/\n?? results/transition_forecasting/modeling/run_stage_e_compact_diagnostics/\n?? results/transition_forecasting/modeling/run_stage_e_pls_diagnostics/\n?? results/transition_forecasting/modeling/run_stage_e_quality_gated_order_bootstrap/\n?? results/transition_forecasting/modeling/run_stage_e_rate_channel_assay/\n?? results/transition_forecasting/modeling/run_stage_e_repaired_rolling_origin/\n?? results/transition_forecasting/modeling/run_stage_e_representation_confirmation/\n?? results/transition_forecasting/modeling/run_stage_e_representation_screen/\n?? results/transition_forecasting/modeling/run_stage_e_resumable_esn_sweep/\n?? results/transition_forecasting/modeling/stage_e_classical_sanity/\n?? results/transition_forecasting/modeling/stage_e_cross_market_comparison/\n?? results/transition_forecasting/modeling/stage_e_cross_market_integrated/\n?? results/transition_forecasting/modeling/stage_e_cross_market_parameter_screen/\n?? results/transition_forecasting/modeling/stage_e_esn_control_study/\n?? results/transition_forecasting/modeling/stage_e_esn_feature_assay/\n?? results/transition_forecasting/modeling/stage_e_esn_regularization/\n?? results/transition_forecasting/modeling/stage_e_esn_reservoir_features/\n?? results/transition_forecasting/modeling/stage_e_garch/\n?? results/transition_forecasting/modeling/stage_e_numpy_esn/\n?? results/transition_forecasting/qrc/"
+  },
+  "environment": {
+    "python": "3.11.15 | packaged by conda-forge | (main, Jun 11 2026, 03:29:05) [Clang 19.1.7 ]",
+    "python_executable": "/opt/anaconda3/envs/qrc-volatility/bin/python",
+    "platform": "macOS-14.2.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cwd": "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility",
+    "environment": {
+      "CONDA_DEFAULT_ENV": "qrc-volatility"
+    }
+  },
+  "commands": [
+    {
+      "argv": [
+        "/opt/anaconda3/envs/qrc-volatility/bin/python",
+        "scripts/transition_forecasting/build_processed_dataset.py",
+        "--force",
+        "--log-dir",
+        "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/results/runs/transition_process_controlled_001"
+      ],
+      "started_at_utc": "2026-07-20T05:03:41.450052+00:00",
+      "finished_at_utc": "2026-07-20T05:05:58.933818+00:00",
+      "duration_seconds": 137.486547,
+      "returncode": 0,
+      "log_path": "results/runs/transition_process_controlled_001/01_build_processed_dataset.log"
+    },
+    {
+      "argv": [
+        "/opt/anaconda3/envs/qrc-volatility/bin/python",
+        "scripts/transition_forecasting/validate_processed_dataset.py",
+        "--report",
+        "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/results/runs/transition_process_controlled_001/processed_dataset_audit.json"
+      ],
+      "started_at_utc": "2026-07-20T05:05:58.934797+00:00",
+      "finished_at_utc": "2026-07-20T05:06:01.136285+00:00",
+      "duration_seconds": 2.201488,
+      "returncode": 1,
+      "log_path": "results/runs/transition_process_controlled_001/02_validate_processed_dataset.log"
+    }
+  ],
+  "required_outputs": {
+    "data/processed/transition_forecasting/global_transition_dataset/cleaned_ohlc.csv.gz": {
+      "exists": true,
+      "size_bytes": 5204066,
+      "sha256": "e68426e368008f3a80879ff59ed6743007d10bc1e1e8b50ededb3555a9de0b37"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/daily_volatility.csv.gz": {
+      "exists": true,
+      "size_bytes": 2816995,
+      "sha256": "11a97e538bfb1d8fb1becab1888a6fbf6565eba5fcd76e55bf96e0e4d51c37ba"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/transition_catalogue.csv": {
+      "exists": true,
+      "size_bytes": 74422,
+      "sha256": "8fdb0517b6a3371ad4e7931b04598d193c46b97204ff5f3b1fc73491a7051a0f"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/sample_manifest.csv": {
+      "exists": true,
+      "size_bytes": 2078507,
+      "sha256": "31fe4c0bfd9145d56344424ce060bf7145cec069ed09a041bdaeb34b8f247557"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/sequence_tensors.npz": {
+      "exists": true,
+      "size_bytes": 654713,
+      "sha256": "71a7d796ca941138c5e8c799014ee10a7b7d015ccd0fad8e1b417e9baf93e10a"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/row_corrections.csv": {
+      "exists": true,
+      "size_bytes": 1799571,
+      "sha256": "4006a35980bae515e2bf02185e350ef93ec258f90617c8c88f3e737ca5371512"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/manifest.json": {
+      "exists": true,
+      "size_bytes": 6499,
+      "sha256": "50816467a8749aea345206a02cc40f444d0926bd16c5390a7695a1e2f2e7372f"
+    }
+  },
+  "failure": {
+    "command_index": 2,
+    "argv": [
+      "/opt/anaconda3/envs/qrc-volatility/bin/python",
+      "scripts/transition_forecasting/validate_processed_dataset.py",
+      "--report",
+      "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/results/runs/transition_process_controlled_001/processed_dataset_audit.json"
+    ],
+    "returncode": 1,
+    "log_path": "results/runs/transition_process_controlled_001/02_validate_processed_dataset.log"
+  }
+}

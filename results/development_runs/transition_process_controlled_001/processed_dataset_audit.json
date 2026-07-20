@@ -1,0 +1,47 @@
+{
+  "passed": false,
+  "failures": [
+    "control/positive ratio is not 5:1",
+    "at least one positive does not have exactly five controls"
+  ],
+  "counts": {
+    "cleaned_ohlc_rows": 286015,
+    "daily_volatility_rows": 232630,
+    "transition_events": 371,
+    "samples": 4452,
+    "positive_samples": 1113,
+    "control_samples": 3339,
+    "indices": 35,
+    "episodes": 185
+  },
+  "files": {
+    "cleaned_ohlc.csv.gz": {
+      "size_bytes": 5204066,
+      "sha256": "e68426e368008f3a80879ff59ed6743007d10bc1e1e8b50ededb3555a9de0b37"
+    },
+    "daily_volatility.csv.gz": {
+      "size_bytes": 2816995,
+      "sha256": "11a97e538bfb1d8fb1becab1888a6fbf6565eba5fcd76e55bf96e0e4d51c37ba"
+    },
+    "transition_catalogue.csv": {
+      "size_bytes": 74422,
+      "sha256": "8fdb0517b6a3371ad4e7931b04598d193c46b97204ff5f3b1fc73491a7051a0f"
+    },
+    "sample_manifest.csv": {
+      "size_bytes": 2078507,
+      "sha256": "31fe4c0bfd9145d56344424ce060bf7145cec069ed09a041bdaeb34b8f247557"
+    },
+    "sequence_tensors.npz": {
+      "size_bytes": 654713,
+      "sha256": "71a7d796ca941138c5e8c799014ee10a7b7d015ccd0fad8e1b417e9baf93e10a"
+    },
+    "row_corrections.csv": {
+      "size_bytes": 1799571,
+      "sha256": "4006a35980bae515e2bf02185e350ef93ec258f90617c8c88f3e737ca5371512"
+    },
+    "manifest.json": {
+      "size_bytes": 6499,
+      "sha256": "50816467a8749aea345206a02cc40f444d0926bd16c5390a7695a1e2f2e7372f"
+    }
+  }
+}

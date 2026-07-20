@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "run_id": "transition_process_parity_003",
+  "workflow": "transition-process",
+  "status": "succeeded",
+  "started_at_utc": "2026-07-20T04:54:08.142411+00:00",
+  "finished_at_utc": "2026-07-20T04:57:39.537819+00:00",
+  "repository": {
+    "commit": "4c6d781c1c539641ed9fe5078b3847cd7db41246",
+    "branch": "stage1-dev-ext",
+    "working_tree_status": "?? results/transition_forecasting/modeling/analyze_stage_e_fold_stability/\n?? results/transition_forecasting/modeling/cross_market_compact_tensors/\n?? results/transition_forecasting/modeling/cross_market_ohlc_transform_match/\n?? results/transition_forecasting/modeling/cross_market_panel_audit/\n?? results/transition_forecasting/modeling/cross_market_range_formula_audit/\n?? results/transition_forecasting/modeling/cross_market_transform_match/\n?? results/transition_forecasting/modeling/cross_market_window_availability/\n?? results/transition_forecasting/modeling/run_stage_e_compact_diagnostics/\n?? results/transition_forecasting/modeling/run_stage_e_pls_diagnostics/\n?? results/transition_forecasting/modeling/run_stage_e_quality_gated_order_bootstrap/\n?? results/transition_forecasting/modeling/run_stage_e_rate_channel_assay/\n?? results/transition_forecasting/modeling/run_stage_e_repaired_rolling_origin/\n?? results/transition_forecasting/modeling/run_stage_e_representation_confirmation/\n?? results/transition_forecasting/modeling/run_stage_e_representation_screen/\n?? results/transition_forecasting/modeling/run_stage_e_resumable_esn_sweep/\n?? results/transition_forecasting/modeling/stage_e_classical_sanity/\n?? results/transition_forecasting/modeling/stage_e_cross_market_comparison/\n?? results/transition_forecasting/modeling/stage_e_cross_market_integrated/\n?? results/transition_forecasting/modeling/stage_e_cross_market_parameter_screen/\n?? results/transition_forecasting/modeling/stage_e_esn_control_study/\n?? results/transition_forecasting/modeling/stage_e_esn_feature_assay/\n?? results/transition_forecasting/modeling/stage_e_esn_regularization/\n?? results/transition_forecasting/modeling/stage_e_esn_reservoir_features/\n?? results/transition_forecasting/modeling/stage_e_garch/\n?? results/transition_forecasting/modeling/stage_e_numpy_esn/\n?? results/transition_forecasting/qrc/"
+  },
+  "environment": {
+    "python": "3.11.15 | packaged by conda-forge | (main, Jun 11 2026, 03:29:05) [Clang 19.1.7 ]",
+    "python_executable": "/opt/anaconda3/envs/qrc-volatility/bin/python",
+    "platform": "macOS-14.2.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "processor": "arm",
+    "cwd": "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility",
+    "environment": {
+      "CONDA_DEFAULT_ENV": "qrc-volatility"
+    }
+  },
+  "commands": [
+    {
+      "argv": [
+        "/opt/anaconda3/envs/qrc-volatility/bin/python",
+        "scripts/transition_forecasting/validate_stage_d_parity.py",
+        "--report",
+        "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/results/runs/transition_process_parity_003/stage_d_parity_report.json",
+        "--log-dir",
+        "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/results/runs/transition_process_parity_003"
+      ],
+      "started_at_utc": "2026-07-20T04:54:08.230444+00:00",
+      "finished_at_utc": "2026-07-20T04:55:38.282452+00:00",
+      "duration_seconds": 90.04989,
+      "returncode": 0,
+      "log_path": "results/runs/transition_process_parity_003/01_validate_stage_d_parity.log"
+    },
+    {
+      "argv": [
+        "/opt/anaconda3/envs/qrc-volatility/bin/python",
+        "scripts/transition_forecasting/build_processed_dataset.py",
+        "--force",
+        "--log-dir",
+        "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/results/runs/transition_process_parity_003"
+      ],
+      "started_at_utc": "2026-07-20T04:55:38.282989+00:00",
+      "finished_at_utc": "2026-07-20T04:57:39.513232+00:00",
+      "duration_seconds": 121.22744,
+      "returncode": 0,
+      "log_path": "results/runs/transition_process_parity_003/02_build_processed_dataset.log"
+    }
+  ],
+  "required_outputs": {
+    "data/processed/transition_forecasting/global_transition_dataset/cleaned_ohlc.csv.gz": {
+      "exists": true,
+      "size_bytes": 5204066,
+      "sha256": "ad24f08fd69dd069292bf688d39a2f494e6d2254e0c278c87d0770b5b74a213b"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/daily_volatility.csv.gz": {
+      "exists": true,
+      "size_bytes": 2816995,
+      "sha256": "10be6665c26833c2afd5b0cd1133ef51c7d00cd873bafbbb6536af35a6bd27a2"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/transition_catalogue.csv": {
+      "exists": true,
+      "size_bytes": 74422,
+      "sha256": "8fdb0517b6a3371ad4e7931b04598d193c46b97204ff5f3b1fc73491a7051a0f"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/sample_manifest.csv": {
+      "exists": true,
+      "size_bytes": 2078507,
+      "sha256": "31fe4c0bfd9145d56344424ce060bf7145cec069ed09a041bdaeb34b8f247557"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/sequence_tensors.npz": {
+      "exists": true,
+      "size_bytes": 654713,
+      "sha256": "71a7d796ca941138c5e8c799014ee10a7b7d015ccd0fad8e1b417e9baf93e10a"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/row_corrections.csv": {
+      "exists": true,
+      "size_bytes": 1799571,
+      "sha256": "4006a35980bae515e2bf02185e350ef93ec258f90617c8c88f3e737ca5371512"
+    },
+    "data/processed/transition_forecasting/global_transition_dataset/manifest.json": {
+      "exists": true,
+      "size_bytes": 6499,
+      "sha256": "23371221d7c6044cbba363a95ce51061dff29ddf1d4a6562a3587b3128f2a381"
+    }
+  },
+  "failure": null
+}
