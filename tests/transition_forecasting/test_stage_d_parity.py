@@ -96,4 +96,4 @@ def test_tensor_parity_rejects_numeric_change(tmp_path: Path) -> None:
 
     assert result["passed"] is False
     assert result["numeric_match"] is False
-    assert result["max_abs_difference"] == 0.01
+    assert np.isclose(result["max_abs_difference"], 0.01, rtol=0.0, atol=1e-12)
