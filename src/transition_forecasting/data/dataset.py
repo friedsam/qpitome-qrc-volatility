@@ -7,6 +7,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
+
 from transition_forecasting.catalogue.global_transition_catalogue import (
     write_global_transition_outputs,
 )
@@ -38,9 +40,10 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _write_inventory(cleaned_root: Path, run_dir: Path) -> tuple[Path, dict[str, object]]:
+def _write_inventory(source_root: Path, run_dir: Path) -> tuple[Path, dict[str, object]]:
+    """Audit the untouched raw source, matching the GPT-2 source contract."""
     run_dir.mkdir(parents=True, exist_ok=False)
-    inventory, summary = audit_directory(cleaned_root)
+    inventory, summary = audit_directory(source_root)
     inventory_path = run_dir / "global_index_ohlc_inventory.csv"
     inventory.to_csv(inventory_path, index=False)
     (run_dir / "global_index_ohlc_inventory_summary.json").write_text(
@@ -48,6 +51,25 @@ def _write_inventory(cleaned_root: Path, run_dir: Path) -> tuple[Path, dict[str,
         encoding="utf-8",
     )
     return inventory_path, summary
+
+
+def _write_modeling_inventory(
+    raw_inventory_path: Path,
+    cleaned_root: Path,
+    destination: Path,
+) -> Path:
+    """Preserve GPT-2 eligibility while redirecting paths to correction-only files."""
+    inventory = pd.read_csv(raw_inventory_path)
+    redirected: list[str] = []
+    for _, row in inventory.iterrows():
+        source_name = Path(str(row["path"])).name
+        cleaned_path = cleaned_root / source_name
+        if not cleaned_path.is_file():
+            raise FileNotFoundError(f"Missing cleaned modeling input: {cleaned_path}")
+        redirected.append(str(cleaned_path.resolve()))
+    inventory["path"] = redirected
+    inventory.to_csv(destination, index=False)
+    return destination
 
 
 def _file_inventory(root: Path) -> dict[str, dict[str, object]]:
@@ -113,6 +135,11 @@ def build_processed_dataset(
 ) -> dict[str, object]:
     """Build, validate, and atomically publish one processed dataset.
 
+    The raw inventory and effective-start contract are computed from the
+    untouched source, exactly as in GPT-2. Cleaned files are used only after
+    those decisions are frozen, so the 12-row correction cannot silently alter
+    market eligibility or effective starts.
+
     ``apply_structural_corrections=False`` exists only for temporary parity
     reconstruction on the experimental branch and is not a submission mode.
     """
@@ -147,20 +174,30 @@ def build_processed_dataset(
         )
         cleaned_root = cleaning_root / "individual_indices_data"
 
-        inventory_path, inventory_summary = _write_inventory(cleaned_root, inventory_root)
+        raw_inventory_path, inventory_summary = _write_inventory(
+            individual_raw,
+            inventory_root,
+        )
 
         range_run = range_root / "build"
         range_run.mkdir(parents=True, exist_ok=False)
-        range_summary = write_global_range_quality(inventory_path, range_run)
+        range_summary = write_global_range_quality(raw_inventory_path, range_run)
         range_quality_path = range_run / "global_range_quality.csv"
+
+        modeling_inventory_path = _write_modeling_inventory(
+            raw_inventory_path,
+            cleaned_root,
+            inventory_root / "global_index_ohlc_modeling_inventory.csv",
+        )
 
         catalogue_run = catalogue_root / "build"
         catalogue_run.mkdir(parents=True, exist_ok=False)
         transition_summary = write_global_transition_outputs(
             cleaned_root,
-            inventory_path,
+            modeling_inventory_path,
             range_quality_path,
             catalogue_run,
+            apply_structural_corrections=False,
         )
         representative_path = catalogue_run / "representative_transition_catalogue.csv"
 
@@ -168,7 +205,7 @@ def build_processed_dataset(
         stage_d_run.mkdir(parents=True, exist_ok=False)
         stage_d_summary = write_global_stage_d_dataset(
             representative_path,
-            inventory_path,
+            modeling_inventory_path,
             stage_d_run,
         )
 
@@ -187,7 +224,7 @@ def build_processed_dataset(
 
         raw_acquisition_manifest = raw_root / "raw_acquisition_manifest.json"
         manifest: dict[str, object] = {
-            "schema_version": 3,
+            "schema_version": 4,
             "dataset": "global_transition_dataset",
             "build_mode": (
                 "corrected" if apply_structural_corrections else "parity_control_no_structural_removal"
@@ -207,6 +244,8 @@ def build_processed_dataset(
                 "winsorization": False,
                 "arbitrary_clipping": False,
                 "synthetic_dates": False,
+                "inventory_computed_from_untouched_raw": True,
+                "effective_starts_computed_from_untouched_raw": True,
                 "structural_bad_prints_detected": True,
                 "structural_bad_prints_removed_before_volatility": apply_structural_corrections,
                 "controls_rematched_after_correction": apply_structural_corrections,
