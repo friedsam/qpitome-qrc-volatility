@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from data import transition_events as events
+from transition_forecasting.catalogue import transition_events as events
 
 
 def test_detect_persistent_transition_not_single_spike():
