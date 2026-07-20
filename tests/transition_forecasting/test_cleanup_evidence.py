@@ -67,6 +67,54 @@ def test_scenarios_are_evidence_only() -> None:
     assert (result["changed_rows"] > 0).all()
 
 
+def test_baseline_sample_delta_reports_removed_and_added(tmp_path: Path) -> None:
+    reference_path = tmp_path / "reference.csv"
+    reference = pd.DataFrame(
+        {
+            "sample_id": ["shared", "removed"],
+            "index": ["A", "A"],
+            "lead": [1, 1],
+            "split": ["train", "train"],
+            "label": [1, 0],
+        }
+    )
+    current = pd.DataFrame(
+        {
+            "sample_id": ["shared", "added"],
+            "index": ["A", "B"],
+            "lead": [1, 5],
+            "split": ["train", "val"],
+            "label": [1, 0],
+        }
+    )
+    reference.to_csv(reference_path, index=False)
+    delta, summary = MODULE.baseline_sample_delta(current, reference_path)
+    assert summary == {
+        "available": True,
+        "reference_samples": 2,
+        "current_samples": 2,
+        "shared_samples": 1,
+        "removed_samples": 1,
+        "added_samples": 1,
+    }
+    assert set(delta["status"]) == {"removed_after_cleanup", "added_after_cleanup"}
+
+
+def test_event_delta_reports_changed_events(tmp_path: Path) -> None:
+    reference_path = tmp_path / "events.csv"
+    pd.DataFrame(
+        {"index": ["A", "A"], "event_onset": ["2020-01-01", "2020-02-01"]}
+    ).to_csv(reference_path, index=False)
+    current = pd.DataFrame(
+        {"index": ["A", "B"], "onset_date": ["2020-01-01", "2020-03-01"]}
+    )
+    delta, summary = MODULE.event_delta(current, reference_path)
+    assert summary["shared_events"] == 1
+    assert summary["removed_events"] == 1
+    assert summary["added_events"] == 1
+    assert len(delta) == 2
+
+
 def test_analyze_writes_all_outputs(tmp_path: Path) -> None:
     dataset = tmp_path / "dataset"
     output = tmp_path / "evidence"
@@ -86,20 +134,55 @@ def test_analyze_writes_all_outputs(tmp_path: Path) -> None:
     rows = []
     for positive in range(2):
         pid = f"P{positive}"
-        rows.append({"sample_id": pid, "label": 1, "index": "A", "lead": 1, "split": "train", "match_distance": np.nan})
+        rows.append(
+            {
+                "sample_id": pid,
+                "label": 1,
+                "index": "A",
+                "lead": 1,
+                "split": "train",
+                "match_distance": np.nan,
+            }
+        )
         for control in range(5):
-            rows.append({"sample_id": f"N{positive}_{control}", "label": 0, "index": "A", "lead": 1, "split": "train", "match_distance": float(control)})
-    pd.DataFrame(rows).to_csv(dataset / "sample_manifest.csv", index=False)
+            rows.append(
+                {
+                    "sample_id": f"N{positive}_{control}",
+                    "label": 0,
+                    "index": "A",
+                    "lead": 1,
+                    "split": "train",
+                    "match_distance": float(control),
+                }
+            )
+    manifest = pd.DataFrame(rows)
+    manifest.to_csv(dataset / "sample_manifest.csv", index=False)
+    reference_manifest = tmp_path / "reference_manifest.csv"
+    manifest.iloc[:-1].to_csv(reference_manifest, index=False)
+    reference_catalogue = tmp_path / "reference_catalogue.csv"
+    pd.DataFrame({"index": ["A"], "event_onset": [dates[10]]}).to_csv(
+        reference_catalogue, index=False
+    )
 
-    report = MODULE.analyze(dataset, output)
+    report = MODULE.analyze(
+        dataset,
+        output,
+        reference_manifest=reference_manifest,
+        reference_catalogue=reference_catalogue,
+    )
 
-    assert report["decisions"]["winsorization_applied"] is False
+    assert report["decisions"]["structural_bad_print_removal_applied"] is True
+    assert report["baseline_sample_delta"]["available"] is True
+    assert report["event_delta"]["available"] is True
     for name in (
         "residual_extremes.csv",
         "matching_quality.csv",
         "sample_attribution.csv",
         "effective_starts.csv",
         "transformation_scenarios.csv",
+        "baseline_sample_delta.csv",
+        "baseline_event_delta.csv",
+        "final_cleanup_report.md",
         "cleanup_evidence.json",
     ):
         assert (output / name).is_file()
