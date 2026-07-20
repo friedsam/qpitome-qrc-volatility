@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Submission workflow entry point.
-
-This runner gives humans, CI, and a future qBraid Skill one stable interface for
-reproducing repository workflows. Stable capabilities should be added here as
-they are frozen rather than implemented through separate agent-only logic.
-"""
+"""Submission workflow entry point."""
 from __future__ import annotations
 
 import argparse
@@ -46,6 +41,59 @@ TRANSITION_RAW_DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
     ),
 )
 
+TRANSITION_PROCESS_COMMANDS: tuple[tuple[str, ...], ...] = (
+    (
+        sys.executable,
+        "scripts/transition_forecasting/quality/build_canonical_clean_ohlc.py",
+    ),
+    (
+        sys.executable,
+        "scripts/transition_forecasting/quality/audit_global_index_ohlc.py",
+        "--data-dir",
+        "data/processed/transition_forecasting/canonical_ohlc/individual_indices_data",
+        "--out-dir",
+        "results/transition_forecasting/quality/global_index_ohlc_audit",
+        "--run-id",
+        "canonical_001",
+    ),
+    (
+        sys.executable,
+        "scripts/transition_forecasting/quality/audit_global_ohlc_range_quality.py",
+        "--inventory",
+        "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
+        "--out-dir",
+        "results/transition_forecasting/quality/global_ohlc_range_quality",
+        "--run-id",
+        "canonical_001",
+    ),
+    (
+        sys.executable,
+        "scripts/transition_forecasting/catalogue/build_global_transition_catalogue.py",
+        "--data-dir",
+        "data/processed/transition_forecasting/canonical_ohlc/individual_indices_data",
+        "--inventory",
+        "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
+        "--range-quality",
+        "results/transition_forecasting/quality/global_ohlc_range_quality/canonical_001/global_range_quality.csv",
+        "--out-dir",
+        "results/transition_forecasting/catalogue/global_transition_catalogue",
+        "--run-id",
+        "canonical_001",
+    ),
+    (
+        sys.executable,
+        "scripts/transition_forecasting/modeling/build_global_stage_d_dataset.py",
+        "--representative-catalogue",
+        "results/transition_forecasting/catalogue/global_transition_catalogue/canonical_001/representative_transition_catalogue.csv",
+        "--inventory",
+        "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
+        "--out-dir",
+        "results/transition_forecasting/modeling/global_stage_d_dataset",
+        "--run-id",
+        "canonical_001",
+    ),
+)
+
 REQUIRED_DATA_OUTPUTS: tuple[str, ...] = (
     "data/raw/yahoo_daily_history/historical_market_data.csv",
     "data/raw/yahoo_daily_history/historical_volatility_data.csv",
@@ -63,6 +111,17 @@ REQUIRED_TRANSITION_RAW_DATA_OUTPUTS: tuple[str, ...] = (
     "data/raw/transition_forecasting/global_stock_indices_historical_data/all_indices_data.csv",
     "data/raw/transition_forecasting/global_stock_indices_historical_data/source_manifest.json",
     "data/raw/transition_forecasting/global_stock_indices_historical_data/raw_acquisition_manifest.json",
+)
+
+REQUIRED_TRANSITION_PROCESS_OUTPUTS: tuple[str, ...] = (
+    "data/processed/transition_forecasting/canonical_ohlc/manifest.json",
+    "data/processed/transition_forecasting/canonical_ohlc/row_corrections.csv",
+    "data/processed/transition_forecasting/canonical_ohlc/file_manifest.csv",
+    "results/transition_forecasting/quality/global_index_ohlc_audit/canonical_001/global_index_ohlc_inventory.csv",
+    "results/transition_forecasting/quality/global_ohlc_range_quality/canonical_001/global_range_quality.csv",
+    "results/transition_forecasting/catalogue/global_transition_catalogue/canonical_001/representative_transition_catalogue.csv",
+    "results/transition_forecasting/modeling/global_stage_d_dataset/canonical_001/sample_manifest.csv",
+    "results/transition_forecasting/modeling/global_stage_d_dataset/canonical_001/sequence_tensors.npz",
 )
 
 
@@ -91,11 +150,7 @@ def sha256(path: Path) -> str:
 def git_value(*args: str) -> str | None:
     try:
         completed = subprocess.run(
-            ("git", *args),
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
+            ("git", *args), cwd=REPO_ROOT, check=True, capture_output=True, text=True
         )
     except (OSError, subprocess.CalledProcessError):
         return None
@@ -135,19 +190,12 @@ def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord
     log_path = run_dir / f"{index:02d}_{command_name}.log"
     started = utc_now()
     start_clock = time.monotonic()
-
     with log_path.open("w", encoding="utf-8") as log:
         log.write(f"$ {' '.join(argv)}\n\n")
         log.flush()
         completed = subprocess.run(
-            tuple(argv),
-            cwd=REPO_ROOT,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
+            tuple(argv), cwd=REPO_ROOT, stdout=log, stderr=subprocess.STDOUT, text=True, check=False
         )
-
     return CommandRecord(
         argv=list(argv),
         started_at_utc=started,
@@ -165,6 +213,8 @@ def command_plan(workflow: str) -> tuple[tuple[str, ...], ...]:
         return VALIDATE_DATA_COMMANDS
     if workflow == "transition-raw-data":
         return TRANSITION_RAW_DATA_COMMANDS
+    if workflow == "transition-process":
+        return TRANSITION_PROCESS_COMMANDS
     raise ValueError(f"Unsupported workflow: {workflow}")
 
 
@@ -173,21 +223,19 @@ def required_outputs_for_workflow(workflow: str) -> tuple[str, ...]:
         return REQUIRED_DATA_OUTPUTS
     if workflow == "transition-raw-data":
         return REQUIRED_TRANSITION_RAW_DATA_OUTPUTS
+    if workflow == "transition-process":
+        return REQUIRED_TRANSITION_PROCESS_OUTPUTS
     raise ValueError(f"Unsupported workflow: {workflow}")
 
 
-def execute(
-    workflow: str, results_root: Path, run_id: str | None = None
-) -> tuple[int, Path]:
+def execute(workflow: str, results_root: Path, run_id: str | None = None) -> tuple[int, Path]:
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = results_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
-
     manifest_path = run_dir / "run_manifest.json"
     records: list[CommandRecord] = []
     status = "running"
     failure: dict | None = None
-
     manifest = {
         "schema_version": 1,
         "run_id": run_id,
@@ -205,9 +253,7 @@ def execute(
         "required_outputs": {},
         "failure": None,
     }
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     for index, argv in enumerate(command_plan(workflow), start=1):
         record = run_command(argv, run_dir, index)
@@ -223,9 +269,7 @@ def execute(
             break
 
     required_outputs = output_inventory(required_outputs_for_workflow(workflow))
-    missing_outputs = [
-        path for path, item in required_outputs.items() if not item["exists"]
-    ]
+    missing_outputs = [path for path, item in required_outputs.items() if not item["exists"]]
     if status != "failed" and missing_outputs:
         status = "failed"
         failure = {"reason": "missing_required_outputs", "paths": missing_outputs}
@@ -241,39 +285,24 @@ def execute(
             "failure": failure,
         }
     )
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
-
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"Workflow: {workflow}")
     print(f"Status: {status}")
     print(f"Run directory: {run_dir.relative_to(REPO_ROOT)}")
     print(f"Manifest: {manifest_path.relative_to(REPO_ROOT)}")
     if failure:
         print(json.dumps(failure, indent=2))
-
     return (0 if status == "succeeded" else 1), run_dir
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Run reproducible submission workflows and record provenance"
-    )
+    parser = argparse.ArgumentParser(description="Run reproducible submission workflows and record provenance")
     parser.add_argument(
         "workflow",
-        choices=("data", "validate-data", "transition-raw-data"),
+        choices=("data", "validate-data", "transition-raw-data", "transition-process"),
     )
-    parser.add_argument(
-        "--results-root",
-        type=Path,
-        default=DEFAULT_RESULTS_ROOT,
-        help="Directory under which a unique run directory is created",
-    )
-    parser.add_argument(
-        "--run-id",
-        default=None,
-        help="Explicit unique run identifier; defaults to a UTC timestamp",
-    )
+    parser.add_argument("--results-root", type=Path, default=DEFAULT_RESULTS_ROOT)
+    parser.add_argument("--run-id", default=None)
     return parser.parse_args(argv)
 
 
