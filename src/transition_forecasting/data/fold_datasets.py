@@ -89,6 +89,7 @@ def build_candidate_pool_from_dataset(
         raise ValueError("candidate manifest and tensor lengths differ")
     if manifest["candidate_id"].duplicated().any():
         raise ValueError("candidate IDs are not unique")
+    manifest["_candidate_row"] = np.arange(len(manifest), dtype=int)
 
     summary = {
         "candidate_rows": int(len(manifest)),
@@ -110,13 +111,14 @@ def _write_candidate_pool(
     tensor: np.ndarray,
     summary: dict[str, object],
 ) -> None:
-    manifest.to_csv(dataset_dir / "control_candidate_manifest.csv", index=False)
+    persisted = manifest.drop(columns=["_candidate_row"], errors="ignore")
+    persisted.to_csv(dataset_dir / "control_candidate_manifest.csv", index=False)
     np.savez_compressed(
         dataset_dir / "control_candidate_tensors.npz",
         X=tensor,
-        candidate_id=manifest["candidate_id"].astype(str).to_numpy(),
-        index=manifest["index"].astype(str).to_numpy(),
-        lead=manifest["lead"].astype(int).to_numpy(),
+        candidate_id=persisted["candidate_id"].astype(str).to_numpy(),
+        index=persisted["index"].astype(str).to_numpy(),
+        lead=persisted["lead"].astype(int).to_numpy(),
     )
     (dataset_dir / "candidate_pool_summary.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"
