@@ -116,16 +116,16 @@ def main() -> None:
             "corrected": list(corrected_npz["X"].shape),
         },
         "invariants": {
-            "corrected_controls_per_positive": (
+            "corrected_controls_per_positive": bool(
                 int(len(corrected_ctl)) == 3 * int(len(corrected_pos))
             ),
-            "corrected_tensor_rows_match_manifest": (
+            "corrected_tensor_rows_match_manifest": bool(
                 int(corrected_npz["X"].shape[0]) == int(len(corrected_manifest))
             ),
-            "corrected_tensor_shape_40x1": (
+            "corrected_tensor_shape_40x1": bool(
                 list(corrected_npz["X"].shape[1:]) == [40, 1]
             ),
-            "corrected_episode_split_exclusive": (
+            "corrected_episode_split_exclusive": bool(
                 corrected_manifest.groupby("episode_id")["split"].nunique().max() == 1
             ),
         },
@@ -138,8 +138,9 @@ def main() -> None:
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(json.dumps(report, indent=2))
+    payload = json.dumps(report, indent=2) + "\n"
+    args.output.write_text(payload)
+    print(payload, end="")
 
 
 if __name__ == "__main__":
