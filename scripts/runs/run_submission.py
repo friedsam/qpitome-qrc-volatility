@@ -51,6 +51,10 @@ TRANSITION_PROCESS_COMMANDS: tuple[tuple[str, ...], ...] = (
         sys.executable,
         "scripts/transition_forecasting/validate_processed_dataset.py",
     ),
+    (
+        sys.executable,
+        "scripts/transition_forecasting/analyze_cleanup_evidence.py",
+    ),
 )
 
 REQUIRED_DATA_OUTPUTS: tuple[str, ...] = (
@@ -154,6 +158,8 @@ def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord
         actual_argv.extend(["--log-dir", str(run_dir)])
     if "validate_processed_dataset.py" in script_names:
         actual_argv.extend(["--report", str(run_dir / "processed_dataset_audit.json")])
+    if "analyze_cleanup_evidence.py" in script_names:
+        actual_argv.extend(["--output-dir", str(run_dir / "cleanup_evidence")])
     with log_path.open("w", encoding="utf-8") as log:
         log.write(f"$ {' '.join(actual_argv)}\n\n")
         log.flush()
