@@ -22,6 +22,13 @@ DEFAULT_EMBARGO_DAYS = 10
 DEFAULT_CONTROLS_PER_POSITIVE = 3
 
 
+def _unicode_array(values: pd.Series) -> np.ndarray:
+    """Return a pickle-free fixed-width Unicode array."""
+    strings = values.astype(str).tolist()
+    width = max((len(value) for value in strings), default=1)
+    return np.asarray(strings, dtype=f"U{width}")
+
+
 def _load_dataset(dataset_dir: Path) -> tuple[pd.DataFrame, np.ndarray]:
     manifest = pd.read_csv(dataset_dir / "sample_manifest.csv")
     with np.load(dataset_dir / "sequence_tensors.npz", allow_pickle=False) as archive:
@@ -116,8 +123,8 @@ def _write_candidate_pool(
     np.savez_compressed(
         dataset_dir / "control_candidate_tensors.npz",
         X=tensor,
-        candidate_id=persisted["candidate_id"].astype(str).to_numpy(),
-        index=persisted["index"].astype(str).to_numpy(),
+        candidate_id=_unicode_array(persisted["candidate_id"]),
+        index=_unicode_array(persisted["index"]),
         lead=persisted["lead"].astype(int).to_numpy(),
     )
     (dataset_dir / "candidate_pool_summary.json").write_text(
@@ -146,9 +153,9 @@ def _write_fold_dataset(
     np.savez_compressed(
         output_dir / "rematched_rolling_tensors.npz",
         X=tensor,
-        sample_id=manifest["sample_id"].astype(str).to_numpy(),
+        sample_id=_unicode_array(manifest["sample_id"]),
         fold=manifest["fold"].astype(int).to_numpy(),
-        fold_split=manifest["fold_split"].astype(str).to_numpy(),
+        fold_split=_unicode_array(manifest["fold_split"]),
         channel_names=np.asarray(channel_names, dtype="U32"),
     )
     payload = dict(summary)
