@@ -22,8 +22,15 @@ from transition_forecasting.data.volatility import (
 from transition_forecasting.modeling.global_stage_d_dataset import (
     write_global_stage_d_dataset,
 )
-from transition_forecasting.quality.global_index_ohlc_audit import audit_directory
-from transition_forecasting.quality.global_range_quality import write_global_range_quality
+
+FROZEN_INVENTORY = Path(
+    "results/transition_forecasting/quality/global_index_ohlc_audit/"
+    "global_index_audit_001/global_index_ohlc_inventory.csv"
+)
+FROZEN_RANGE_QUALITY = Path(
+    "results/transition_forecasting/quality/global_ohlc_range_quality/"
+    "global_range_quality_001/global_range_quality.csv"
+)
 
 FINAL_FILES = (
     "cleaned_ohlc.csv.gz",
@@ -40,36 +47,99 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _write_inventory(source_root: Path, run_dir: Path) -> tuple[Path, dict[str, object]]:
-    """Audit the untouched raw source, matching the GPT-2 source contract."""
-    run_dir.mkdir(parents=True, exist_ok=False)
-    inventory, summary = audit_directory(source_root)
-    inventory_path = run_dir / "global_index_ohlc_inventory.csv"
-    inventory.to_csv(inventory_path, index=False)
-    (run_dir / "global_index_ohlc_inventory_summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return inventory_path, summary
+def _resolve_raw_file(raw_root: Path, individual_raw: Path, historical_path: str) -> Path:
+    name = Path(historical_path).name
+    if name == "all_indices_data.csv":
+        return raw_root / name
+    return individual_raw / name
 
 
-def _write_modeling_inventory(
-    raw_inventory_path: Path,
+def _prepare_frozen_gpt2_contract(
+    raw_root: Path,
+    individual_raw: Path,
     cleaned_root: Path,
-    destination: Path,
-) -> Path:
-    """Preserve GPT-2 eligibility while redirecting paths to correction-only files."""
-    inventory = pd.read_csv(raw_inventory_path)
-    redirected: list[str] = []
+    run_dir: Path,
+) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
+    """Verify and materialize GPT-2's exact committed source contract.
+
+    Eligibility, ordering, and effective starts are never recomputed. Every raw
+    file is first checked against the SHA-256 recorded by GPT-2. Eligible file
+    paths are then redirected to the correction-only copies while all frozen
+    decisions remain unchanged.
+    """
+    if not FROZEN_INVENTORY.is_file():
+        raise FileNotFoundError(f"Missing frozen GPT-2 inventory: {FROZEN_INVENTORY}")
+    if not FROZEN_RANGE_QUALITY.is_file():
+        raise FileNotFoundError(f"Missing frozen GPT-2 range contract: {FROZEN_RANGE_QUALITY}")
+
+    run_dir.mkdir(parents=True, exist_ok=False)
+    inventory = pd.read_csv(FROZEN_INVENTORY)
+    mismatches: list[dict[str, object]] = []
+    redirected_paths: list[str] = []
+
     for _, row in inventory.iterrows():
+        raw_path = _resolve_raw_file(raw_root, individual_raw, str(row["path"]))
+        expected = str(row["sha256"])
+        actual = sha256_file(raw_path) if raw_path.is_file() else None
+        if actual != expected:
+            mismatches.append(
+                {
+                    "index": str(row["index"]),
+                    "path": str(raw_path),
+                    "expected_sha256": expected,
+                    "actual_sha256": actual,
+                }
+            )
+
+        cleaned_path = cleaned_root / raw_path.name
+        if bool(row["eligible"]):
+            if not cleaned_path.is_file():
+                raise FileNotFoundError(f"Missing corrected modeling input: {cleaned_path}")
+            redirected_paths.append(str(cleaned_path.resolve()))
+        else:
+            redirected_paths.append(str(raw_path.resolve()))
+
+    if mismatches:
+        preview = mismatches[:5]
+        raise RuntimeError(
+            "Raw source snapshot does not match GPT-2's frozen inventory: "
+            f"{len(mismatches)} mismatches; preview={preview}"
+        )
+
+    modeling_inventory = inventory.copy()
+    modeling_inventory["path"] = redirected_paths
+    inventory_path = run_dir / "gpt2_inventory_redirected.csv"
+    modeling_inventory.to_csv(inventory_path, index=False)
+
+    range_quality = pd.read_csv(FROZEN_RANGE_QUALITY)
+    redirected_range_paths: list[str] = []
+    for _, row in range_quality.iterrows():
         source_name = Path(str(row["path"])).name
         cleaned_path = cleaned_root / source_name
         if not cleaned_path.is_file():
-            raise FileNotFoundError(f"Missing cleaned modeling input: {cleaned_path}")
-        redirected.append(str(cleaned_path.resolve()))
-    inventory["path"] = redirected
-    inventory.to_csv(destination, index=False)
-    return destination
+            raise FileNotFoundError(f"Missing corrected range input: {cleaned_path}")
+        redirected_range_paths.append(str(cleaned_path.resolve()))
+    range_quality["path"] = redirected_range_paths
+    range_path = run_dir / "gpt2_range_quality_redirected.csv"
+    range_quality.to_csv(range_path, index=False)
+
+    inventory_summary = {
+        "contract": "frozen_gpt2",
+        "source": str(FROZEN_INVENTORY),
+        "source_sha256": sha256_file(FROZEN_INVENTORY),
+        "files": int(len(inventory)),
+        "eligible_files": int(inventory["eligible"].astype(bool).sum()),
+        "raw_hashes_verified": int(len(inventory)),
+        "raw_hash_mismatches": 0,
+    }
+    range_summary = {
+        "contract": "frozen_gpt2",
+        "source": str(FROZEN_RANGE_QUALITY),
+        "source_sha256": sha256_file(FROZEN_RANGE_QUALITY),
+        "rows": int(len(range_quality)),
+        "effective_starts": int(range_quality["recommended_effective_start"].notna().sum()),
+    }
+    return inventory_path, range_path, inventory_summary, range_summary
 
 
 def _file_inventory(root: Path) -> dict[str, dict[str, object]]:
@@ -135,10 +205,9 @@ def build_processed_dataset(
 ) -> dict[str, object]:
     """Build, validate, and atomically publish one processed dataset.
 
-    The raw inventory and effective-start contract are computed from the
-    untouched source, exactly as in GPT-2. Cleaned files are used only after
-    those decisions are frozen, so the 12-row correction cannot silently alter
-    market eligibility or effective starts.
+    The build uses GPT-2's committed inventory, raw hashes, eligibility, and
+    effective starts. The only intended data change is removal of the 12 frozen
+    structural bad prints before volatility construction.
 
     ``apply_structural_corrections=False`` exists only for temporary parity
     reconstruction on the experimental branch and is not a submission mode.
@@ -158,8 +227,7 @@ def build_processed_dataset(
     ) as temporary:
         temp_root = Path(temporary)
         cleaning_root = temp_root / "cleaning"
-        inventory_root = temp_root / "inventory"
-        range_root = temp_root / "range"
+        contract_root = temp_root / "contract"
         catalogue_root = temp_root / "catalogue"
         stage_d_root = temp_root / "stage_d"
         final_root = temp_root / "final"
@@ -174,20 +242,16 @@ def build_processed_dataset(
         )
         cleaned_root = cleaning_root / "individual_indices_data"
 
-        raw_inventory_path, inventory_summary = _write_inventory(
+        (
+            modeling_inventory_path,
+            range_quality_path,
+            inventory_summary,
+            range_summary,
+        ) = _prepare_frozen_gpt2_contract(
+            raw_root,
             individual_raw,
-            inventory_root,
-        )
-
-        range_run = range_root / "build"
-        range_run.mkdir(parents=True, exist_ok=False)
-        range_summary = write_global_range_quality(raw_inventory_path, range_run)
-        range_quality_path = range_run / "global_range_quality.csv"
-
-        modeling_inventory_path = _write_modeling_inventory(
-            raw_inventory_path,
             cleaned_root,
-            inventory_root / "global_index_ohlc_modeling_inventory.csv",
+            contract_root,
         )
 
         catalogue_run = catalogue_root / "build"
@@ -224,7 +288,7 @@ def build_processed_dataset(
 
         raw_acquisition_manifest = raw_root / "raw_acquisition_manifest.json"
         manifest: dict[str, object] = {
-            "schema_version": 4,
+            "schema_version": 5,
             "dataset": "global_transition_dataset",
             "build_mode": (
                 "corrected" if apply_structural_corrections else "parity_control_no_structural_removal"
@@ -244,8 +308,9 @@ def build_processed_dataset(
                 "winsorization": False,
                 "arbitrary_clipping": False,
                 "synthetic_dates": False,
-                "inventory_computed_from_untouched_raw": True,
-                "effective_starts_computed_from_untouched_raw": True,
+                "inventory_contract": "frozen_gpt2",
+                "effective_start_contract": "frozen_gpt2",
+                "raw_source_hashes_verified": True,
                 "structural_bad_prints_detected": True,
                 "structural_bad_prints_removed_before_volatility": apply_structural_corrections,
                 "controls_rematched_after_correction": apply_structural_corrections,
