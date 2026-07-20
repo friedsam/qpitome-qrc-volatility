@@ -7,6 +7,10 @@ import numpy as np
 import pandas as pd
 
 from transition_forecasting.catalogue.transition_events import detect_onsets, event_anatomy, log_parkinson
+from transition_forecasting.quality.structural_bad_prints import (
+    StructuralBadPrintPolicy,
+    flag_structural_bad_prints,
+)
 
 TRAIN_CUTOFF = pd.Timestamp("2016-01-01")
 CLUSTER_DAYS = 7
@@ -58,7 +62,18 @@ REPRESENTATIVE_PRIORITY = {
 }
 
 
-def _load_generic_ohlc(path: Path) -> pd.DataFrame:
+def _load_generic_ohlc(
+    path: Path,
+    *,
+    apply_structural_corrections: bool = False,
+    policy: StructuralBadPrintPolicy = StructuralBadPrintPolicy(),
+) -> pd.DataFrame:
+    """Load OHLC using the frozen GPT-2 semantics.
+
+    Structural correction is deliberately inserted after GPT-2 parsing and
+    duplicate resolution and before the volatility transform. With correction
+    disabled this function reproduces the historical loader exactly.
+    """
     frame = pd.read_csv(path)
     normalized = {column.strip().lower(): column for column in frame.columns}
     required = {"date", "high", "low"}
@@ -72,7 +87,32 @@ def _load_generic_ohlc(path: Path) -> pd.DataFrame:
         }
     ).dropna()
     result = result[(result.High > 0) & (result.Low > 0) & (result.High >= result.Low)]
-    return result.drop_duplicates("Date", keep="last").set_index("Date").sort_index()
+    result = result.drop_duplicates("Date", keep="last").set_index("Date").sort_index()
+
+    if not apply_structural_corrections:
+        return result
+
+    structural_required = {"open", "close"}
+    if not structural_required.issubset(normalized):
+        raise ValueError(f"{path}: structural correction requires open/close columns")
+    audit_input = pd.DataFrame(
+        {
+            "date": pd.to_datetime(frame[normalized["date"]], errors="coerce"),
+            "open": pd.to_numeric(frame[normalized["open"]], errors="coerce"),
+            "high": pd.to_numeric(frame[normalized["high"]], errors="coerce"),
+            "low": pd.to_numeric(frame[normalized["low"]], errors="coerce"),
+            "close": pd.to_numeric(frame[normalized["close"]], errors="coerce"),
+        }
+    )
+    audited = flag_structural_bad_prints(
+        audit_input,
+        index_name=path.stem,
+        policy=policy,
+    )
+    flagged_dates = pd.DatetimeIndex(
+        pd.to_datetime(audited.loc[audited["suspected_bad_print"], "date"])
+    )
+    return result.loc[~result.index.isin(flagged_dates)]
 
 
 def _cluster_dates(catalogue: pd.DataFrame) -> pd.DataFrame:
@@ -123,6 +163,8 @@ def build_global_transition_catalogue(
     data_root: Path,
     inventory_path: Path,
     range_quality_path: Path,
+    *,
+    apply_structural_corrections: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, object]]:
     del data_root
     inventory = pd.read_csv(inventory_path)
@@ -146,7 +188,10 @@ def build_global_transition_catalogue(
 
         effective_start = effective_starts[index_name]
         market_group = MARKET_GROUPS.get(index_name, index_name)
-        frame = _load_generic_ohlc(path)
+        frame = _load_generic_ohlc(
+            path,
+            apply_structural_corrections=apply_structural_corrections,
+        )
         frame = frame[frame.index >= effective_start]
         series = log_parkinson(frame)
         applied_starts[index_name] = str(effective_start.date())
@@ -206,6 +251,7 @@ def build_global_transition_catalogue(
         "eligible_inventory_files": int(len(eligible)),
         "range_quality_file": str(range_quality_path),
         "effective_starts_applied": applied_starts,
+        "structural_corrections_applied": apply_structural_corrections,
         "excluded_or_skipped_indices": skipped,
         "raw_index_events": int(len(raw)),
         "global_temporal_clusters": int(clustered["episode_id"].nunique()) if not clustered.empty else 0,
@@ -231,11 +277,14 @@ def write_global_transition_outputs(
     inventory_path: Path,
     range_quality_path: Path,
     run_dir: Path,
+    *,
+    apply_structural_corrections: bool = False,
 ) -> dict[str, object]:
     raw, clustered, representative, report = build_global_transition_catalogue(
         data_root,
         inventory_path,
         range_quality_path,
+        apply_structural_corrections=apply_structural_corrections,
     )
     raw.to_csv(run_dir / "raw_transition_catalogue.csv", index=False)
     clustered.to_csv(run_dir / "clustered_transition_catalogue.csv", index=False)
