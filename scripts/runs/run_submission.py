@@ -44,6 +44,10 @@ TRANSITION_RAW_DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
 TRANSITION_PROCESS_COMMANDS: tuple[tuple[str, ...], ...] = (
     (
         sys.executable,
+        "scripts/transition_forecasting/validate_stage_d_parity.py",
+    ),
+    (
+        sys.executable,
         "scripts/transition_forecasting/build_processed_dataset.py",
         "--force",
     ),
@@ -145,6 +149,15 @@ def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord
     started = utc_now()
     start_clock = time.monotonic()
     actual_argv = list(argv)
+    if "validate_stage_d_parity.py" in actual_argv:
+        actual_argv.extend(
+            [
+                "--report",
+                str(run_dir / "stage_d_parity_report.json"),
+                "--log-dir",
+                str(run_dir),
+            ]
+        )
     if "build_processed_dataset.py" in actual_argv:
         actual_argv.extend(["--log-dir", str(run_dir)])
     with log_path.open("w", encoding="utf-8") as log:
