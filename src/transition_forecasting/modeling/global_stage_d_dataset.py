@@ -279,12 +279,13 @@ def write_global_stage_d_dataset(
     enriched_balance.to_csv(run_dir / "matching_balance_smd.csv", index=False)
     pooled_balance.to_csv(run_dir / "matching_balance_pooled_smd.csv", index=False)
     np.savez_compressed(
-        run_dir / "sequence_tensors.npz", X=tensor,
-        sample_id=manifest["sample_id"].astype(str).to_numpy(),
-        label=manifest["label"].astype(int).to_numpy(),
-        lead=manifest["lead"].astype(int).to_numpy(),
-        episode_id=manifest["episode_id"].astype(str).to_numpy(),
-        split=manifest["split"].astype(str).to_numpy(),
+        run_dir / "sequence_tensors.npz",
+        X=tensor,
+        sample_id=manifest["sample_id"].astype(str).to_numpy(dtype=str),
+        label=manifest["label"].astype(int).to_numpy(dtype=np.int64),
+        lead=manifest["lead"].astype(int).to_numpy(dtype=np.int64),
+        episode_id=manifest["episode_id"].astype(str).to_numpy(dtype=str),
+        split=manifest["split"].astype(str).to_numpy(dtype=str),
     )
     (run_dir / "stage_d_dataset_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
