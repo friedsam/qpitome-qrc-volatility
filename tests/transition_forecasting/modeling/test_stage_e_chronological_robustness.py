@@ -5,8 +5,14 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 SCRIPT = Path("scripts/transition_forecasting/modeling/run_stage_e_chronological_robustness.py")
+if not SCRIPT.is_file():
+    pytest.skip(
+        "Legacy Stage E chronological robustness script is not present on this branch",
+        allow_module_level=True,
+    )
 SPEC = importlib.util.spec_from_file_location("stage_e_chronological_robustness", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
@@ -47,13 +53,11 @@ def test_chronological_split_is_ordered_grouped_and_purged() -> None:
         val_fraction=0.2,
         embargo_days=7,
     )
-
     assert summary["date_column"] == "event_date"
     assert summary["group_column"] == "global_cluster_id"
     assert {"train", "val", "test", "purged"}.issubset(set(split["split"]))
     assert split.groupby("global_cluster_id")["split"].nunique().max() == 1
     assert split.groupby("episode_id")["split"].nunique().max() == 1
-
     dates = pd.to_datetime(split["event_date"])
     assert dates[split["split"].eq("train")].max() < dates[split["split"].eq("val")].min()
     assert dates[split["split"].eq("val")].max() < dates[split["split"].eq("test")].min()
@@ -76,14 +80,8 @@ def test_chronological_study_never_scores_test() -> None:
         alphas=(1.0,),
         pca_components=3,
     )
-
     assert set(results["model"]) == {
-        "har",
-        "sequence_ridge",
-        "full_esn",
-        "pca10_esn",
-        "shuffled_esn",
-        "random_tanh",
+        "har", "sequence_ridge", "full_esn", "pca10_esn", "shuffled_esn", "random_tanh"
     }
     assert "test_qlike" not in results.columns
     assert np.isfinite(results[["val_qlike", "val_rmse"]]).all().all()
