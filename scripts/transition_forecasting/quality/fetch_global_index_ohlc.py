@@ -118,6 +118,24 @@ def verify_fallback_manifest(root: Path) -> dict[str, object]:
     }
 
 
+def write_live_source_manifest(destination: Path) -> None:
+    csv_files = sorted(destination.rglob("*.csv"))
+    manifest = {
+        "schema_version": 1,
+        "dataset": DATASET,
+        "dataset_url": DATASET_URL,
+        "license": LICENSE,
+        "source_description": "Daily global stock-index OHLCV data sourced by the dataset author from Yahoo Finance.",
+        "downloaded_at_utc": utc_now(),
+        "csv_files": len(csv_files),
+        "redistribution_note": "Non-commercial attribution license; preserve this manifest with any retained copy.",
+    }
+    (destination / "source_manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def download_live(destination: Path) -> None:
     kaggle = shutil.which("kaggle")
     if kaggle is None:
@@ -138,12 +156,21 @@ def download_live(destination: Path) -> None:
         capture_output=True,
         text=True,
     )
+    write_live_source_manifest(destination)
 
 
 def copy_source(source: Path, destination: Path) -> None:
     if destination.exists():
         raise FileExistsError(destination)
-    shutil.copytree(source, destination, ignore=shutil.ignore_patterns(".DS_Store", "raw_acquisition_manifest.json"))
+    shutil.copytree(
+        source,
+        destination,
+        ignore=shutil.ignore_patterns(
+            ".DS_Store",
+            "fallback_manifest.json",
+            "raw_acquisition_manifest.json",
+        ),
+    )
 
 
 def install_candidate(candidate: Path, destination: Path, *, force: bool) -> None:
