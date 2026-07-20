@@ -60,33 +60,42 @@ def compare_manifests(reference_path: Path, rebuilt_path: Path) -> dict[str, obj
 
     reference_columns = list(reference.columns)
     rebuilt_columns = list(rebuilt.columns)
-    common_columns = [column for column in reference_columns if column in rebuilt_columns]
+    missing_reference_columns = [
+        column for column in reference_columns if column not in rebuilt_columns
+    ]
+    additive_rebuilt_columns = [
+        column for column in rebuilt_columns if column not in reference_columns
+    ]
 
     result: dict[str, object] = {
         "reference_rows": int(len(reference)),
         "rebuilt_rows": int(len(rebuilt)),
         "reference_columns": reference_columns,
         "rebuilt_columns": rebuilt_columns,
-        "same_columns": reference_columns == rebuilt_columns,
+        "missing_reference_columns": missing_reference_columns,
+        "additive_rebuilt_columns": additive_rebuilt_columns,
+        "baseline_columns_preserved": not missing_reference_columns,
         "same_sample_id_set": set(reference["sample_id"]) == set(rebuilt["sample_id"]),
         "mismatch_counts": {},
     }
 
-    if not result["same_sample_id_set"]:
-        result["only_reference_ids"] = sorted(
-            set(reference["sample_id"]) - set(rebuilt["sample_id"])
-        )[:50]
-        result["only_rebuilt_ids"] = sorted(
-            set(rebuilt["sample_id"]) - set(reference["sample_id"])
-        )[:50]
+    if missing_reference_columns or not result["same_sample_id_set"]:
+        if not result["same_sample_id_set"]:
+            result["only_reference_ids"] = sorted(
+                set(reference["sample_id"]) - set(rebuilt["sample_id"])
+            )[:50]
+            result["only_rebuilt_ids"] = sorted(
+                set(rebuilt["sample_id"]) - set(reference["sample_id"])
+            )[:50]
         result["passed"] = False
         return result
 
-    reference = reference.set_index("sample_id").loc[sorted(reference["sample_id"])]
-    rebuilt = rebuilt.set_index("sample_id").loc[sorted(rebuilt["sample_id"])]
+    ordered_ids = sorted(reference["sample_id"])
+    reference = reference.set_index("sample_id").loc[ordered_ids]
+    rebuilt = rebuilt.set_index("sample_id").loc[ordered_ids]
 
     mismatch_counts: dict[str, int] = {}
-    for column in common_columns:
+    for column in reference_columns:
         if column == "sample_id":
             continue
         left = reference[column]
@@ -111,7 +120,7 @@ def compare_manifests(reference_path: Path, rebuilt_path: Path) -> dict[str, obj
     result["mismatch_counts"] = mismatch_counts
     result["passed"] = (
         len(reference) == len(rebuilt)
-        and bool(result["same_columns"])
+        and bool(result["baseline_columns_preserved"])
         and not mismatch_counts
     )
     return result
