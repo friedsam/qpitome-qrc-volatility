@@ -2,9 +2,8 @@
 """Submission workflow entry point.
 
 This runner gives humans, CI, and a future qBraid Skill one stable interface for
-reproducing repository workflows. The first retained workflow covers data
-retrieval, processing, inventory, and validation. Later Stage 1/2/3 model
-workflows should be added here rather than creating separate agent-only logic.
+reproducing repository workflows. Stable capabilities should be added here as
+they are frozen rather than implemented through separate agent-only logic.
 """
 from __future__ import annotations
 
@@ -38,6 +37,15 @@ VALIDATE_DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "scripts/data/validate_volatility_dataset.py"),
 )
 
+TRANSITION_RAW_DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
+    (
+        sys.executable,
+        "scripts/transition_forecasting/quality/fetch_global_index_ohlc.py",
+        "--source-mode",
+        "auto",
+    ),
+)
+
 REQUIRED_DATA_OUTPUTS: tuple[str, ...] = (
     "data/raw/yahoo_daily_history/historical_market_data.csv",
     "data/raw/yahoo_daily_history/historical_volatility_data.csv",
@@ -49,6 +57,12 @@ REQUIRED_DATA_OUTPUTS: tuple[str, ...] = (
     "data/processed/monthly_market_features/features/preliminary_features.parquet",
     "data/processed/monthly_market_features/features/feature_catalog.csv",
     "data/processed/monthly_market_features/manifest.json",
+)
+
+REQUIRED_TRANSITION_RAW_DATA_OUTPUTS: tuple[str, ...] = (
+    "data/raw/transition_forecasting/global_stock_indices_historical_data/all_indices_data.csv",
+    "data/raw/transition_forecasting/global_stock_indices_historical_data/source_manifest.json",
+    "data/raw/transition_forecasting/global_stock_indices_historical_data/raw_acquisition_manifest.json",
 )
 
 
@@ -149,6 +163,16 @@ def command_plan(workflow: str) -> tuple[tuple[str, ...], ...]:
         return DATA_COMMANDS
     if workflow == "validate-data":
         return VALIDATE_DATA_COMMANDS
+    if workflow == "transition-raw-data":
+        return TRANSITION_RAW_DATA_COMMANDS
+    raise ValueError(f"Unsupported workflow: {workflow}")
+
+
+def required_outputs_for_workflow(workflow: str) -> tuple[str, ...]:
+    if workflow in {"data", "validate-data"}:
+        return REQUIRED_DATA_OUTPUTS
+    if workflow == "transition-raw-data":
+        return REQUIRED_TRANSITION_RAW_DATA_OUTPUTS
     raise ValueError(f"Unsupported workflow: {workflow}")
 
 
@@ -198,7 +222,7 @@ def execute(
             }
             break
 
-    required_outputs = output_inventory(REQUIRED_DATA_OUTPUTS)
+    required_outputs = output_inventory(required_outputs_for_workflow(workflow))
     missing_outputs = [
         path for path, item in required_outputs.items() if not item["exists"]
     ]
@@ -235,7 +259,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run reproducible submission workflows and record provenance"
     )
-    parser.add_argument("workflow", choices=("data", "validate-data"))
+    parser.add_argument(
+        "workflow",
+        choices=("data", "validate-data", "transition-raw-data"),
+    )
     parser.add_argument(
         "--results-root",
         type=Path,
