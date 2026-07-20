@@ -11,6 +11,7 @@ from transition_forecasting.catalogue.global_transition_catalogue import (
     write_global_transition_outputs,
 )
 from transition_forecasting.data.cleaning import build_cleaned_ohlc
+from transition_forecasting.data.parity import audit_parity_control_dataset
 from transition_forecasting.data.validation import audit_processed_dataset, sha256_file
 from transition_forecasting.data.volatility import (
     build_daily_volatility,
@@ -81,6 +82,23 @@ def _promote_candidate(candidate: Path, output_dir: Path, *, force: bool) -> Non
         raise
     if backup.exists():
         shutil.rmtree(backup)
+
+
+def _audit_for_mode(
+    dataset_dir: Path,
+    *,
+    controls_per_positive: int,
+    apply_structural_corrections: bool,
+) -> dict[str, object]:
+    if apply_structural_corrections:
+        return audit_processed_dataset(
+            dataset_dir,
+            controls_per_positive=controls_per_positive,
+        )
+    return audit_parity_control_dataset(
+        dataset_dir,
+        controls_per_positive=controls_per_positive,
+    )
 
 
 def build_processed_dataset(
@@ -215,9 +233,10 @@ def build_processed_dataset(
             encoding="utf-8",
         )
 
-        audit = audit_processed_dataset(
+        audit = _audit_for_mode(
             final_root,
             controls_per_positive=controls_per_positive,
+            apply_structural_corrections=apply_structural_corrections,
         )
         if not audit["passed"]:
             raise RuntimeError(
@@ -232,9 +251,10 @@ def build_processed_dataset(
             encoding="utf-8",
         )
 
-        final_audit = audit_processed_dataset(
+        final_audit = _audit_for_mode(
             final_root,
             controls_per_positive=controls_per_positive,
+            apply_structural_corrections=apply_structural_corrections,
         )
         if not final_audit["passed"]:
             raise RuntimeError(
