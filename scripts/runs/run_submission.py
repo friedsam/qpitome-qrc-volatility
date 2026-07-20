@@ -149,7 +149,8 @@ def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord
     started = utc_now()
     start_clock = time.monotonic()
     actual_argv = list(argv)
-    if "validate_stage_d_parity.py" in actual_argv:
+    script_names = {Path(argument).name for argument in actual_argv}
+    if "validate_stage_d_parity.py" in script_names:
         actual_argv.extend(
             [
                 "--report",
@@ -158,7 +159,7 @@ def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord
                 str(run_dir),
             ]
         )
-    if "build_processed_dataset.py" in actual_argv:
+    if "build_processed_dataset.py" in script_names:
         actual_argv.extend(["--log-dir", str(run_dir)])
     with log_path.open("w", encoding="utf-8") as log:
         log.write(f"$ {' '.join(actual_argv)}\n\n")
