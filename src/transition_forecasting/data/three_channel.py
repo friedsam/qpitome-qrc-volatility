@@ -15,6 +15,28 @@ CHANNEL_NAMES = np.asarray(
 )
 
 
+def to_three_channel(x: np.ndarray) -> np.ndarray:
+    """Convert one-channel sequences to the frozen field-tested representation."""
+    source = np.asarray(x)
+    if source.ndim != 3 or source.shape[-1] != 1:
+        raise ValueError(
+            f"Expected one-channel tensor shaped (n, time, 1), got {source.shape}"
+        )
+    if not np.isfinite(source).all():
+        raise ValueError("Source tensor contains non-finite values")
+
+    level = source[:, :, 0]
+    relative_rate = np.diff(level, axis=1, prepend=level[:, :1])
+    time = np.broadcast_to(
+        np.linspace(0.0, 1.0, level.shape[1], dtype=level.dtype)[None, :],
+        level.shape,
+    )
+    transformed = np.stack((level, relative_rate, time), axis=-1)
+    if not np.isfinite(transformed).all():
+        raise ValueError("Derived three-channel tensor contains non-finite values")
+    return transformed
+
+
 def build_three_channel_dataset(
     source_dir: Path,
     output_dir: Path,
@@ -45,21 +67,8 @@ def build_three_channel_dataset(
         arrays = {name: archive[name] for name in archive.files}
     if "X" not in arrays:
         raise KeyError("sequence_tensors.npz does not contain X")
-    x = np.asarray(arrays["X"])
-    if x.ndim != 3 or x.shape[-1] != 1:
-        raise ValueError(f"Expected one-channel tensor shaped (n, time, 1), got {x.shape}")
-    if not np.isfinite(x).all():
-        raise ValueError("Source tensor contains non-finite values")
 
-    level = x[:, :, 0]
-    relative_rate = np.diff(level, axis=1, prepend=level[:, :1])
-    time = np.broadcast_to(
-        np.linspace(0.0, 1.0, level.shape[1], dtype=level.dtype)[None, :],
-        level.shape,
-    )
-    x3 = np.stack((level, relative_rate, time), axis=-1)
-    if not np.isfinite(x3).all():
-        raise ValueError("Derived three-channel tensor contains non-finite values")
+    x3 = to_three_channel(arrays["X"])
 
     output_dir.mkdir(parents=True, exist_ok=False)
     for path in source_dir.iterdir():
