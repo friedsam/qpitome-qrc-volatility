@@ -9,19 +9,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from transition_forecasting.catalogue.global_transition_catalogue import (
-    write_global_transition_outputs,
-)
+from transition_forecasting.catalogue.global_transition_catalogue import write_global_transition_outputs
 from transition_forecasting.data.cleaning import build_cleaned_ohlc
+from transition_forecasting.data.modeling_inputs import materialize_gpt2_modeling_inputs
 from transition_forecasting.data.parity import audit_parity_control_dataset
 from transition_forecasting.data.validation import audit_processed_dataset, sha256_file
-from transition_forecasting.data.volatility import (
-    build_daily_volatility,
-    consolidate_cleaned_ohlc,
-)
-from transition_forecasting.modeling.global_stage_d_dataset import (
-    write_global_stage_d_dataset,
-)
+from transition_forecasting.data.volatility import build_daily_volatility, consolidate_cleaned_ohlc
+from transition_forecasting.modeling.global_stage_d_dataset import write_global_stage_d_dataset
 
 FROZEN_INVENTORY = Path(
     "results/transition_forecasting/quality/global_index_ohlc_audit/"
@@ -49,24 +43,15 @@ def utc_now() -> str:
 
 def _resolve_raw_file(raw_root: Path, individual_raw: Path, historical_path: str) -> Path:
     name = Path(historical_path).name
-    if name == "all_indices_data.csv":
-        return raw_root / name
-    return individual_raw / name
+    return raw_root / name if name == "all_indices_data.csv" else individual_raw / name
 
 
 def _prepare_frozen_gpt2_contract(
     raw_root: Path,
     individual_raw: Path,
-    cleaned_root: Path,
+    modeling_root: Path,
     run_dir: Path,
 ) -> tuple[Path, Path, dict[str, object], dict[str, object]]:
-    """Verify and materialize GPT-2's exact committed source contract.
-
-    Eligibility, ordering, and effective starts are never recomputed. Every raw
-    file is first checked against the SHA-256 recorded by GPT-2. Eligible file
-    paths are then redirected to the correction-only copies while all frozen
-    decisions remain unchanged.
-    """
     if not FROZEN_INVENTORY.is_file():
         raise FileNotFoundError(f"Missing frozen GPT-2 inventory: {FROZEN_INVENTORY}")
     if not FROZEN_RANGE_QUALITY.is_file():
@@ -91,19 +76,18 @@ def _prepare_frozen_gpt2_contract(
                 }
             )
 
-        cleaned_path = cleaned_root / raw_path.name
+        modeling_path = modeling_root / raw_path.name
         if bool(row["eligible"]):
-            if not cleaned_path.is_file():
-                raise FileNotFoundError(f"Missing corrected modeling input: {cleaned_path}")
-            redirected_paths.append(str(cleaned_path.resolve()))
+            if not modeling_path.is_file():
+                raise FileNotFoundError(f"Missing GPT-2 modeling input: {modeling_path}")
+            redirected_paths.append(str(modeling_path.resolve()))
         else:
             redirected_paths.append(str(raw_path.resolve()))
 
     if mismatches:
-        preview = mismatches[:5]
         raise RuntimeError(
             "Raw source snapshot does not match GPT-2's frozen inventory: "
-            f"{len(mismatches)} mismatches; preview={preview}"
+            f"{len(mismatches)} mismatches; preview={mismatches[:5]}"
         )
 
     modeling_inventory = inventory.copy()
@@ -115,10 +99,10 @@ def _prepare_frozen_gpt2_contract(
     redirected_range_paths: list[str] = []
     for _, row in range_quality.iterrows():
         source_name = Path(str(row["path"])).name
-        cleaned_path = cleaned_root / source_name
-        if not cleaned_path.is_file():
-            raise FileNotFoundError(f"Missing corrected range input: {cleaned_path}")
-        redirected_range_paths.append(str(cleaned_path.resolve()))
+        modeling_path = modeling_root / source_name
+        if not modeling_path.is_file():
+            raise FileNotFoundError(f"Missing GPT-2 range input: {modeling_path}")
+        redirected_range_paths.append(str(modeling_path.resolve()))
     range_quality["path"] = redirected_range_paths
     range_path = run_dir / "gpt2_range_quality_redirected.csv"
     range_quality.to_csv(range_path, index=False)
@@ -148,10 +132,7 @@ def _file_inventory(root: Path) -> dict[str, dict[str, object]]:
         path = root / name
         if not path.is_file():
             raise RuntimeError(f"Missing final dataset file: {name}")
-        inventory[name] = {
-            "size_bytes": path.stat().st_size,
-            "sha256": sha256_file(path),
-        }
+        inventory[name] = {"size_bytes": path.stat().st_size, "sha256": sha256_file(path)}
     return inventory
 
 
@@ -159,11 +140,9 @@ def _promote_candidate(candidate: Path, output_dir: Path, *, force: bool) -> Non
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     if output_dir.exists() and not force:
         raise FileExistsError(f"Refusing to overwrite existing dataset: {output_dir}")
-
     backup = candidate.parent / "prior-canonical-backup"
     if backup.exists():
         raise RuntimeError(f"unexpected transient backup collision: {backup}")
-
     if output_dir.exists():
         os.replace(output_dir, backup)
     try:
@@ -176,21 +155,10 @@ def _promote_candidate(candidate: Path, output_dir: Path, *, force: bool) -> Non
         shutil.rmtree(backup)
 
 
-def _audit_for_mode(
-    dataset_dir: Path,
-    *,
-    controls_per_positive: int,
-    apply_structural_corrections: bool,
-) -> dict[str, object]:
+def _audit_for_mode(dataset_dir: Path, *, controls_per_positive: int, apply_structural_corrections: bool) -> dict[str, object]:
     if apply_structural_corrections:
-        return audit_processed_dataset(
-            dataset_dir,
-            controls_per_positive=controls_per_positive,
-        )
-    return audit_parity_control_dataset(
-        dataset_dir,
-        controls_per_positive=controls_per_positive,
-    )
+        return audit_processed_dataset(dataset_dir, controls_per_positive=controls_per_positive)
+    return audit_parity_control_dataset(dataset_dir, controls_per_positive=controls_per_positive)
 
 
 def build_processed_dataset(
@@ -203,15 +171,6 @@ def build_processed_dataset(
     apply_structural_corrections: bool = True,
     force: bool = False,
 ) -> dict[str, object]:
-    """Build, validate, and atomically publish one processed dataset.
-
-    The build uses GPT-2's committed inventory, raw hashes, eligibility, and
-    effective starts. The only intended data change is removal of the 12 frozen
-    structural bad prints before volatility construction.
-
-    ``apply_structural_corrections=False`` exists only for temporary parity
-    reconstruction on the experimental branch and is not a submission mode.
-    """
     raw_root = Path(raw_root).resolve()
     output_dir = Path(output_dir).resolve()
     individual_raw = raw_root / "individual_indices_data"
@@ -221,12 +180,10 @@ def build_processed_dataset(
         raise FileExistsError(f"Refusing to overwrite existing dataset: {output_dir}")
 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(
-        prefix="transition-process-",
-        dir=output_dir.parent,
-    ) as temporary:
+    with tempfile.TemporaryDirectory(prefix="transition-process-", dir=output_dir.parent) as temporary:
         temp_root = Path(temporary)
         cleaning_root = temp_root / "cleaning"
+        modeling_root = temp_root / "modeling_inputs"
         contract_root = temp_root / "contract"
         catalogue_root = temp_root / "catalogue"
         stage_d_root = temp_root / "stage_d"
@@ -242,22 +199,21 @@ def build_processed_dataset(
         )
         cleaned_root = cleaning_root / "individual_indices_data"
 
-        (
-            modeling_inventory_path,
-            range_quality_path,
-            inventory_summary,
-            range_summary,
-        ) = _prepare_frozen_gpt2_contract(
-            raw_root,
+        materialize_gpt2_modeling_inputs(
             individual_raw,
-            cleaned_root,
-            contract_root,
+            cleaning_root / "row_corrections.csv",
+            modeling_root,
+            apply_structural_corrections=apply_structural_corrections,
+        )
+
+        modeling_inventory_path, range_quality_path, inventory_summary, range_summary = _prepare_frozen_gpt2_contract(
+            raw_root, individual_raw, modeling_root, contract_root
         )
 
         catalogue_run = catalogue_root / "build"
         catalogue_run.mkdir(parents=True, exist_ok=False)
         transition_summary = write_global_transition_outputs(
-            cleaned_root,
+            modeling_root,
             modeling_inventory_path,
             range_quality_path,
             catalogue_run,
@@ -273,14 +229,8 @@ def build_processed_dataset(
             stage_d_run,
         )
 
-        cleaned = consolidate_cleaned_ohlc(
-            cleaned_root,
-            final_root / "cleaned_ohlc.csv.gz",
-        )
-        daily = build_daily_volatility(
-            range_quality_path,
-            final_root / "daily_volatility.csv.gz",
-        )
+        cleaned = consolidate_cleaned_ohlc(cleaned_root, final_root / "cleaned_ohlc.csv.gz")
+        daily = build_daily_volatility(range_quality_path, final_root / "daily_volatility.csv.gz")
         shutil.copy2(representative_path, final_root / "transition_catalogue.csv")
         shutil.copy2(stage_d_run / "sample_manifest.csv", final_root / "sample_manifest.csv")
         shutil.copy2(stage_d_run / "sequence_tensors.npz", final_root / "sequence_tensors.npz")
@@ -288,19 +238,13 @@ def build_processed_dataset(
 
         raw_acquisition_manifest = raw_root / "raw_acquisition_manifest.json"
         manifest: dict[str, object] = {
-            "schema_version": 5,
+            "schema_version": 6,
             "dataset": "global_transition_dataset",
-            "build_mode": (
-                "corrected" if apply_structural_corrections else "parity_control_no_structural_removal"
-            ),
+            "build_mode": "corrected" if apply_structural_corrections else "parity_control_no_structural_removal",
             "temporary_parity_control": not apply_structural_corrections,
             "built_at_utc": utc_now(),
             "raw_root": str(raw_root),
-            "raw_acquisition_manifest_sha256": (
-                sha256_file(raw_acquisition_manifest)
-                if raw_acquisition_manifest.is_file()
-                else None
-            ),
+            "raw_acquisition_manifest_sha256": sha256_file(raw_acquisition_manifest) if raw_acquisition_manifest.is_file() else None,
             "test_evaluated": False,
             "rules": {
                 "interpolation": False,
@@ -311,6 +255,7 @@ def build_processed_dataset(
                 "inventory_contract": "frozen_gpt2",
                 "effective_start_contract": "frozen_gpt2",
                 "raw_source_hashes_verified": True,
+                "modeling_inputs_preserve_gpt2_raw_semantics": True,
                 "structural_bad_prints_detected": True,
                 "structural_bad_prints_removed_before_volatility": apply_structural_corrections,
                 "controls_rematched_after_correction": apply_structural_corrections,
@@ -332,39 +277,19 @@ def build_processed_dataset(
             "transition_summary": transition_summary,
             "stage_d_summary": stage_d_summary,
         }
-        (final_root / "manifest.json").write_text(
-            json.dumps(manifest, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        (final_root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-        audit = _audit_for_mode(
-            final_root,
-            controls_per_positive=controls_per_positive,
-            apply_structural_corrections=apply_structural_corrections,
-        )
+        audit = _audit_for_mode(final_root, controls_per_positive=controls_per_positive, apply_structural_corrections=apply_structural_corrections)
         if not audit["passed"]:
-            raise RuntimeError(
-                "Candidate processed dataset failed validation: "
-                + "; ".join(str(item) for item in audit["failures"])
-            )
+            raise RuntimeError("Candidate processed dataset failed validation: " + "; ".join(str(item) for item in audit["failures"]))
 
         manifest["files"] = _file_inventory(final_root)
         manifest["validation"] = audit
-        (final_root / "manifest.json").write_text(
-            json.dumps(manifest, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        (final_root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-        final_audit = _audit_for_mode(
-            final_root,
-            controls_per_positive=controls_per_positive,
-            apply_structural_corrections=apply_structural_corrections,
-        )
+        final_audit = _audit_for_mode(final_root, controls_per_positive=controls_per_positive, apply_structural_corrections=apply_structural_corrections)
         if not final_audit["passed"]:
-            raise RuntimeError(
-                "Final candidate audit failed after manifest publication: "
-                + "; ".join(str(item) for item in final_audit["failures"])
-            )
+            raise RuntimeError("Final candidate audit failed after manifest publication: " + "; ".join(str(item) for item in final_audit["failures"]))
 
         _promote_candidate(final_root, output_dir, force=force)
 
