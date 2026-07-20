@@ -28,8 +28,19 @@ def consolidate_cleaned_ohlc(cleaned_root: Path, output_path: Path) -> pd.DataFr
     return combined
 
 
-def build_daily_volatility(range_quality_path: Path, output_path: Path) -> pd.DataFrame:
-    """Build ordered daily log Parkinson-volatility series using audited effective starts."""
+def build_daily_volatility(
+    range_quality_path: Path,
+    output_path: Path,
+    *,
+    data_root: Path | None = None,
+) -> pd.DataFrame:
+    """Build ordered daily log Parkinson volatility from frozen effective starts.
+
+    ``range_quality_path`` remains the untouched-raw GPT-2 contract. When
+    ``data_root`` is supplied, only the file locations are redirected to the
+    correction-only modeling inputs; eligibility and effective starts are not
+    recomputed from those transformed files.
+    """
     quality = pd.read_csv(range_quality_path)
     required = {"path", "index", "recommended_effective_start"}
     missing = required.difference(quality.columns)
@@ -38,7 +49,10 @@ def build_daily_volatility(range_quality_path: Path, output_path: Path) -> pd.Da
 
     rows: list[pd.DataFrame] = []
     for _, item in quality.iterrows():
-        path = Path(str(item["path"]))
+        source_path = Path(str(item["path"]))
+        path = Path(data_root) / source_path.name if data_root is not None else source_path
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing volatility input: {path}")
         index_name = str(item["index"])
         effective_start = pd.Timestamp(item["recommended_effective_start"])
         frame = _load_generic_ohlc(path)
