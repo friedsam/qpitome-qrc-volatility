@@ -21,9 +21,13 @@ from transition_forecasting.modeling.stage_e_fixed_spec_diagnostics import (
     mincer_zarnowitz,
 )
 from transition_forecasting.modeling.stage_e_sequence_models import metrics
-from transition_forecasting.qrc.representation_candidates import SECOND_CHANNEL_NAMES
+from transition_forecasting.qrc.representation_candidates import (
+    SECOND_CHANNEL_NAMES,
+)
 from transition_forecasting.qrc.temporal_rydberg_chain import effective_rank
-from transition_forecasting.qrc.temporal_rydberg_chain_artifacts import signal_diagnostics
+from transition_forecasting.qrc.temporal_rydberg_chain_artifacts import (
+    signal_diagnostics,
+)
 
 ReadoutMode = str
 
@@ -40,6 +44,31 @@ def _fit_har(
     return model.predict(scaler.transform(x))
 
 
+def _parse_mixed_utc(values: pd.Series) -> pd.Series:
+    """Parse mixed naive and offset ISO timestamps into one UTC series."""
+    try:
+        return pd.to_datetime(
+            values,
+            errors="raise",
+            utc=True,
+            format="mixed",
+        )
+    except (TypeError, ValueError):
+        parsed: list[pd.Timestamp] = []
+        for value in values.astype(str):
+            timestamp = pd.Timestamp(value)
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.tz_localize("UTC")
+            else:
+                timestamp = timestamp.tz_convert("UTC")
+            parsed.append(timestamp)
+        return pd.Series(
+            pd.DatetimeIndex(parsed),
+            index=values.index,
+            name=values.name,
+        )
+
+
 def _prequential_har_residuals(
     frame: pd.DataFrame,
     y: np.ndarray,
@@ -49,11 +78,14 @@ def _prequential_har_residuals(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return causal training residuals and the rows on which they are valid."""
     x = frame[list(HAR_FEATURES)].to_numpy(dtype=float)
-    dates = pd.to_datetime(frame["origin_date"], errors="raise", utc=True)
+    dates = _parse_mixed_utc(frame["origin_date"])
     train_dates = np.asarray(sorted(dates[train_mask].unique()))
     chunks = [
         chunk
-        for chunk in np.array_split(train_dates, min(blocks, len(train_dates)))
+        for chunk in np.array_split(
+            train_dates,
+            min(blocks, len(train_dates)),
+        )
         if len(chunk)
     ]
     predictions = np.full_like(y, np.nan, dtype=float)
@@ -63,12 +95,15 @@ def _prequential_har_residuals(
         first_score_date = score_dates[0]
         fit_mask = train_mask & dates.lt(first_score_date).to_numpy()
         score_mask = train_mask & dates.isin(score_dates).to_numpy()
-        if fit_mask.sum() < max(10, len(HAR_FEATURES) + 2) or not score_mask.any():
+        minimum_fit = max(10, len(HAR_FEATURES) + 2)
+        if fit_mask.sum() < minimum_fit or not score_mask.any():
             continue
         scaler = StandardScaler()
         model = Ridge(alpha=100.0)
         model.fit(scaler.fit_transform(x[fit_mask]), y[fit_mask])
-        predictions[score_mask] = model.predict(scaler.transform(x[score_mask]))
+        predictions[score_mask] = model.predict(
+            scaler.transform(x[score_mask])
+        )
 
     valid = train_mask & np.isfinite(predictions).all(axis=1)
     residuals = y - predictions
@@ -98,7 +133,7 @@ def _component_values(
     width: int,
 ) -> tuple[int, ...]:
     maximum = max(1, min(train_rows, width))
-    values = []
+    values: list[int] = []
     for value in requested:
         resolved = maximum if int(value) == 0 else min(int(value), maximum)
         if resolved >= 1 and resolved not in values:
@@ -126,7 +161,10 @@ def _evaluate_feature_matrix(
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     features = np.asarray(feature_matrix, dtype=float)
     if features.ndim != 2 or len(features) != len(frame):
-        raise ValueError("feature matrix is not aligned with the selected frame")
+        raise ValueError(
+            "feature matrix is not aligned with the selected frame"
+        )
+
     scaler = StandardScaler()
     scaled_train = scaler.fit_transform(features[train_mask])
     scaled_all = scaler.transform(features)
@@ -167,29 +205,32 @@ def _evaluate_feature_matrix(
                 readout = Ridge(alpha=float(alpha))
                 readout.fit(fit_x, fit_y)
                 prediction = baseline + readout.predict(transformed_all)
-                row = {
-                    "fold": int(fold),
-                    "representation": representation,
-                    "second_channel": SECOND_CHANNEL_NAMES[representation],
-                    "model_family": model_family,
-                    "seed": int(seed),
-                    "readout_mode": readout_mode,
-                    "components": int(component_count),
-                    "feature_width": int(features.shape[1]),
-                    "explained_variance": explained,
-                    "alpha": float(alpha),
-                    "train_rows_used": int(fit_mask.sum()),
-                    "val_rows": int(val_mask.sum()),
-                    **{
-                        f"val_{key}": value
-                        for key, value in _metric_payload(
-                            y,
-                            prediction,
-                            val_mask,
-                        ).items()
-                    },
-                }
-                metric_rows.append(row)
+                metric_rows.append(
+                    {
+                        "fold": int(fold),
+                        "representation": representation,
+                        "second_channel": SECOND_CHANNEL_NAMES[
+                            representation
+                        ],
+                        "model_family": model_family,
+                        "seed": int(seed),
+                        "readout_mode": readout_mode,
+                        "components": int(component_count),
+                        "feature_width": int(features.shape[1]),
+                        "explained_variance": explained,
+                        "alpha": float(alpha),
+                        "train_rows_used": int(fit_mask.sum()),
+                        "val_rows": int(val_mask.sum()),
+                        **{
+                            f"val_{key}": value
+                            for key, value in _metric_payload(
+                                y,
+                                prediction,
+                                val_mask,
+                            ).items()
+                        },
+                    }
+                )
 
                 validation = frame.loc[val_mask].reset_index(drop=True)
                 y_val = y[val_mask]
@@ -223,6 +264,7 @@ def _evaluate_feature_matrix(
                                 **payload,
                             }
                         )
+
     return metric_rows, group_rows
 
 
@@ -274,6 +316,7 @@ def _write_feature_archive(
 ) -> None:
     if not blocks:
         return
+
     features = np.concatenate(
         [np.asarray(block["features"], dtype=float) for block in blocks]
     )
@@ -284,7 +327,10 @@ def _write_feature_archive(
         [np.asarray(block["har"], dtype=float) for block in blocks]
     )
     input_sequences = np.concatenate(
-        [np.asarray(block["input_sequences"], dtype=float) for block in blocks]
+        [
+            np.asarray(block["input_sequences"], dtype=float)
+            for block in blocks
+        ]
     )
     prequential_residuals = np.concatenate(
         [
@@ -293,10 +339,16 @@ def _write_feature_archive(
         ]
     )
     prequential_valid = np.concatenate(
-        [np.asarray(block["prequential_valid"], dtype=bool) for block in blocks]
+        [
+            np.asarray(block["prequential_valid"], dtype=bool)
+            for block in blocks
+        ]
     )
     if features.shape[1] != len(feature_names):
-        raise ValueError("feature_names do not match feature-matrix width")
+        raise ValueError(
+            "feature_names do not match feature-matrix width"
+        )
+
     metadata: dict[str, np.ndarray] = {}
     for key in (
         "fold",
@@ -307,7 +359,9 @@ def _write_feature_archive(
         "episode_id",
         "origin_date",
     ):
-        values = np.concatenate([np.asarray(block[key]) for block in blocks])
+        values = np.concatenate(
+            [np.asarray(block[key]) for block in blocks]
+        )
         metadata[key] = (
             values.astype(int)
             if key in {"fold", "lead", "label"}
@@ -315,7 +369,10 @@ def _write_feature_archive(
         )
     metadata["representation"] = np.concatenate(
         [
-            np.repeat(str(block["representation"]), len(block["sample_id"]))
+            np.repeat(
+                str(block["representation"]),
+                len(block["sample_id"]),
+            )
             for block in blocks
         ]
     ).astype(str)
@@ -325,6 +382,7 @@ def _write_feature_archive(
             for block in blocks
         ]
     ).astype(int)
+
     np.savez_compressed(
         path,
         feature_matrix=features,
