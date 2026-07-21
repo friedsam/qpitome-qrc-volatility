@@ -345,7 +345,6 @@ def _best_mean_configuration(metrics_frame: pd.DataFrame) -> pd.DataFrame:
                 "representation",
                 "model_family",
                 "readout_mode",
-                "seed",
                 "components",
                 "alpha",
             ],
@@ -356,6 +355,7 @@ def _best_mean_configuration(metrics_frame: pd.DataFrame) -> pd.DataFrame:
             mean_val_rmse=("val_rmse", "mean"),
             mean_mz_r2=("val_mz_r2", "mean"),
             folds=("fold", "nunique"),
+            seeds=("seed", "nunique"),
         )
         .sort_values(
             [
