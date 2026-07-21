@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "datasets": {
+    "1d": {
+      "root": "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/data/processed/transition_forecasting/global_transition_dataset_1d",
+      "files": {
+        "sample_manifest.csv": {
+          "exists": true,
+          "size_bytes": 2146493,
+          "sha256": "1ee1ecb7f775048809f4e228484b2e13a3693455c10eb5e4f6e35bbe7550f136"
+        },
+        "sequence_tensors.npz": {
+          "exists": true,
+          "size_bytes": 671843,
+          "sha256": "a21fc8560f303bf47462ec1a0648870429135e0cd8e3815423f510794709d96d"
+        },
+        "manifest.json": {
+          "exists": true,
+          "size_bytes": 9260,
+          "sha256": "f32fe95613a3dab39301dae1c60da90b914eb55ddc69dcca903b80dd0671b2d8"
+        },
+        "control_candidate_manifest.csv": {
+          "exists": true,
+          "size_bytes": 227684789,
+          "sha256": "1a8a159d8955fe39eca607a5f80beb8ab26818eb0132d173ae6185a22c0f3c20"
+        },
+        "control_candidate_tensors.npz": {
+          "exists": true,
+          "size_bytes": 4774577,
+          "sha256": "df8940e4c5a81d9237eac04cbf5fa5b2d728c753d449fc20902eaab29b0e663a"
+        },
+        "candidate_pool_summary.json": {
+          "exists": true,
+          "size_bytes": 1204,
+          "sha256": "ba7434f4c357c1d7fa8ded7311b9ad7470b8c0c313a1e76f2342d4f51c68db42"
+        },
+        "purged_walk_forward_folds/rematched_rolling_manifest.csv": {
+          "exists": true,
+          "size_bytes": 6022021,
+          "sha256": "e18074afec7af411b64c83ea3c6d3ba5d9db988478bb004ff3c6cd33e600dbbf"
+        },
+        "purged_walk_forward_folds/rematched_rolling_tensors.npz": {
+          "exists": true,
+          "size_bytes": 1342431,
+          "sha256": "c4b73e94cd43eafd5d93042cd00f7b00d7f5c5726ae9d90fafa38f8c7eab1a93"
+        },
+        "purged_walk_forward_folds/control_match_audit.csv": {
+          "exists": true,
+          "size_bytes": 202020,
+          "sha256": "14eb21bd9b72f86dbdf811435c858154df7f161f96a222d06d7ac5c2df99b9c7"
+        },
+        "purged_walk_forward_folds/summary.json": {
+          "exists": true,
+          "size_bytes": 2515,
+          "sha256": "1094a1a45879d27782e9bbd699d02f679de9b9099fbc3899b6b5466bad33bdac"
+        }
+      }
+    },
+    "3d": {
+      "root": "/Users/claudia/Documents/Documents - Claudia\u2019s MacBook Pro/Workspace/Quantum Computing/GIC/qBraid/qpitome-qrc-volatility/data/processed/transition_forecasting/global_transition_dataset_3d",
+      "files": {
+        "sample_manifest.csv": {
+          "exists": true,
+          "size_bytes": 2146493,
+          "sha256": "1ee1ecb7f775048809f4e228484b2e13a3693455c10eb5e4f6e35bbe7550f136"
+        },
+        "sequence_tensors.npz": {
+          "exists": true,
+          "size_bytes": 2099824,
+          "sha256": "ac1006e53913c33c3dd92ec2caa28595bbd63fed5eadf7c2a7cc2b8efde647d4"
+        },
+        "manifest.json": {
+          "exists": true,
+          "size_bytes": 9065,
+          "sha256": "83e31d351c132bcb6ba0e524e4f558e9a7ca06babdf7d900e884de2d99380d36"
+        },
+        "control_candidate_manifest.csv": {
+          "exists": true,
+          "size_bytes": 227684789,
+          "sha256": "1a8a159d8955fe39eca607a5f80beb8ab26818eb0132d173ae6185a22c0f3c20"
+        },
+        "control_candidate_tensors.npz": {
+          "exists": true,
+          "size_bytes": 31217210,
+          "sha256": "c8ae99efe9b264f780b3ff3c72e94ccf0beba696534a1743989abc40fa3782bd"
+        },
+        "candidate_pool_summary.json": {
+          "exists": true,
+          "size_bytes": 1529,
+          "sha256": "58fae8586b2e85b9eb499fb79e2ddf35651c57dad4e2a34ec3b6f772084ae533"
+        },
+        "purged_walk_forward_folds/rematched_rolling_manifest.csv": {
+          "exists": true,
+          "size_bytes": 6022021,
+          "sha256": "e18074afec7af411b64c83ea3c6d3ba5d9db988478bb004ff3c6cd33e600dbbf"
+        },
+        "purged_walk_forward_folds/rematched_rolling_tensors.npz": {
+          "exists": true,
+          "size_bytes": 4320033,
+          "sha256": "8d77ee1201dea7c467f1c2db506849853f75ba79a6bfc10520e5107344eeec3e"
+        },
+        "purged_walk_forward_folds/control_match_audit.csv": {
+          "exists": true,
+          "size_bytes": 202020,
+          "sha256": "14eb21bd9b72f86dbdf811435c858154df7f161f96a222d06d7ac5c2df99b9c7"
+        },
+        "purged_walk_forward_folds/summary.json": {
+          "exists": true,
+          "size_bytes": 2548,
+          "sha256": "5da8171abcc9e10064c8046e40d4e8064fee458e5a80621c5761fcdafce77401"
+        }
+      }
+    }
+  }
+}
