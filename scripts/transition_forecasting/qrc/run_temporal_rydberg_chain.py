@@ -7,9 +7,11 @@ from transition_forecasting.qrc.temporal_rydberg_chain import (
     SUPPORTED_CONDITIONS,
     TemporalRydbergChainConfig,
 )
+from transition_forecasting.qrc.temporal_rydberg_chain_analysis_experiment import (
+    run_temporal_rydberg_chain_analysis_experiment,
+)
 from transition_forecasting.qrc.temporal_rydberg_chain_experiment import (
     TemporalRydbergExperimentConfig,
-    run_temporal_rydberg_chain_experiment,
 )
 
 DEFAULT_FOLD_DIR = Path(
@@ -181,7 +183,7 @@ def main() -> None:
         shots=args.shots,
         shot_seed=args.shot_seed,
     )
-    run_dir = run_temporal_rydberg_chain_experiment(
+    run_dir = run_temporal_rydberg_chain_analysis_experiment(
         fold_dir=args.fold_dir,
         results_root=args.out_root,
         experiment=experiment,
