@@ -3,8 +3,8 @@
 
 The runner provides one stable interface for human, CI, and judge reruns. Existing
 SPY/VIX workflows are preserved. Transition-forecasting workflows write all
-run-specific raw data, processed data, folds, validation reports, and logs under
-``results/runs/<run-id>``.
+run-specific raw data, processed data, folds, validation reports, checksums, and
+logs under ``results/runs/<run-id>``.
 """
 from __future__ import annotations
 
@@ -131,6 +131,7 @@ def transition_paths(run_dir: Path) -> dict[str, Path]:
     processed = root / "processed"
     dataset_1d = processed / "global_transition_dataset_1d"
     dataset_3d = processed / "global_transition_dataset_3d"
+    validation_root = root / "validation"
     return {
         "root": root,
         "raw": raw,
@@ -138,7 +139,8 @@ def transition_paths(run_dir: Path) -> dict[str, Path]:
         "dataset_3d": dataset_3d,
         "folds_1d": dataset_1d / "purged_walk_forward_folds",
         "folds_3d": dataset_3d / "purged_walk_forward_folds",
-        "validation": root / "validation" / "data_pipeline_audit.json",
+        "validation": validation_root / "data_pipeline_audit.json",
+        "checksums": validation_root / "data_pipeline_checksums.json",
     }
 
 
@@ -190,6 +192,16 @@ def transition_commands(
             "--report",
             str(paths["validation"]),
         ),
+        (
+            sys.executable,
+            "scripts/transition_forecasting/data/freeze_transition_checksums.py",
+            "--dataset-1d",
+            str(paths["dataset_1d"]),
+            "--dataset-3d",
+            str(paths["dataset_3d"]),
+            "--report",
+            str(paths["checksums"]),
+        ),
     )
 
 
@@ -237,6 +249,7 @@ def transition_required_outputs(run_dir: Path) -> tuple[Path, ...]:
         paths["raw"] / "all_indices_data.csv",
         paths["raw"] / "raw_acquisition_manifest.json",
         paths["validation"],
+        paths["checksums"],
     ]
     for dataset_key in ("dataset_1d", "dataset_3d"):
         outputs.extend(paths[dataset_key] / name for name in dataset_files)
