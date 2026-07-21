@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "description": "Reference values from the July 2026 field experiment. These values are used as a reproducibility sanity check, not as optimization targets.",
+  "test_evaluated": false,
+  "broad_chronological": {
+    "validation_samples": 24356,
+    "path_metrics": {
+      "persistence": {
+        "rmse": 0.5991054995898878,
+        "qlike": 63.866027079637426
+      },
+      "har": {
+        "rmse": 0.4721497116508715,
+        "qlike": 0.988828134268814
+      },
+      "raw_sequence_ridge": {
+        "rmse": 0.46767302601895944,
+        "qlike": 0.9023105975672764
+      }
+    }
+  },
+  "event_enriched": {
+    "validation_samples": 312,
+    "har_transition": {
+      "rmse": 0.6624363284346799,
+      "qlike": 2.2136236160823795
+    },
+    "har_control": {
+      "rmse": 0.4764045554880795,
+      "qlike": 0.4187961445885531
+    }
+  },
+  "comparable_esn": {
+    "ordered_transition_best_mean_qlike": 1.9676305142094799,
+    "shuffled_transition_best_mean_qlike": 2.2760340899026295
+  },
+  "reproduction_tolerances": {
+    "rmse_absolute": 1e-10,
+    "qlike_absolute": 1e-8,
+    "sample_count_exact": true
+  }
+}
