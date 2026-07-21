@@ -12,6 +12,11 @@ from transition_forecasting.qrc.temporal_rydberg_chain_experiment import (
     run_temporal_rydberg_chain_experiment,
 )
 
+DEFAULT_FOLD_DIR = Path(
+    "data/processed/transition_forecasting/global_transition_dataset_1d/"
+    "purged_walk_forward_folds"
+)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -20,8 +25,11 @@ def parse_args() -> argparse.Namespace:
             "development assay."
         )
     )
-    parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--tensor-root", type=Path, required=True)
+    parser.add_argument(
+        "--fold-dir",
+        type=Path,
+        default=DEFAULT_FOLD_DIR,
+    )
     parser.add_argument("--contaminated-samples", type=Path)
     parser.add_argument(
         "--folds",
@@ -174,8 +182,7 @@ def main() -> None:
         shot_seed=args.shot_seed,
     )
     run_dir = run_temporal_rydberg_chain_experiment(
-        manifest_path=args.manifest,
-        tensor_root=args.tensor_root,
+        fold_dir=args.fold_dir,
         results_root=args.out_root,
         experiment=experiment,
         reservoir=reservoir,
