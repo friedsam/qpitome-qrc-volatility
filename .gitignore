@@ -80,6 +80,7 @@ data/processed/spy_vix_volatility/*
 # machine-readable result tables and summaries so experiments are portable.
 results/runs/*
 results/figures/*
+results/transition_forecasting/modeling/*
 !results/runs/.gitkeep
 !results/figures/.gitkeep
 
