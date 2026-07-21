@@ -16,7 +16,7 @@ from transition_forecasting.modeling.stage_d_candidate_pool import (
 )
 
 
-DEFAULT_N_FOLDS = 3
+DEFAULT_N_FOLDS = 8
 DEFAULT_TEST_FRACTION = 0.17
 DEFAULT_EMBARGO_DAYS = 10
 DEFAULT_CONTROLS_PER_POSITIVE = 3
@@ -258,11 +258,10 @@ def build_one_and_three_channel_folds(
         "dataset_3d": str(dataset_3d_dir),
         "candidate_rows": int(len(candidate_manifest)),
         "folds": int(n_folds),
-        "fold_output_1d": str(output_1d),
-        "fold_output_3d": str(output_3d),
-        "fold_rows": int(len(manifest_fold_1d)),
-        "fold_tensor_shape_1d": list(tensor_fold_1d.shape),
-        "fold_tensor_shape_3d": list(tensor_fold_3d.shape),
-        "identical_fold_assignments": True,
-        "test_evaluated": False,
+        "test_fraction": float(test_fraction),
+        "embargo_days": int(embargo_days),
+        "controls_per_positive": int(controls_per_positive),
+        "fold_manifest_rows": int(len(manifest_fold_1d)),
+        "fold_tensor_1d_shape": list(tensor_fold_1d.shape),
+        "fold_tensor_3d_shape": list(tensor_fold_3d.shape),
     }
