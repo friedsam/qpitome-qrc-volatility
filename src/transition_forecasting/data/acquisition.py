@@ -13,6 +13,7 @@ import pandas as pd
 DATASET = "guillemservera/global-stock-indices-historical-data"
 DATASET_URL = "https://www.kaggle.com/datasets/guillemservera/global-stock-indices-historical-data"
 LICENSE = "CC-BY-NC-4.0"
+SETUP_DOC = "docs/transition_forecasting/kaggle_source_setup.md"
 REQUIRED_COMBINED_COLUMNS = {"date", "open", "high", "low", "close", "ticker"}
 REQUIRED_INDEX_COLUMNS = {"date", "open", "high", "low", "close"}
 
@@ -63,7 +64,9 @@ def validate_source(root: Path) -> dict[str, object]:
 
     index_files = sorted(individual_root.glob("*.csv"))
     if len(index_files) < 30:
-        raise ValueError(f"expected at least 30 individual index CSV files, found {len(index_files)}")
+        raise ValueError(
+            f"expected at least 30 individual index CSV files, found {len(index_files)}"
+        )
 
     schema_failures: list[dict[str, object]] = []
     for path in index_files:
@@ -89,7 +92,10 @@ def verify_fallback_manifest(root: Path) -> dict[str, object]:
     if not manifest_path.is_file():
         raise ValueError(f"fallback manifest missing: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    expected = {str(item["path"]): str(item["sha256"]) for item in manifest.get("files", [])}
+    expected = {
+        str(item["path"]): str(item["sha256"])
+        for item in manifest.get("files", [])
+    }
     if not expected:
         raise ValueError(f"fallback manifest contains no file hashes: {manifest_path}")
 
@@ -97,7 +103,9 @@ def verify_fallback_manifest(root: Path) -> dict[str, object]:
     actual.pop("fallback_manifest.json", None)
     missing = sorted(set(expected) - set(actual))
     extra = sorted(set(actual) - set(expected))
-    changed = sorted(path for path in set(expected) & set(actual) if expected[path] != actual[path])
+    changed = sorted(
+        path for path in set(expected) & set(actual) if expected[path] != actual[path]
+    )
     if missing or extra or changed:
         raise ValueError(
             "fallback hash verification failed: "
@@ -117,10 +125,16 @@ def write_live_source_manifest(destination: Path) -> None:
         "dataset": DATASET,
         "dataset_url": DATASET_URL,
         "license": LICENSE,
-        "source_description": "Daily global stock-index OHLCV data sourced by the dataset author from Yahoo Finance.",
+        "source_description": (
+            "Daily global stock-index OHLCV data sourced by the dataset author "
+            "from Yahoo Finance."
+        ),
         "downloaded_at_utc": utc_now(),
         "csv_files": len(csv_files),
-        "redistribution_note": "Non-commercial attribution license; preserve this manifest with any retained copy.",
+        "redistribution_note": (
+            "Non-commercial attribution license; preserve this manifest with any "
+            "retained copy."
+        ),
     }
     (destination / "source_manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
@@ -130,23 +144,35 @@ def write_live_source_manifest(destination: Path) -> None:
 def download_live(destination: Path) -> None:
     kaggle = shutil.which("kaggle")
     if kaggle is None:
-        raise RuntimeError("Kaggle CLI not found")
+        raise RuntimeError(
+            "Kaggle CLI not found. Install the project dependencies in the active "
+            "environment, configure Kaggle authentication, and verify `which kaggle`. "
+            f"Setup: {SETUP_DOC}"
+        )
     destination.mkdir(parents=True, exist_ok=False)
-    subprocess.run(
-        [
-            kaggle,
-            "datasets",
-            "download",
-            "--dataset",
-            DATASET,
-            "--path",
-            str(destination),
-            "--unzip",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        subprocess.run(
+            [
+                kaggle,
+                "datasets",
+                "download",
+                "--dataset",
+                DATASET,
+                "--path",
+                str(destination),
+                "--unzip",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        details = (exc.stderr or exc.stdout or "").strip()
+        raise RuntimeError(
+            "Kaggle download failed. Confirm that ~/.kaggle/kaggle.json exists, "
+            "has permission mode 600, and can access the dataset. "
+            f"Setup: {SETUP_DOC}. Kaggle output: {details or '<none>'}"
+        ) from exc
     write_live_source_manifest(destination)
 
 
@@ -169,7 +195,8 @@ def install_candidate(candidate: Path, destination: Path, *, force: bool) -> Non
     if destination.exists():
         if not force:
             raise FileExistsError(
-                f"{destination} already exists; use --force only when intentionally replacing the raw snapshot"
+                f"{destination} already exists; use --force only when intentionally "
+                "replacing the raw snapshot"
             )
         shutil.rmtree(destination)
     candidate.rename(destination)
@@ -211,11 +238,22 @@ def acquire_source(
                         raise
 
             if selected_mode is None:
-                fallback_verification = verify_fallback_manifest(fallback)
-                validate_source(fallback)
-                copy_source(fallback, candidate)
-                validation = validate_source(candidate)
-                selected_mode = "fallback"
+                try:
+                    fallback_verification = verify_fallback_manifest(fallback)
+                    validate_source(fallback)
+                    copy_source(fallback, candidate)
+                    validation = validate_source(candidate)
+                    selected_mode = "fallback"
+                except Exception as fallback_exc:
+                    if source_mode == "auto":
+                        raise RuntimeError(
+                            "Automatic source acquisition failed. "
+                            f"Live attempt: {live_error or '<not attempted>'}. "
+                            "Fallback attempt: "
+                            f"{type(fallback_exc).__name__}: {fallback_exc}. "
+                            f"Kaggle setup: {SETUP_DOC}"
+                        ) from fallback_exc
+                    raise
 
             install_candidate(candidate, destination, force=force)
 
@@ -224,7 +262,10 @@ def acquire_source(
         "dataset": DATASET,
         "dataset_url": DATASET_URL,
         "license": LICENSE,
-        "source_description": "Daily global stock-index OHLCV data sourced by the dataset author from Yahoo Finance.",
+        "source_description": (
+            "Daily global stock-index OHLCV data sourced by the dataset author "
+            "from Yahoo Finance."
+        ),
         "source_mode_requested": source_mode,
         "source_mode_used": selected_mode,
         "live_retrieval_error": live_error,
@@ -234,8 +275,13 @@ def acquire_source(
         "started_at_utc": started,
         "finished_at_utc": utc_now(),
         "validation": validation,
-        "redistribution_note": "Non-commercial attribution license; preserve source and acquisition manifests with retained copies.",
+        "redistribution_note": (
+            "Non-commercial attribution license; preserve source and acquisition "
+            "manifests with retained copies."
+        ),
     }
     manifest_path = destination / "raw_acquisition_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
     return manifest
