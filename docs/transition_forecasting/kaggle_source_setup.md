@@ -31,15 +31,27 @@ python -m site
 
 ## 2. Authenticate with Kaggle
 
-Sign in to Kaggle and create an API token from the account settings page. Kaggle provides a `kaggle.json` credentials file.
+Current Kaggle CLI releases support an access-token file at:
 
-Place that file at:
+```text
+~/.kaggle/access_token
+```
+
+After generating the token from Kaggle account settings, place it there and restrict access:
+
+```zsh
+mkdir -p ~/.kaggle
+chmod 700 ~/.kaggle
+chmod 600 ~/.kaggle/access_token
+```
+
+Some Kaggle accounts or older CLI releases instead provide the legacy credentials file:
 
 ```text
 ~/.kaggle/kaggle.json
 ```
 
-Restrict its permissions:
+For that method:
 
 ```zsh
 mkdir -p ~/.kaggle
@@ -47,7 +59,9 @@ chmod 700 ~/.kaggle
 chmod 600 ~/.kaggle/kaggle.json
 ```
 
-Do not commit `kaggle.json` to the repository. It contains private credentials.
+Only one valid authentication method is required. Do not rename a valid `access_token` merely because `kaggle.json` is absent.
+
+Do not commit either credential file to the repository. Both contain private authentication material.
 
 Confirm authentication before running the full pipeline:
 
@@ -85,9 +99,13 @@ The large fallback snapshot is not currently included in `stage1-dev`. On a clea
 
 The Kaggle executable is not available on `PATH` in the active environment. Reinstall the project dependencies in that environment and verify `which kaggle`.
 
-### Missing `~/.kaggle/kaggle.json`
+### Neither `~/.kaggle/access_token` nor `~/.kaggle/kaggle.json` exists
 
-The client is installed but has no file-based authentication. Create a Kaggle API token and install the credentials file with mode `600`.
+The client is installed but no file-based authentication is configured. Generate a Kaggle access token and install the credential file with mode `600`.
+
+### `access_token` exists but `kaggle.json` does not
+
+This is valid for current Kaggle CLI releases. Test it with `kaggle datasets files ...`; no legacy JSON file is required when the access token works.
 
 ### Authentication or `401/403` error
 
