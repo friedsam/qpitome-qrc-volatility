@@ -77,9 +77,12 @@ class TemporalRydbergExperimentConfig:
 
 
 @dataclass(frozen=True)
-class FoldTensor:
+class RollingFoldDataset:
+    manifest: pd.DataFrame
     values: np.ndarray
     sample_ids: np.ndarray
+    folds: np.ndarray
+    fold_splits: np.ndarray
     valid: np.ndarray
     channel_names: tuple[str, ...]
 
@@ -93,19 +96,34 @@ def _load_excluded_ids(path: Path | None) -> set[str]:
     return set(frame["sample_id"].astype(str))
 
 
-def load_fold_tensor(path: Path) -> FoldTensor:
-    with np.load(path, allow_pickle=True) as bundle:
-        required = {"X", "sample_id"}
+def load_rolling_fold_dataset(
+    fold_dir: Path,
+) -> RollingFoldDataset:
+    fold_dir = Path(fold_dir)
+    manifest_path = fold_dir / "rematched_rolling_manifest.csv"
+    tensor_path = fold_dir / "rematched_rolling_tensors.npz"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f"missing fold manifest: {manifest_path}"
+        )
+    if not tensor_path.is_file():
+        raise FileNotFoundError(
+            f"missing fold tensor archive: {tensor_path}"
+        )
+
+    manifest = pd.read_csv(manifest_path).reset_index(drop=True)
+    validate_fold_manifest_schema(manifest)
+    with np.load(tensor_path, allow_pickle=False) as bundle:
+        required = {"X", "sample_id", "fold", "fold_split"}
         missing = required.difference(bundle.files)
         if missing:
             raise ValueError(
-                f"{path} missing arrays: {sorted(missing)}"
+                f"{tensor_path} missing arrays: {sorted(missing)}"
             )
         values = np.asarray(bundle["X"], dtype=float)
-        sample_ids = np.asarray(
-            bundle["sample_id"],
-            dtype=object,
-        ).astype(str)
+        sample_ids = np.asarray(bundle["sample_id"]).astype(str)
+        folds = np.asarray(bundle["fold"], dtype=int)
+        fold_splits = np.asarray(bundle["fold_split"]).astype(str)
         valid = (
             np.asarray(bundle["valid"], dtype=bool)
             if "valid" in bundle.files
@@ -119,53 +137,94 @@ def load_fold_tensor(path: Path) -> FoldTensor:
             if "channel_names" in bundle.files
             else tuple()
         )
+
     if values.ndim not in (2, 3):
         raise ValueError(
-            f"{path}: X must be two- or three-dimensional, got {values.shape}"
+            f"{tensor_path}: X must be two- or three-dimensional, "
+            f"got {values.shape}"
         )
-    if len(values) != len(sample_ids) or len(values) != len(valid):
+    expected_length = len(manifest)
+    arrays = {
+        "X": len(values),
+        "sample_id": len(sample_ids),
+        "fold": len(folds),
+        "fold_split": len(fold_splits),
+        "valid": len(valid),
+    }
+    if any(length != expected_length for length in arrays.values()):
         raise ValueError(
-            f"{path}: tensor metadata lengths are inconsistent"
+            "fold manifest/tensor lengths are inconsistent: "
+            f"manifest={expected_length}, arrays={arrays}"
         )
-    return FoldTensor(
+    if not np.array_equal(
+        sample_ids,
+        manifest["sample_id"].astype(str).to_numpy(),
+    ):
+        raise ValueError(
+            "fold manifest and tensor sample IDs are not aligned"
+        )
+    if not np.array_equal(
+        folds,
+        manifest["fold"].astype(int).to_numpy(),
+    ):
+        raise ValueError(
+            "fold manifest and tensor fold values are not aligned"
+        )
+    if not np.array_equal(
+        fold_splits,
+        manifest["fold_split"].astype(str).to_numpy(),
+    ):
+        raise ValueError(
+            "fold manifest and tensor split values are not aligned"
+        )
+
+    indexed_manifest = manifest.copy()
+    indexed_manifest["_tensor_row"] = np.arange(
+        expected_length,
+        dtype=int,
+    )
+    return RollingFoldDataset(
+        manifest=indexed_manifest,
         values=values,
         sample_ids=sample_ids,
+        folds=folds,
+        fold_splits=fold_splits,
         valid=valid,
         channel_names=channel_names,
     )
 
 
 def resolve_level_channel(
-    tensor: FoldTensor,
+    dataset: RollingFoldDataset,
     *,
     name: str,
     fallback: int,
 ) -> int | None:
-    if tensor.values.ndim == 2:
+    if dataset.values.ndim == 2:
         return None
-    if name in tensor.channel_names:
-        return tensor.channel_names.index(name)
-    if fallback < 0 or fallback >= tensor.values.shape[2]:
+    if name in dataset.channel_names:
+        return dataset.channel_names.index(name)
+    if fallback < 0 or fallback >= dataset.values.shape[2]:
         raise ValueError(
             f"fallback level channel {fallback} outside tensor shape "
-            f"{tensor.values.shape}"
+            f"{dataset.values.shape}"
         )
     return int(fallback)
 
 
 def extract_level_windows(
-    tensor: FoldTensor,
+    dataset: RollingFoldDataset,
     row_indices: np.ndarray,
     *,
     sequence_length: int,
     level_channel: int | None,
 ) -> np.ndarray:
-    if tensor.values.shape[1] < sequence_length:
+    if dataset.values.shape[1] < sequence_length:
         raise ValueError(
             f"requested {sequence_length} steps but tensor has "
-            f"{tensor.values.shape[1]}"
+            f"{dataset.values.shape[1]}"
         )
-    selected = tensor.values[
+    selected = dataset.values[
         row_indices,
         -sequence_length:,
     ]
@@ -281,7 +340,9 @@ def _feature_diagnostic_row(
         "samples": int(len(features)),
         "features": int(features.shape[1]),
         "effective_rank_train": effective_rank(train),
-        "numerical_rank_train": int(np.linalg.matrix_rank(centered)),
+        "numerical_rank_train": int(
+            np.linalg.matrix_rank(centered)
+        ),
         "near_constant_features": int((std < 1e-8).sum()),
         "mean_feature_std": float(std.mean()),
         "max_feature_std": float(std.max(initial=0.0)),
@@ -314,9 +375,9 @@ def _select_rows_for_fold(
         for lead in leads
     ]
     selected = pd.concat(parts, ignore_index=True)
-    if selected["sample_id"].astype(str).duplicated().any():
+    if selected["_tensor_row"].duplicated().any():
         raise RuntimeError(
-            f"fold {fold}: duplicate sample IDs across selected leads"
+            f"fold {fold}: duplicate tensor rows across selected leads"
         )
     if selected["fold_split"].eq("test").any():
         raise RuntimeError(
@@ -336,8 +397,7 @@ def _select_rows_for_fold(
 
 def run_temporal_rydberg_chain_experiment(
     *,
-    manifest_path: Path,
-    tensor_root: Path,
+    fold_dir: Path,
     results_root: Path,
     experiment: TemporalRydbergExperimentConfig,
     reservoir: TemporalRydbergChainConfig,
@@ -346,13 +406,16 @@ def run_temporal_rydberg_chain_experiment(
 ) -> Path:
     experiment.validate()
     reservoir.validate()
-    manifest = pd.read_csv(manifest_path)
-    validate_fold_manifest_schema(manifest)
+    dataset = load_rolling_fold_dataset(fold_dir)
     excluded_ids = _load_excluded_ids(contaminated_samples)
+    level_channel = resolve_level_channel(
+        dataset,
+        name=experiment.level_channel_name,
+        fallback=experiment.fallback_level_channel,
+    )
 
     parameters = {
-        "manifest_path": manifest_path,
-        "tensor_root": tensor_root,
+        "fold_dir": fold_dir,
         "contaminated_samples": contaminated_samples,
         "experiment": experiment.to_dict(),
         "reservoir": reservoir.to_dict(),
@@ -371,57 +434,27 @@ def run_temporal_rydberg_chain_experiment(
 
     for fold in experiment.folds:
         selected = _select_rows_for_fold(
-            manifest,
+            dataset.manifest,
             fold=int(fold),
             leads=experiment.leads,
             max_per_class=experiment.max_per_class,
             excluded_ids=excluded_ids,
             seed=experiment.seed,
         )
-        tensor_path = (
-            tensor_root
-            / f"fold_{fold}"
-            / "compact_tensor.npz"
-        )
-        tensor = load_fold_tensor(tensor_path)
-        row_by_id = {
-            sample_id: index
-            for index, sample_id in enumerate(tensor.sample_ids)
-        }
-        tensor_rows = np.asarray(
-            [
-                row_by_id.get(str(sample_id), -1)
-                for sample_id in selected["sample_id"]
-            ],
-            dtype=int,
-        )
-        if np.any(tensor_rows < 0):
-            missing = selected.loc[
-                tensor_rows < 0,
-                "sample_id",
-            ].astype(str).tolist()
-            raise RuntimeError(
-                f"fold {fold}: selected samples absent from tensor: "
-                f"{missing[:5]}"
-            )
-
-        level_channel = resolve_level_channel(
-            tensor,
-            name=experiment.level_channel_name,
-            fallback=experiment.fallback_level_channel,
-        )
+        tensor_rows = selected["_tensor_row"].to_numpy(dtype=int)
         level = extract_level_windows(
-            tensor,
+            dataset,
             tensor_rows,
             sequence_length=experiment.sequence_length,
             level_channel=level_channel,
         )
         usable = (
-            tensor.valid[tensor_rows]
+            dataset.valid[tensor_rows]
             & np.isfinite(level).all(axis=1)
         )
         frame = selected.loc[usable].reset_index(drop=True)
         level = level[usable]
+        tensor_rows = tensor_rows[usable]
         if frame.empty:
             raise RuntimeError(f"fold {fold}: no valid rows remain")
         train_mask = frame["fold_split"].eq("train").to_numpy()
@@ -579,14 +612,14 @@ def run_temporal_rydberg_chain_experiment(
                 "origin_date",
             ]
         ].copy()
-        retained["tensor_row"] = tensor_rows[usable]
+        retained["tensor_row"] = tensor_rows
         retained_rows.append(retained)
         fold_metadata.append(
             {
                 "fold": int(fold),
-                "tensor_path": str(tensor_path),
-                "tensor_shape": list(tensor.values.shape),
-                "channel_names": list(tensor.channel_names),
+                "fold_dir": str(fold_dir),
+                "tensor_shape": list(dataset.values.shape),
+                "channel_names": list(dataset.channel_names),
                 "level_channel": level_channel,
                 "train_samples": int(train_mask.sum()),
                 "val_samples": int(val_mask.sum()),
@@ -642,8 +675,7 @@ def run_temporal_rydberg_chain_experiment(
         "schema_version": 1,
         "status": "development_assay",
         "test_rows_used": 0,
-        "manifest_path": str(manifest_path),
-        "tensor_root": str(tensor_root),
+        "fold_dir": str(fold_dir),
         "experiment": experiment.to_dict(),
         "reservoir": reservoir.to_dict(),
         "folds": fold_metadata,
