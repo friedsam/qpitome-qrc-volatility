@@ -141,7 +141,11 @@ def test_finite_quench_families_and_warning_classifier() -> None:
     )
     blocks = {
         "final_static": rng.normal(size=(samples, 3)),
+        "quench_modes_raw": rng.normal(size=(samples, 6)),
+        "quench_modes_delta": rng.normal(size=(samples, 6)),
         "quench_modes": rng.normal(size=(samples, 12)),
+        "reporter_raw": rng.normal(size=(samples, 4)),
+        "reporter_delta": rng.normal(size=(samples, 4)),
         "reporter_quench": rng.normal(size=(samples, 8)),
         "finite_quench_all": rng.normal(size=(samples, 20)),
         "qrc_all": rng.normal(size=(samples, 23)),
@@ -155,6 +159,9 @@ def test_finite_quench_families_and_warning_classifier() -> None:
         classical_names,
         blocks,
         names,
+    )
+    assert matrices["classical_plus_reporter_raw"].shape[1] == (
+        classical.shape[1] + 4
     )
     assert matrices["classical_plus_reporter_quench"].shape[1] == (
         classical.shape[1] + 8
