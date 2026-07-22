@@ -22,6 +22,7 @@ from transition_forecasting.qrc.representation_candidates import (
 )
 from transition_forecasting.qrc.representation_screen_analysis import (
     _fit_har,
+    _prequential_har_residuals,
 )
 from transition_forecasting.qrc.rydberg_representation_screen import (
     _select_rows_for_fold,
@@ -82,6 +83,7 @@ def _metric_row(
     frame: pd.DataFrame,
     probability: np.ndarray,
     validation_mask: np.ndarray,
+    train_mask: np.ndarray,
     *,
     fold: int,
     geometry_case: str,
@@ -98,7 +100,7 @@ def _metric_row(
         "shot_budget": int(shot_budget),
         "replicate": int(replicate),
         "feature_family": feature_family,
-        "train_rows": int(frame["fold_split"].eq("train").sum()),
+        "train_rows": int(np.asarray(train_mask, dtype=bool).sum()),
         "validation_rows": int(validation_mask.sum()),
         **diagnostics,
         **warning_metrics(
@@ -418,6 +420,20 @@ def run_rydberg_susceptibility_assay(
         labels = frame["label"].to_numpy(dtype=int)
         y = frame[list(TARGET_COLUMNS)].to_numpy(dtype=float)
         har = _fit_har(frame, y, train)
+        har_residuals, warning_train = _prequential_har_residuals(
+            frame,
+            y,
+            train,
+            blocks=assay.prequential_blocks,
+        )
+        har_context = har.copy()
+        har_context[warning_train] = (
+            y[warning_train] - har_residuals[warning_train]
+        )
+        if len(np.unique(labels[warning_train])) != 2:
+            raise RuntimeError(
+                f"fold {fold}: prequential classifier rows lack both labels"
+            )
 
         raw_sequences = build_candidate_sequences(
             source,
@@ -429,12 +445,12 @@ def run_rydberg_susceptibility_assay(
         classical, classical_names = classical_context_features(
             source,
             raw_sequences[:, :, 1],
-            har,
+            har_context,
         )
         baseline_probability = fit_warning_classifier(
             classical,
             labels,
-            train,
+            warning_train,
             validation,
             classifier_c=assay.classifier_c,
             seed=assay.seed + int(fold),
@@ -442,13 +458,14 @@ def run_rydberg_susceptibility_assay(
         baseline_diagnostics = feature_diagnostics(
             classical,
             labels,
-            train,
+            warning_train,
         )
         metric_rows.append(
             _metric_row(
                 frame,
                 baseline_probability,
                 validation,
+                warning_train,
                 fold=int(fold),
                 geometry_case="classical",
                 estimator="deterministic",
@@ -525,7 +542,7 @@ def run_rydberg_susceptibility_assay(
                     probability = fit_warning_classifier(
                         matrix,
                         labels,
-                        train,
+                        warning_train,
                         validation,
                         classifier_c=assay.classifier_c,
                         seed=measurement_seed,
@@ -533,13 +550,14 @@ def run_rydberg_susceptibility_assay(
                     diagnostics = feature_diagnostics(
                         matrix,
                         labels,
-                        train,
+                        warning_train,
                     )
                     metric_rows.append(
                         _metric_row(
                             frame,
                             probability,
                             validation,
+                            warning_train,
                             fold=int(fold),
                             geometry_case=case_name,
                             estimator=estimator,
@@ -740,6 +758,7 @@ def run_rydberg_susceptibility_assay(
             "type": "fixed L2 logistic regression",
             "C": assay.classifier_c,
             "selection": "none",
+            "training_HAR_path": "five-block prequential forecasts",
         },
         "shot_budgets": [0, *assay.shot_budgets],
         "shot_replicates": assay.shot_replicates,
