@@ -253,21 +253,33 @@ def finite_quench_feature_families(
 
     matrices: dict[str, np.ndarray] = {
         "final_static_qrc": blocks["final_static"],
+        "quench_modes_raw_qrc": blocks["quench_modes_raw"],
+        "quench_modes_delta_qrc": blocks["quench_modes_delta"],
         "quench_modes_qrc": blocks["quench_modes"],
+        "reporter_raw_qrc": blocks["reporter_raw"],
+        "reporter_delta_qrc": blocks["reporter_delta"],
         "reporter_quench_qrc": blocks["reporter_quench"],
         "finite_quench_qrc": blocks["finite_quench_all"],
         "all_qrc": blocks["qrc_all"],
     }
     output_names: dict[str, tuple[str, ...]] = {
         "final_static_qrc": names["final_static"],
+        "quench_modes_raw_qrc": names["quench_modes_raw"],
+        "quench_modes_delta_qrc": names["quench_modes_delta"],
         "quench_modes_qrc": names["quench_modes"],
+        "reporter_raw_qrc": names["reporter_raw"],
+        "reporter_delta_qrc": names["reporter_delta"],
         "reporter_quench_qrc": names["reporter_quench"],
         "finite_quench_qrc": names["finite_quench_all"],
         "all_qrc": names["qrc_all"],
     }
     label_map = {
         "final_static": "classical_plus_final_static",
+        "quench_modes_raw": "classical_plus_quench_modes_raw",
+        "quench_modes_delta": "classical_plus_quench_modes_delta",
         "quench_modes": "classical_plus_quench_modes",
+        "reporter_raw": "classical_plus_reporter_raw",
+        "reporter_delta": "classical_plus_reporter_delta",
         "reporter_quench": "classical_plus_reporter_quench",
         "finite_quench_all": "classical_plus_finite_quench",
         "qrc_all": "classical_plus_all",
