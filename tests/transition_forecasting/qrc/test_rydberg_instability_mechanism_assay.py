@@ -8,6 +8,12 @@ from transition_forecasting.qrc.instability_mechanism_tools import (
     family_indices,
     reorder_level,
 )
+from transition_forecasting.qrc.representation_candidates import (
+    SECOND_CHANNEL_NAMES,
+)
+from transition_forecasting.qrc.rydberg_instability_mechanism_assay import (
+    ASSAY_REPRESENTATION,
+)
 
 
 def test_case_specs_include_ordered_sweep_and_selected_controls() -> None:
@@ -25,6 +31,11 @@ def test_case_specs_include_ordered_sweep_and_selected_controls() -> None:
     )
 
 
+def test_assay_uses_registered_instability_representation() -> None:
+    assert ASSAY_REPRESENTATION == "level_instability"
+    assert SECOND_CHANNEL_NAMES[ASSAY_REPRESENTATION] == "local_instability_5"
+
+
 def test_order_controls_are_deterministic_and_preserve_values() -> None:
     level = np.arange(2 * 10, dtype=float).reshape(2, 10)
     shuffled_a = reorder_level(level, "shuffled", seed=7, block_size=5)
@@ -40,8 +51,14 @@ def test_order_controls_are_deterministic_and_preserve_values() -> None:
 def test_block_shuffle_preserves_values_inside_each_original_block() -> None:
     level = np.arange(12, dtype=float)[None, :]
     result = reorder_level(level, "block_shuffled", seed=4, block_size=3)
-    blocks = {tuple(level[0, start : start + 3]) for start in range(0, 12, 3)}
-    result_blocks = {tuple(result[0, start : start + 3]) for start in range(0, 12, 3)}
+    blocks = {
+        tuple(level[0, start : start + 3])
+        for start in range(0, 12, 3)
+    }
+    result_blocks = {
+        tuple(result[0, start : start + 3])
+        for start in range(0, 12, 3)
+    }
     assert result_blocks == blocks
 
 
