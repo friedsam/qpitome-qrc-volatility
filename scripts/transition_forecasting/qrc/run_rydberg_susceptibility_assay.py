@@ -45,6 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lead", type=int, default=5)
     parser.add_argument("--max-per-class", type=int, default=12)
     parser.add_argument("--sequence-length", type=int, default=40)
+    parser.add_argument("--prequential-blocks", type=int, default=5)
     parser.add_argument("--interaction-scale", type=float, default=1.25)
     parser.add_argument(
         "--probe-delta-offset-rad-us",
@@ -125,6 +126,7 @@ def main() -> None:
         lead=args.lead,
         max_per_class=args.max_per_class,
         sequence_length=args.sequence_length,
+        prequential_blocks=args.prequential_blocks,
         interaction_scale=args.interaction_scale,
         probe_delta_offset_rad_us=args.probe_delta_offset_rad_us,
         response_probe_steps=tuple(args.response_probe_steps),
