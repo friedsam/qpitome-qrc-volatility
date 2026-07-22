@@ -40,6 +40,7 @@ class SusceptibilityAssayConfig:
     lead: int = 5
     max_per_class: int = 12
     sequence_length: int = 40
+    prequential_blocks: int = 5
     interaction_scale: float = 1.25
     probe_delta_offset_rad_us: float = 0.8
     response_probe_steps: tuple[int, ...] = (1, 3, 5)
@@ -59,6 +60,8 @@ class SusceptibilityAssayConfig:
             raise ValueError("max_per_class must be positive")
         if self.sequence_length < 2:
             raise ValueError("sequence_length must be at least two")
+        if self.prequential_blocks < 2:
+            raise ValueError("prequential_blocks must be at least two")
         if self.interaction_scale <= 0:
             raise ValueError("interaction_scale must be positive")
         if self.probe_delta_offset_rad_us <= 0:
@@ -504,7 +507,6 @@ def fit_warning_classifier(
     design = scaler.transform(features)
     model = LogisticRegression(
         C=float(classifier_c),
-        penalty="l2",
         solver="liblinear",
         class_weight="balanced",
         random_state=int(seed),
