@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from transition_forecasting.qrc import frozen_path_warning_assay as warning_assay
+from transition_forecasting.qrc.forecast_warning_bootstrap import (
+    cluster_bootstrap_ap,
+    paired_cluster_bootstrap_ap,
+)
 from transition_forecasting.qrc.forecast_warning_tools import (
     FrozenPathWarningConfig,
-)
-from transition_forecasting.qrc.frozen_path_warning_assay import (
-    run_frozen_path_warning_assay,
 )
 
 
@@ -62,7 +64,9 @@ def main() -> None:
         bootstrap_replicates=args.bootstrap_replicates,
         seed=args.seed,
     )
-    run_dir = run_frozen_path_warning_assay(
+    warning_assay.cluster_bootstrap_ap = cluster_bootstrap_ap
+    warning_assay.paired_cluster_bootstrap_ap = paired_cluster_bootstrap_ap
+    run_dir = warning_assay.run_frozen_path_warning_assay(
         development_run_dir=args.development_run_dir,
         confirmation_run_dir=args.confirmation_run_dir,
         results_root=args.out_root,
