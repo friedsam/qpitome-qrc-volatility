@@ -54,7 +54,13 @@ from transition_forecasting.qrc.temporal_rydberg_chain_experiment import (
 
 def _decorate(rows: list[dict[str, object]], *, case: str, control: str, scale: float, family: str) -> None:
     for row in rows:
-        row.update({"case": case, "control": control, "interaction_scale": scale, "observable_family": family})
+        row.update({
+            "case": case,
+            "control": control,
+            "interaction_scale": scale,
+            "observable_family": family,
+            "analysis": "pca_prefix",
+        })
 
 
 def _fixed_prediction(
@@ -204,6 +210,26 @@ def run_rydberg_instability_mechanism_assay(
         har = _fit_har(frame, y, train)
         residuals, residual_mask = _prequential_har_residuals(frame, y, train, blocks=assay.prequential_blocks)
         predictions.append(_prediction_frame(frame, y, har, fold=fold, case="har", control="har", scale=np.nan, family="har", components=0))
+        metrics.append({
+            "fold": fold,
+            "representation": "har",
+            "second_channel": "har",
+            "model_family": "har",
+            "seed": 0,
+            "readout_mode": "direct",
+            "components": 0,
+            "feature_width": 3,
+            "explained_variance": np.nan,
+            "alpha": 100.0,
+            "train_rows_used": int(train.sum()),
+            "val_rows": int(val.sum()),
+            "case": "har",
+            "control": "har",
+            "interaction_scale": np.nan,
+            "observable_family": "har",
+            "analysis": "har",
+            **{f"val_{key}": value for key, value in _metric_payload(y, har, val).items()},
+        })
         ordered_raw = build_candidate_sequences(source, "level_instability", candidate_features)
         scaler = fit_channel_scaler(ordered_raw, train)
 
