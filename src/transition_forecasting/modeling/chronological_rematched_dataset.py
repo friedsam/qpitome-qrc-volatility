@@ -20,7 +20,12 @@ from transition_forecasting.modeling.control_strata import (
 def load_candidate_pool(run_dir: Path) -> tuple[pd.DataFrame, np.ndarray]:
     manifest = pd.read_csv(
         run_dir / "control_candidate_manifest.csv",
-        parse_dates=["origin_date", "input_start_date", "target_end_date"],
+        parse_dates=[
+            "origin_date",
+            "input_start_date",
+            "target_end_date",
+            "future_assessment_end_date",
+        ],
     )
     with np.load(run_dir / "control_candidate_tensors.npz", allow_pickle=True) as data:
         tensor = np.asarray(data["X"], dtype=float)
@@ -35,11 +40,16 @@ def load_candidate_pool(run_dir: Path) -> tuple[pd.DataFrame, np.ndarray]:
 
 
 def _validate_positive_intervals(positives: pd.DataFrame) -> pd.DataFrame:
-    required = {"origin_date", "input_start_date", "target_end_date"}
+    required = {
+        "origin_date",
+        "input_start_date",
+        "target_end_date",
+        "label_end_date",
+    }
     missing = required.difference(positives.columns)
     if missing:
         raise ValueError(
-            "Stage D must be rebuilt with exact interval columns before chronological rematching: "
+            "Stage D positives require exact input, target, and label-maturity intervals: "
             f"{sorted(missing)}"
         )
     frame = positives.copy()
@@ -48,9 +58,12 @@ def _validate_positive_intervals(positives: pd.DataFrame) -> pd.DataFrame:
     invalid = ~(
         (frame["input_start_date"] <= frame["origin_date"])
         & (frame["origin_date"] < frame["target_end_date"])
+        & (frame["target_end_date"] <= frame["label_end_date"])
     )
     if invalid.any():
-        raise ValueError(f"invalid positive trading-row intervals: {int(invalid.sum())}")
+        raise ValueError(
+            f"invalid positive trading-row or label-maturity intervals: {int(invalid.sum())}"
+        )
     return frame
 
 
@@ -70,14 +83,42 @@ def _candidate_partition(
     val_end = pd.to_datetime(val["interval_end"], utc=True).max()
     test_start = pd.to_datetime(test["interval_start"], utc=True).min()
 
+    required = {
+        "input_start_date",
+        "target_end_date",
+        "future_assessment_end_date",
+    }
+    missing = required.difference(candidates.columns)
+    if missing:
+        raise ValueError(
+            f"control candidates lack exact label-maturity intervals: {sorted(missing)}"
+        )
+
     frame = candidates.copy()
-    frame["input_start_date"] = pd.to_datetime(frame["input_start_date"], utc=True)
+    frame["input_start_date"] = pd.to_datetime(
+        frame["input_start_date"], utc=True
+    )
     frame["target_end_date"] = pd.to_datetime(frame["target_end_date"], utc=True)
+    frame["future_assessment_end_date"] = pd.to_datetime(
+        frame["future_assessment_end_date"], utc=True
+    )
+    invalid = ~(
+        (frame["input_start_date"] < frame["target_end_date"])
+        & (frame["target_end_date"] <= frame["future_assessment_end_date"])
+    )
+    if invalid.any():
+        raise ValueError(
+            f"invalid control target or label-maturity intervals: {int(invalid.sum())}"
+        )
+
     frame["fold_split"] = "unused"
-    frame.loc[frame["target_end_date"] <= train_end, "fold_split"] = "train"
+    frame.loc[
+        frame["future_assessment_end_date"] <= train_end,
+        "fold_split",
+    ] = "train"
     frame.loc[
         (frame["input_start_date"] >= val_start)
-        & (frame["target_end_date"] <= val_end),
+        & (frame["future_assessment_end_date"] <= val_end),
         "fold_split",
     ] = "val"
     frame.loc[frame["input_start_date"] >= test_start, "fold_split"] = "test"
@@ -120,7 +161,7 @@ def build_rematched_rolling_dataset(
         embargo_days=embargo_days,
         columns=IntervalColumns(
             input_start="input_start_date",
-            target_end="target_end_date",
+            target_end="label_end_date",
         ),
     )
 
@@ -161,12 +202,19 @@ def build_rematched_rolling_dataset(
         kept_positives["control_stratum"] = TRANSITION
         kept_positives["evaluation_stratum"] = TRANSITION
         kept_positives["tensor_source"] = "positive"
-        kept_positives["tensor_row"] = kept_positives["_positive_tensor_row"].astype(int)
+        kept_positives["tensor_row"] = kept_positives[
+            "_positive_tensor_row"
+        ].astype(int)
         matched["evaluation_stratum"] = matched["control_stratum"].astype(str)
+        matched["label_end_date"] = matched[
+            "future_assessment_end_date"
+        ]
         matched["tensor_source"] = "candidate"
         matched["tensor_row"] = matched["_candidate_row"].astype(int)
 
-        combined = pd.concat([kept_positives, matched], ignore_index=True, sort=False)
+        combined = pd.concat(
+            [kept_positives, matched], ignore_index=True, sort=False
+        )
         combined = combined.sort_values(
             [
                 "fold_split",
@@ -203,11 +251,15 @@ def build_rematched_rolling_dataset(
                 "fold": int(fold),
                 "control_stratum": str(stratum),
                 "positives_requested": int(len(group)),
-                "positives_complete_in_stratum": int(group["complete_match"].sum()),
+                "positives_complete_in_stratum": int(
+                    group["complete_match"].sum()
+                ),
                 "positives_complete_all_strata": int(
                     group["complete_all_strata"].sum()
                 ),
-                "completion_rate_in_stratum": float(group["complete_match"].mean()),
+                "completion_rate_in_stratum": float(
+                    group["complete_match"].mean()
+                ),
                 "median_max_selected_distance": float(
                     group["max_selected_distance"].median()
                 ),
@@ -218,7 +270,9 @@ def build_rematched_rolling_dataset(
         )
 
     stratum_counts = (
-        manifest.groupby(["fold", "fold_split", "evaluation_stratum"], sort=True)
+        manifest.groupby(
+            ["fold", "fold_split", "evaluation_stratum"], sort=True
+        )
         .size()
         .rename("rows")
         .reset_index()
@@ -235,8 +289,8 @@ def build_rematched_rolling_dataset(
         "fold_summaries": fold_summaries,
         "fold_match_quality_by_stratum": fold_quality,
         "fold_stratum_counts": stratum_counts,
-        "positive_intervals": "exact_trading_rows",
-        "candidate_intervals": "exact_trading_rows",
+        "positive_intervals": "input_start_to_persistent_label_maturity",
+        "candidate_intervals": "input_start_to_control_label_maturity",
         "matching_information": "pre_origin_only",
         "negative_stratum_information": "future_persistence_label_only",
         "test_evaluated": False,
