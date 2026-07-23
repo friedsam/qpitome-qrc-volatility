@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from transition_forecasting.modeling.control_strata import CALM, HARD_NEGATIVE, TRANSITION
 from transition_forecasting.modeling.stage_e_classical_baselines import TARGET_COLUMNS
 from transition_forecasting.qrc import transition_signal_broad_har as module
+from transition_forecasting.qrc.ladder_spacing_broad_har_reanalysis import (
+    _load_legacy_spacing_probabilities,
+)
 from transition_forecasting.qrc.transition_signal_readout_assay import (
     TransitionSignalAssayConfig,
 )
@@ -68,3 +73,20 @@ def test_broad_har_uses_all_training_rows(monkeypatch) -> None:
     )
 
     assert seen == {"har_train": 3, "residual_train": 3}
+
+
+def test_legacy_spacing_cache_loads_without_pickle(tmp_path: Path) -> None:
+    path = tmp_path / "legacy_spacing.npz"
+    probabilities = np.full((3, 2, 64), 1.0 / 64.0, dtype=float)
+    leads = np.asarray([1, 5, 10], dtype=int)
+    np.savez_compressed(
+        path,
+        probabilities=probabilities,
+        lead=leads,
+        sample_id=np.asarray(["a", "b", "c"], dtype=object),
+        fold_split=np.asarray(["train", "train", "val"], dtype=object),
+    )
+
+    loaded = _load_legacy_spacing_probabilities(path, expected_leads=leads)
+
+    assert np.array_equal(loaded, probabilities)
