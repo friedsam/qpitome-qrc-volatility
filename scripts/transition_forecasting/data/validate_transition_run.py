@@ -54,6 +54,8 @@ def _validate_candidate_manifest(
         "index",
         "lead",
         "origin_date",
+        "target_end_date",
+        "future_assessment_end_date",
         "control_stratum",
         "future_threshold_crossings",
         "future_persistent",
@@ -77,15 +79,24 @@ def _validate_candidate_manifest(
         frame["control_stratum"].eq(CALM),
         "future_threshold_crossings",
     ].ne(0).any():
-        failures.append(f"{label} calm candidates contain threshold crossings")
+        failures.append(f"{label} calm candidates contain forecast-horizon crossings")
     hard_crossings = frame.loc[
         frame["control_stratum"].eq(HARD_NEGATIVE),
         "future_threshold_crossings",
     ]
     if hard_crossings.le(0).any():
-        failures.append(f"{label} hard negatives lack a threshold crossing")
-    if hard_crossings.ge(policy.persistence_required).any():
-        failures.append(f"{label} hard negatives satisfy the persistence rule")
+        failures.append(f"{label} hard negatives lack a forecast-horizon crossing")
+    if hard_crossings.gt(policy.forecast_horizon).any():
+        failures.append(f"{label} control crossing counts exceed the forecast horizon")
+
+    target_end = pd.to_datetime(frame["target_end_date"], errors="coerce", utc=True)
+    label_end = pd.to_datetime(
+        frame["future_assessment_end_date"], errors="coerce", utc=True
+    )
+    if target_end.isna().any() or label_end.isna().any():
+        failures.append(f"{label} candidate maturity dates are invalid")
+    elif not target_end.le(label_end).all():
+        failures.append(f"{label} candidate labels mature before targets end")
 
     return {
         "rows": int(len(frame)),
@@ -96,6 +107,28 @@ def _validate_candidate_manifest(
             frame[["index", "origin_date"]].drop_duplicates().shape[0]
         ),
     }
+
+
+def _validate_episode_separation(
+    manifest: pd.DataFrame,
+    *,
+    label: str,
+    failures: list[str],
+) -> None:
+    required = {"fold", "episode_id", "fold_split"}
+    missing = required.difference(manifest.columns)
+    if missing:
+        failures.append(
+            f"{label} fold manifest cannot audit episodes; missing {sorted(missing)}"
+        )
+        return
+    active = manifest.loc[manifest["fold_split"].isin(["train", "val", "test"])]
+    split_counts = active.groupby(["fold", "episode_id"])["fold_split"].nunique()
+    leaking = split_counts[split_counts.gt(1)]
+    if len(leaking):
+        failures.append(
+            f"{label} episodes span rolling-fold partitions: {len(leaking)} fold/episode pairs"
+        )
 
 
 def _validate_fold_manifest(
@@ -113,6 +146,8 @@ def _validate_fold_manifest(
         "index",
         "lead",
         "origin_date",
+        "target_end_date",
+        "label_end_date",
         "evaluation_stratum",
     }
     missing = required.difference(manifest.columns)
@@ -128,6 +163,15 @@ def _validate_fold_manifest(
         )
     if manifest.duplicated(["fold", "sample_id"]).any():
         failures.append(f"{label} sample IDs are not unique within each rolling fold")
+
+    target_end = pd.to_datetime(manifest["target_end_date"], errors="coerce", utc=True)
+    label_end = pd.to_datetime(manifest["label_end_date"], errors="coerce", utc=True)
+    if target_end.isna().any() or label_end.isna().any():
+        failures.append(f"{label} fold maturity dates are invalid")
+    elif not target_end.le(label_end).all():
+        failures.append(f"{label} fold labels mature before targets end")
+
+    _validate_episode_separation(manifest, label=label, failures=failures)
 
     positives = manifest.loc[manifest["label"].eq(1)].copy()
     controls = manifest.loc[manifest["label"].eq(0)].copy()
