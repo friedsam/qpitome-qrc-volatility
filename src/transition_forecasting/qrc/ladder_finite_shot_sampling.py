@@ -274,6 +274,8 @@ def cache_identity(
     selection_parameters: dict[str, object],
 ) -> dict[str, object]:
     ids = np.asarray(sample_ids).astype(str)
+    normalized_selection = dict(selection_parameters)
+    normalized_selection.pop("folds", None)
     return {
         "schema_version": CACHE_SCHEMA_VERSION,
         "fold": int(fold),
@@ -283,7 +285,7 @@ def cache_identity(
         "geometry_config": geometry.to_dict(),
         "interaction_scale": float(interaction_scale),
         "probe_steps": [int(value) for value in probe_steps],
-        "selection_parameters": dict(selection_parameters),
+        "selection_parameters": normalized_selection,
     }
 
 
