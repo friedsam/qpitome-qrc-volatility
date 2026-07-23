@@ -11,6 +11,8 @@ from transition_forecasting.catalogue.transition_events import (
     K,
     M,
     MATCH_FEATURES,
+    PRIOR_MAX,
+    PRIOR_WIN,
 )
 from transition_forecasting.modeling.chronological_control_matching import (
     MatchConfig,
@@ -29,14 +31,16 @@ TRANSITION: Final[str] = "transition"
 class ControlStrataPolicy:
     """Frozen two-stratum negative-control policy.
 
-    Future observations are used only to assign the supervised negative stratum.
-    Candidate matching and deterministic tie-breaking use MATCH_FEATURES, which are
-    computed entirely from the 40-day pre-origin history.
+    Outcome observations assign the supervised negative stratum. Candidate matching
+    and deterministic tie-breaking use MATCH_FEATURES, computed entirely from the
+    40-day pre-origin input.
     """
 
     forecast_horizon: int = HORIZON
     persistence_required: int = K
     persistence_window: int = M
+    prior_window: int = PRIOR_WIN
+    prior_max_crossings: int = PRIOR_MAX
     calm_max_horizon_crossings: int = 0
     calm_controls_per_positive: int = 2
     hard_controls_per_positive: int = 1
@@ -48,6 +52,10 @@ class ControlStrataPolicy:
             raise ValueError("persistence_window must be positive")
         if not 1 <= self.persistence_required <= self.persistence_window:
             raise ValueError("persistence_required must lie inside persistence_window")
+        if self.prior_window < 1:
+            raise ValueError("prior_window must be positive")
+        if not 0 <= self.prior_max_crossings < self.prior_window:
+            raise ValueError("prior_max_crossings must lie below prior_window")
         if not 0 <= self.calm_max_horizon_crossings < self.forecast_horizon:
             raise ValueError(
                 "calm_max_horizon_crossings must lie below forecast_horizon"
@@ -77,11 +85,12 @@ class ControlStrataPolicy:
         payload["future_assessment_rows"] = self.future_assessment_rows
         payload["controls_per_positive"] = self.controls_per_positive
         payload["matching_features"] = list(MATCH_FEATURES)
-        payload["future_values_used_for"] = "negative_stratum_label_only"
+        payload["outcome_values_used_for"] = "negative_stratum_label_only"
         payload["matching_information"] = "pre_origin_only"
         payload["persistent_rule"] = (
-            "onset begins within forecast_horizon and has at least "
-            "persistence_required threshold days in the following persistence_window"
+            "catalogue onset rule: onset begins within forecast_horizon, prior_window "
+            "has at most prior_max_crossings, and the following persistence_window "
+            "has at least persistence_required threshold days"
         )
         return payload
 
@@ -109,16 +118,26 @@ class ControlStrataPolicy:
 
 
 def _persistent_onset_offsets(
-    values: np.ndarray,
+    prior_history: np.ndarray,
+    future: np.ndarray,
     *,
     threshold: float,
     policy: ControlStrataPolicy,
 ) -> list[int]:
-    high = values >= float(threshold)
+    prior = prior_history[-policy.prior_window :]
+    combined = np.concatenate([prior, future])
+    high = combined >= float(threshold)
+    future_start = len(prior)
     offsets: list[int] = []
     for start in range(policy.forecast_horizon):
-        window = high[start : start + policy.persistence_window]
-        if bool(high[start]) and int(window.sum()) >= policy.persistence_required:
+        onset = future_start + start
+        prior_window = high[onset - policy.prior_window : onset]
+        persistence_window = high[onset : onset + policy.persistence_window]
+        if (
+            bool(high[onset])
+            and int(prior_window.sum()) <= policy.prior_max_crossings
+            and int(persistence_window.sum()) >= policy.persistence_required
+        ):
             offsets.append(start + 1)
     return offsets
 
@@ -126,33 +145,45 @@ def _persistent_onset_offsets(
 def classify_control_future(
     future: np.ndarray,
     *,
+    prior_history: np.ndarray,
     threshold: float,
     policy: ControlStrataPolicy = ControlStrataPolicy(),
 ) -> dict[str, object]:
-    """Classify a negative using the exact forecast-horizon persistence logic.
+    """Classify a negative with the catalogue's exact local onset conditions.
 
-    A persistent candidate has an onset beginning at h1...hH and satisfies the
-    positive K-of-M rule from that onset. Calm controls have no threshold crossing
+    A persistent candidate has a quiet-enough prior window, an onset at h1...hH,
+    and satisfies the positive K-of-M rule. Calm controls have no threshold crossing
     inside h1...hH. Hard negatives cross during the forecast horizon but never form
-    a persistent onset. Future values never enter matching or model inputs.
+    such an onset. Outcome values never enter matching or model inputs.
     """
 
     policy.validate()
     values = np.asarray(future, dtype=float).reshape(-1)
+    prior = np.asarray(prior_history, dtype=float).reshape(-1)
     required = policy.future_assessment_rows
     if len(values) < required:
         raise ValueError(
             f"future assessment requires {required} values; got {len(values)}"
         )
+    if len(prior) < policy.prior_window:
+        raise ValueError(
+            f"prior assessment requires {policy.prior_window} values; got {len(prior)}"
+        )
     values = values[:required]
-    if not np.isfinite(values).all() or not np.isfinite(float(threshold)):
-        raise ValueError("future assessment and threshold must be finite")
+    prior = prior[-policy.prior_window :]
+    if (
+        not np.isfinite(values).all()
+        or not np.isfinite(prior).all()
+        or not np.isfinite(float(threshold))
+    ):
+        raise ValueError("prior, future, and threshold must be finite")
 
     horizon_values = values[: policy.forecast_horizon]
     horizon_crossings = int(
         np.count_nonzero(horizon_values >= float(threshold))
     )
     persistent_offsets = _persistent_onset_offsets(
+        prior,
         values,
         threshold=float(threshold),
         policy=policy,
@@ -180,6 +211,9 @@ def classify_control_future(
             int(persistent_offsets[0]) if persistent_offsets else -1
         ),
         "future_assessment_rows": int(required),
+        "prior_threshold_crossings_at_origin": int(
+            np.count_nonzero(prior >= float(threshold))
+        ),
     }
 
 
