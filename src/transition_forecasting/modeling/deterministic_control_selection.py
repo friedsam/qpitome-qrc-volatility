@@ -20,6 +20,46 @@ def _stable_bin_midpoints(length: int, count: int) -> np.ndarray:
     return np.floor((np.arange(count, dtype=float) + 0.5) * length / count).astype(int)
 
 
+def _closest_linked_controls(
+    controls: pd.DataFrame,
+    positive_id: str,
+) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    linked = controls.loc[controls["matched_positive_id"].eq(positive_id)].copy()
+    selected: list[pd.DataFrame] = []
+    for stratum in (CALM, HARD_NEGATIVE):
+        local = linked.loc[
+            linked["evaluation_stratum"].astype(str).eq(stratum)
+        ].sort_values(
+            ["match_distance", "origin_date", "index", "sample_id"],
+            kind="mergesort",
+        )
+        if local.empty:
+            return None
+        selected.append(local.head(1))
+    return selected[0], selected[1]
+
+
+def _complete_episode_choices(
+    positives: pd.DataFrame,
+    controls: pd.DataFrame,
+) -> list[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+    """Resolve one deterministic complete positive/control triple per episode."""
+
+    choices: list[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = []
+    for _, episode_rows in positives.groupby("episode_id", sort=False):
+        chosen: tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | None = None
+        for row_index in episode_rows.index:
+            positive = positives.loc[[row_index]]
+            positive_id = str(positive.iloc[0]["sample_id"])
+            linked = _closest_linked_controls(controls, positive_id)
+            if linked is not None:
+                chosen = (positive, linked[0], linked[1])
+                break
+        if chosen is not None:
+            choices.append(chosen)
+    return choices
+
+
 def select_deterministic_control_panel(
     manifest: pd.DataFrame,
     *,
@@ -30,10 +70,10 @@ def select_deterministic_control_panel(
 ) -> pd.DataFrame:
     """Select an equal transition/calm/hard panel without random sampling.
 
-    Every eligible transition episode is considered before an optional deterministic
-    chronological cap. One representative positive row is retained per global episode,
-    then the closest pre-origin-matched calm and hard controls linked to that positive
-    are selected. The result has equal counts in all three evaluation strata.
+    Every eligible transition episode is resolved before an optional deterministic
+    chronological cap. For each episode, the first chronologically stable positive
+    that has both linked strata is retained, together with the closest pre-origin-
+    matched calm and hard controls. The result has equal counts in all three strata.
     """
 
     required = {
@@ -78,53 +118,30 @@ def select_deterministic_control_panel(
                 ["event_onset", "episode_id", "index", "origin_date", "sample_id"],
                 kind="mergesort",
             )
-            positives = positives.drop_duplicates("episode_id", keep="first").reset_index(
-                drop=True
-            )
-            if max_episodes_per_split_lead is not None:
-                positions = _stable_bin_midpoints(
-                    len(positives),
-                    max_episodes_per_split_lead,
-                )
-                positives = positives.iloc[positions].reset_index(drop=True)
-
             controls = block.loc[block["label"].eq(0)].copy()
-            if "matched_positive_id" not in controls.columns or "match_distance" not in controls.columns:
-                raise ValueError("control rows require matched_positive_id and match_distance")
+            if (
+                "matched_positive_id" not in controls.columns
+                or "match_distance" not in controls.columns
+            ):
+                raise ValueError(
+                    "control rows require matched_positive_id and match_distance"
+                )
             controls["matched_positive_id"] = controls["matched_positive_id"].astype(str)
 
-            complete_positive_ids: list[str] = []
-            selected_controls: list[pd.DataFrame] = []
-            for _, positive in positives.iterrows():
-                positive_id = str(positive["sample_id"])
-                linked = controls.loc[
-                    controls["matched_positive_id"].eq(positive_id)
-                ].copy()
-                local_parts: list[pd.DataFrame] = []
-                for stratum in (CALM, HARD_NEGATIVE):
-                    local = linked.loc[
-                        linked["evaluation_stratum"].astype(str).eq(stratum)
-                    ].sort_values(
-                        ["match_distance", "origin_date", "index", "sample_id"],
-                        kind="mergesort",
-                    )
-                    if local.empty:
-                        local_parts = []
-                        break
-                    local_parts.append(local.head(1))
-                if len(local_parts) == 2:
-                    complete_positive_ids.append(positive_id)
-                    selected_controls.extend(local_parts)
-
-            kept_positives = positives.loc[
-                positives["sample_id"].isin(complete_positive_ids)
-            ]
-            if kept_positives.empty:
+            choices = _complete_episode_choices(positives, controls)
+            if not choices:
                 raise RuntimeError(
                     f"fold {fold} split {fold_split} lead {lead}: no complete stratified episodes"
                 )
-            selected_parts.append(kept_positives)
-            selected_parts.extend(selected_controls)
+            if max_episodes_per_split_lead is not None:
+                positions = _stable_bin_midpoints(
+                    len(choices),
+                    max_episodes_per_split_lead,
+                )
+                choices = [choices[int(position)] for position in positions]
+
+            for positive, calm, hard in choices:
+                selected_parts.extend([positive, calm, hard])
 
     selected = pd.concat(selected_parts, ignore_index=True, sort=False)
     counts = selected.groupby(
@@ -133,7 +150,10 @@ def select_deterministic_control_panel(
     for (fold_split, lead), group in counts.groupby(level=[0, 1]):
         local = group.droplevel([0, 1]).to_dict()
         expected = local.get(TRANSITION, 0)
-        if expected < 1 or any(local.get(stratum, 0) != expected for stratum in (CALM, HARD_NEGATIVE)):
+        if expected < 1 or any(
+            local.get(stratum, 0) != expected
+            for stratum in (CALM, HARD_NEGATIVE)
+        ):
             raise RuntimeError(
                 f"fold {fold} split {fold_split} lead {lead}: unbalanced strata {local}"
             )
