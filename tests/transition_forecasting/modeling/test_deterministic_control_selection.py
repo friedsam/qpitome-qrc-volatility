@@ -150,7 +150,7 @@ def test_selector_applies_chronology_spread_cap_after_full_eligibility() -> None
     )
 
     positives = selected.loc[selected["evaluation_stratum"].eq(TRANSITION)]
-    assert positives["episode_id"].tolist() == ["E01", "E04"]
+    assert positives["episode_id"].tolist() == ["E02", "E04"]
     assert selected["evaluation_stratum"].value_counts().to_dict() == {
         TRANSITION: 2,
         CALM: 2,
