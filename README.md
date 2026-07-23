@@ -1,77 +1,85 @@
 # QPITOME QRC Volatility
 
-Phase 3 Global Industry Challenge project for qBraid / MITRE / JonesTrading.
+Phase 3 Global Industry Challenge project for qBraid / MITRE / JonesTrading, Track A: Financial Volatility Prediction.
 
-## Objective
+## Scientific objective
 
-Build a reproducible prototype for financial time-series intelligence using compact classical baselines, quantum reservoir computing, and hardware-aware validation. The repository includes volatility forecasting, regime analysis, transition modeling, Day 5 branching experiments, Rydberg reservoir studies, diagnostics, and reproducibility infrastructure.
+Forecast ten-day volatility paths from ordered forty-day market histories, with primary attention to abrupt calm-to-crisis transitions at leads 1, 5, and 10. Classical HAR forecasts provide the persistence baseline; Rydberg quantum-reservoir features are evaluated as corrections to the HAR residual path.
 
-## Environment setup
+## Canonical branch flow
 
-Create the conda environment from the repository root:
+Development components are completed and validated on `stage1-dev`. Only that branch is intended to be merged into `main` for the final submission.
+
+The canonical Stage 1 data path is deliberately small:
+
+1. acquire or restore the frozen global-index OHLC inputs;
+2. apply the frozen structural-quality policy;
+3. build one-channel forty-day log-volatility sequences;
+4. construct the binary pre-control candidate pool;
+5. create chronologically purged walk-forward folds;
+6. validate and checksum the resulting artifacts.
+
+The former derived three-channel representation is not built by the canonical pipeline. It was redundant for the retained QRC representation and added avoidable runtime and storage cost.
+
+## Environment
 
 ```bash
 conda env create -f environment.yml
 conda activate qrc-volatility
 ```
 
-Update an existing environment after dependency changes:
+For an existing environment:
 
 ```bash
 conda env update -f environment.yml --prune
 ```
 
-The environment installs the project in editable mode with its test dependencies, so imports resolve from the current clone's `src/` directory.
+## Rebuild the transition data stage
 
-## Core pipeline
-
-1. Public financial time-series data
-2. Causal rolling-window preprocessing
-3. Volatility, regime, and transition targets
-4. Compact classical baselines
-5. QRC and Rydberg reservoir feature extraction
-6. Classical readout and warning heads
-7. Purged and walk-forward evaluation
-8. Noise, shot-budget, and hardware-feasibility checks
-9. Mechanism and falsification diagnostics
-10. Reproducible result manifests and documentation
-
-## Repository maintenance contract
-
-All repository-maintenance work must follow [`AGENTS.md`](AGENTS.md). Result moves, renames, flattening, archival, deletion, and provenance changes must be recorded in [`docs/result_migration_manifest.csv`](docs/result_migration_manifest.csv).
-
-Required audit:
+From the repository root:
 
 ```bash
-python scripts/maintenance/audit_repo_maintenance.py
+python scripts/runs/run_submission.py transition-data \
+  --run-id precontrol-rebuild-001 \
+  --transition-source-mode fallback \
+  --force
 ```
 
-The same audit runs in GitHub Actions when maintenance-sensitive paths change.
+Use `--transition-source-mode live` only when the external source is available and authenticated. The workflow writes acquisition logs, the one-channel processed dataset, candidate pool, folds, validation report, checksums, and a run manifest under `results/runs/<run-id>/`.
 
-## Repository status
-
-The project is currently consolidating Phase 3 results and repository structure on branch `phase3-refactor`.
-
-Result areas already flattened and script-aligned:
+The scientific result hierarchy remains separate:
 
 ```text
-results/modeling/weekly_regimes/
-results/modeling/transition_onset/
-results/modeling/transition_destination/
-results/modeling/day5_branching/baseline/
+results/<area>/<script-name>/<run-id>/...
 ```
 
-The Day 5 static Rydberg outputs remain present but have not yet been flattened. Several historical Day 5 output families, including the distributed spatial Rydberg shard and merge outputs, are missing or have unverified historical locations.
+## Canonical transition-data layout
 
-## Documentation
+```text
+src/transition_forecasting/data/
+src/transition_forecasting/modeling/
+scripts/transition_forecasting/data/
+tests/transition_forecasting/data/
+tests/transition_forecasting/modeling/
+results/runs/<run-id>/
+```
 
-- [Repository maintenance rules](AGENTS.md)
-- [Result migration manifest](docs/result_migration_manifest.csv)
-- [Project milestones](docs/milestones.md)
-- [Results layout, provenance, and known missing artifacts](docs/results_layout_and_provenance.md)
-- [Phase 3 Rydberg results summary](docs/phase3/results/phase3_rydberg_results_summary.md)
-- [Rydberg temporal reservoir design note](docs/phase3/rydberg_temporal_reservoir_design_note.md)
+## Validation
 
-## Provenance rule
+Focused Stage 1 checks run through:
 
-Current script defaults may have been introduced during later refactoring and must not automatically be treated as evidence of where historical runs were originally stored. Expensive or distributed reruns should record the full command, Git commit, machine, shard identity, output directory, and merge manifest.
+```bash
+python -m pytest -q \
+  tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py \
+  tests/transition_forecasting/modeling/test_chronological_control_matching.py \
+  tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py \
+  tests/transition_forecasting/modeling/test_chronological_splits.py \
+  tests/transition_forecasting/data/test_fold_datasets.py \
+  tests/runs/test_run_submission.py
+```
+
+The common final test partition must remain unopened during development and model selection.
+
+## Current recovery state
+
+`stage1-dev` has been restored to the pre-control binary matching protocol. The abandoned calm/hard-negative redesign no longer feeds candidate construction, fold assignment, HAR fitting, or residual generation. The next gate is to rebuild the global one-channel matrix and reproduce the archived pre-control HAR and QRC results before porting further QRC work.
