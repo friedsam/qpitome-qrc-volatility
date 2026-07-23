@@ -230,7 +230,7 @@ def build_one_and_three_channel_folds(
     if not audit_1d.equals(audit_3d):
         raise ValueError("1D and 3D control matching audits differ")
     if not np.array_equal(tensor_fold_3d, to_three_channel(tensor_fold_1d)):
-        raise ValueError("3D fold tensor is not the deterministic transform of the 1D tensor")
+        raise ValueError("3D fold tensor is not the deterministic transform of the 1D fold tensor")
 
     output_1d = dataset_1d_dir / "purged_walk_forward_folds"
     output_3d = dataset_3d_dir / "purged_walk_forward_folds"
