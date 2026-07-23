@@ -45,6 +45,7 @@ def _validate_candidate_manifest(
     path: Path,
     *,
     label: str,
+    policy: ControlStrataPolicy,
     failures: list[str],
 ) -> dict[str, object]:
     frame = pd.read_csv(path)
@@ -72,7 +73,10 @@ def _validate_candidate_manifest(
         failures.append(f"{label} candidate IDs are not unique")
     if frame["future_persistent"].astype(bool).any():
         failures.append(f"{label} persistent candidates leaked into controls")
-    if frame.loc[frame["control_stratum"].eq(CALM), "future_threshold_crossings"].ne(0).any():
+    if frame.loc[
+        frame["control_stratum"].eq(CALM),
+        "future_threshold_crossings",
+    ].ne(0).any():
         failures.append(f"{label} calm candidates contain threshold crossings")
     hard_crossings = frame.loc[
         frame["control_stratum"].eq(HARD_NEGATIVE),
@@ -80,11 +84,17 @@ def _validate_candidate_manifest(
     ]
     if hard_crossings.le(0).any():
         failures.append(f"{label} hard negatives lack a threshold crossing")
+    if hard_crossings.ge(policy.persistence_required).any():
+        failures.append(f"{label} hard negatives satisfy the persistence rule")
 
     return {
         "rows": int(len(frame)),
-        "stratum_counts": frame["control_stratum"].value_counts().sort_index().astype(int).to_dict(),
-        "unique_origins": int(frame[["index", "origin_date"]].drop_duplicates().shape[0]),
+        "stratum_counts": (
+            frame["control_stratum"].value_counts().sort_index().astype(int).to_dict()
+        ),
+        "unique_origins": int(
+            frame[["index", "origin_date"]].drop_duplicates().shape[0]
+        ),
     }
 
 
@@ -116,8 +126,8 @@ def _validate_fold_manifest(
         failures.append(
             f"{label} fold strata {sorted(observed)} do not equal {sorted(expected)}"
         )
-    if manifest["sample_id"].astype(str).duplicated().any():
-        failures.append(f"{label} fold sample IDs are not unique")
+    if manifest.duplicated(["fold", "sample_id"]).any():
+        failures.append(f"{label} sample IDs are not unique within each rolling fold")
 
     positives = manifest.loc[manifest["label"].eq(1)].copy()
     controls = manifest.loc[manifest["label"].eq(0)].copy()
@@ -167,7 +177,13 @@ def _validate_fold_manifest(
         "rows": int(len(manifest)),
         "positive_rows": int(len(positives)),
         "control_rows": int(len(controls)),
-        "stratum_counts": manifest["evaluation_stratum"].value_counts().sort_index().astype(int).to_dict(),
+        "stratum_counts": (
+            manifest["evaluation_stratum"]
+            .value_counts()
+            .sort_index()
+            .astype(int)
+            .to_dict()
+        ),
     }
 
 
@@ -212,6 +228,7 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
                 _validate_candidate_manifest(
                     candidate_manifest,
                     label=label,
+                    policy=policy,
                     failures=failures,
                 )
             )
@@ -237,7 +254,8 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
             if not np.array_equal(manifest["sample_id"].astype(str).to_numpy(), ids):
                 failures.append(f"{label} fold sample IDs are misaligned")
             if not np.array_equal(
-                manifest["fold_split"].astype(str).to_numpy(), splits
+                manifest["fold_split"].astype(str).to_numpy(),
+                splits,
             ):
                 failures.append(f"{label} fold split metadata are misaligned")
             if bool((manifest["fold_split"] == "test").sum() == 0):
