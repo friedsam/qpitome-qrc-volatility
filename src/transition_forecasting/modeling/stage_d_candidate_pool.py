@@ -50,8 +50,8 @@ def build_candidate_pool_from_series(
     """Build every eligible stratified negative-control candidate.
 
     Candidate eligibility excludes persistent transitions whose onset begins within
-    the forecast horizon. Calm versus hard-negative labels use future outcomes only;
-    all matching features are computed from the pre-origin history.
+    the forecast horizon. Outcome labels mirror the catalogue onset rule; all matching
+    features are computed from the pre-origin history only.
     """
 
     control_policy.validate()
@@ -68,11 +68,15 @@ def build_candidate_pool_from_series(
         features = causal_features(series, position)
         if features is None:
             continue
+        prior_history = series.iloc[
+            position - control_policy.prior_window + 1 : position + 1
+        ].to_numpy(dtype=float)
         assessment = series.iloc[
             position + 1 : position + 1 + required_future
         ].to_numpy(dtype=float)
         stratum_payload = classify_control_future(
             assessment,
+            prior_history=prior_history,
             threshold=resolved_threshold,
             policy=control_policy,
         )
