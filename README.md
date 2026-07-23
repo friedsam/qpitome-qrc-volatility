@@ -6,6 +6,23 @@ Phase 3 Global Industry Challenge project for qBraid / MITRE / JonesTrading.
 
 Build a reproducible prototype for financial time-series intelligence using compact classical baselines, quantum reservoir computing, and hardware-aware validation. The repository includes volatility forecasting, regime analysis, transition modeling, Day 5 branching experiments, Rydberg reservoir studies, diagnostics, and reproducibility infrastructure.
 
+## Environment setup
+
+Create the conda environment from the repository root:
+
+```bash
+conda env create -f environment.yml
+conda activate qrc-volatility
+```
+
+Update an existing environment after dependency changes:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+The environment installs the project in editable mode with its test dependencies, so imports resolve from the current clone's `src/` directory.
+
 ## Core pipeline
 
 1. Public financial time-series data
