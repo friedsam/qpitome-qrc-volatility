@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import pandas as pd
+from pathlib import Path
 
-from transition_forecasting.catalogue.transition_events import M
+import numpy as np
+import pandas as pd
+import pytest
+
 from transition_forecasting.data.fold_datasets import (
     DEFAULT_N_FOLDS,
-    _attach_positive_label_end_dates,
+    _load_dataset,
 )
 
 
@@ -13,30 +16,29 @@ def test_default_fold_count_is_eight() -> None:
     assert DEFAULT_N_FOLDS == 8
 
 
-def test_positive_label_end_is_onset_plus_persistence_window_minus_one() -> None:
-    dates = pd.bdate_range("2000-01-03", periods=80)
-    series = pd.Series(range(len(dates)), index=dates, dtype=float)
-    onset = dates[40]
-    manifest = pd.DataFrame(
-        [
-            {
-                "sample_id": "P1",
-                "label": 1,
-                "index": "IDX",
-                "event_onset": onset,
-                "target_end_date": dates[45],
-            },
-            {
-                "sample_id": "N1",
-                "label": 0,
-                "index": "IDX",
-                "event_onset": onset,
-                "target_end_date": dates[30],
-            },
-        ]
+def test_load_dataset_accepts_only_one_channel(tmp_path: Path) -> None:
+    manifest = pd.DataFrame({"sample_id": ["a", "b"]})
+    manifest.to_csv(tmp_path / "sample_manifest.csv", index=False)
+    np.savez_compressed(
+        tmp_path / "sequence_tensors.npz",
+        X=np.zeros((2, 40, 1), dtype=float),
+        sample_id=np.asarray(["a", "b"], dtype="U1"),
     )
 
-    enriched = _attach_positive_label_end_dates(manifest, {"IDX": series})
+    loaded_manifest, tensor = _load_dataset(tmp_path)
 
-    assert pd.Timestamp(enriched.loc[0, "label_end_date"]) == dates[40 + M - 1]
-    assert pd.Timestamp(enriched.loc[1, "label_end_date"]) == dates[30]
+    assert loaded_manifest["sample_id"].tolist() == ["a", "b"]
+    assert tensor.shape == (2, 40, 1)
+
+
+def test_load_dataset_rejects_redundant_three_channel_tensor(tmp_path: Path) -> None:
+    manifest = pd.DataFrame({"sample_id": ["a"]})
+    manifest.to_csv(tmp_path / "sample_manifest.csv", index=False)
+    np.savez_compressed(
+        tmp_path / "sequence_tensors.npz",
+        X=np.zeros((1, 40, 3), dtype=float),
+        sample_id=np.asarray(["a"], dtype="U1"),
+    )
+
+    with pytest.raises(ValueError, match="one-channel"):
+        _load_dataset(tmp_path)
