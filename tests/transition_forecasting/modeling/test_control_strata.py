@@ -127,10 +127,10 @@ def test_already_high_prior_prevents_false_new_onset() -> None:
     assert result["prior_threshold_crossings_at_origin"] == policy.prior_window
 
 
-def test_historical_total_three_freezes_two_calm_and_one_hard() -> None:
+def test_historical_total_three_freezes_one_calm_and_two_hard() -> None:
     policy = ControlStrataPolicy.from_total_controls(3)
-    assert policy.calm_controls_per_positive == 2
-    assert policy.hard_controls_per_positive == 1
+    assert policy.calm_controls_per_positive == 1
+    assert policy.hard_controls_per_positive == 2
     assert policy.controls_per_positive == 3
 
 
@@ -192,10 +192,10 @@ def test_matching_is_deterministic_preorigin_only_and_without_reuse() -> None:
     assert matched_a.groupby(
         ["matched_positive_id", "control_stratum"]
     ).size().to_dict() == {
-        ("P_L1", CALM): 2,
-        ("P_L1", HARD_NEGATIVE): 1,
-        ("P_L5", CALM): 2,
-        ("P_L5", HARD_NEGATIVE): 1,
+        ("P_L1", CALM): 1,
+        ("P_L1", HARD_NEGATIVE): 2,
+        ("P_L5", CALM): 1,
+        ("P_L5", HARD_NEGATIVE): 2,
     }
 
 
