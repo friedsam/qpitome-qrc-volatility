@@ -10,16 +10,14 @@ from transition_forecasting.data.dataset import (
     DEFAULT_FROZEN_RANGE_QUALITY,
     build_processed_dataset,
 )
-from transition_forecasting.data.three_channel import build_three_channel_dataset
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build aligned one- and three-channel transition datasets."
+        description="Build the canonical one-channel transition dataset."
     )
     parser.add_argument("--raw-root", type=Path, required=True)
     parser.add_argument("--output-1d", type=Path, required=True)
-    parser.add_argument("--output-3d", type=Path, required=True)
     parser.add_argument(
         "--inventory-contract",
         type=Path,
@@ -49,14 +47,12 @@ def main() -> int:
         controls_per_positive=args.controls_per_positive,
         force=args.force,
     )
-    three_channel = build_three_channel_dataset(
-        args.output_1d,
-        args.output_3d,
-        force=args.force,
-    )
     print(
         json.dumps(
-            {"one_channel": one_channel, "three_channel": three_channel},
+            {
+                "one_channel": one_channel,
+                "three_channel_built": False,
+            },
             indent=2,
         )
     )
