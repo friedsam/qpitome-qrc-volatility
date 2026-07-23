@@ -62,18 +62,22 @@ def _candidate(
 
 def test_future_strata_follow_the_frozen_persistence_rule() -> None:
     policy = ControlStrataPolicy()
+    quiet_prior = np.full(policy.prior_window, -1.0)
     calm = classify_control_future(
         np.full(policy.future_assessment_rows, -1.0),
+        prior_history=quiet_prior,
         threshold=0.0,
         policy=policy,
     )
     hard = classify_control_future(
         np.asarray([1.0, 1.0, 1.0] + [-1.0] * 21),
+        prior_history=quiet_prior,
         threshold=0.0,
         policy=policy,
     )
     persistent = classify_control_future(
         np.asarray([1.0] * 10 + [-1.0] * 14),
+        prior_history=quiet_prior,
         threshold=0.0,
         policy=policy,
     )
@@ -89,13 +93,16 @@ def test_future_strata_follow_the_frozen_persistence_rule() -> None:
 
 def test_persistence_scan_reaches_an_onset_at_horizon_ten_but_not_horizon_eleven() -> None:
     policy = ControlStrataPolicy()
+    quiet_prior = np.full(policy.prior_window, -1.0)
     onset_h10 = classify_control_future(
         np.asarray([-1.0] * 9 + [1.0] * 10 + [-1.0] * 5),
+        prior_history=quiet_prior,
         threshold=0.0,
         policy=policy,
     )
     onset_h11 = classify_control_future(
         np.asarray([-1.0] * 10 + [1.0] * 10 + [-1.0] * 4),
+        prior_history=quiet_prior,
         threshold=0.0,
         policy=policy,
     )
@@ -104,6 +111,20 @@ def test_persistence_scan_reaches_an_onset_at_horizon_ten_but_not_horizon_eleven
     assert onset_h10["future_first_persistent_offset"] == 10
     assert onset_h11["control_stratum"] == CALM
     assert onset_h11["future_threshold_crossings"] == 0
+
+
+def test_already_high_prior_prevents_false_new_onset() -> None:
+    policy = ControlStrataPolicy()
+    result = classify_control_future(
+        np.full(policy.future_assessment_rows, 1.0),
+        prior_history=np.full(policy.prior_window, 1.0),
+        threshold=0.0,
+        policy=policy,
+    )
+
+    assert result["control_stratum"] == HARD_NEGATIVE
+    assert result["future_persistent"] is False
+    assert result["prior_threshold_crossings_at_origin"] == policy.prior_window
 
 
 def test_historical_total_three_freezes_two_calm_and_one_hard() -> None:
