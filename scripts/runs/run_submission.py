@@ -23,6 +23,7 @@ from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RESULTS_ROOT = REPO_ROOT / "results" / "runs"
+TRANSITION_N_FOLDS = 8
 
 DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "scripts/data/download_market_data.py"),
@@ -180,6 +181,8 @@ def transition_commands(
             str(paths["dataset_1d"]),
             "--dataset-3d",
             str(paths["dataset_3d"]),
+            "--n-folds",
+            str(TRANSITION_N_FOLDS),
             *overwrite,
         ),
         (
@@ -335,6 +338,9 @@ def execute(
         "environment": environment_snapshot(),
         "parameters": {
             "transition_source_mode": transition_source_mode,
+            "transition_n_folds": (
+                TRANSITION_N_FOLDS if workflow == "transition-data" else None
+            ),
             "force": force,
         },
         "commands": [],
