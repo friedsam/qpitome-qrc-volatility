@@ -8,7 +8,7 @@ Forecast ten-day volatility paths from ordered forty-day market histories, with 
 
 ## Canonical branch flow
 
-Development components are completed and validated on `stage1-dev`. Only that branch is intended to be merged into `main` for the final submission.
+Components are promoted to `stage1-dev` only after they are complete and validated. Only `stage1-dev` is intended to be merged into `main` for the final submission.
 
 The canonical Stage 1 data path is deliberately small:
 
