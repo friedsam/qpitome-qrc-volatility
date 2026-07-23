@@ -49,9 +49,9 @@ def build_candidate_pool_from_series(
 ) -> tuple[pd.DataFrame, np.ndarray]:
     """Build every eligible stratified negative-control candidate.
 
-    Candidate eligibility excludes persistent transitions. Calm versus hard-negative
-    labels use the frozen future persistence rule, while all matching features are
-    computed from the pre-origin history only.
+    Candidate eligibility excludes persistent transitions whose onset begins within
+    the forecast horizon. Calm versus hard-negative labels use future outcomes only;
+    all matching features are computed from the pre-origin history.
     """
 
     control_policy.validate()
@@ -60,7 +60,7 @@ def build_candidate_pool_from_series(
     sequences: list[np.ndarray] = []
     onsets = np.asarray(onset_positions, dtype=int)
     onsets = onsets[onsets >= 0]
-    required_future = max(HORIZON, control_policy.persistence_window)
+    required_future = control_policy.future_assessment_rows
 
     for position in range(WINDOW - 1, len(series) - required_future):
         if len(onsets) and int(np.min(np.abs(onsets - position))) <= int(event_exclusion):
@@ -69,7 +69,7 @@ def build_candidate_pool_from_series(
         if features is None:
             continue
         assessment = series.iloc[
-            position + 1 : position + 1 + control_policy.persistence_window
+            position + 1 : position + 1 + required_future
         ].to_numpy(dtype=float)
         stratum_payload = classify_control_future(
             assessment,
@@ -83,7 +83,7 @@ def build_candidate_pool_from_series(
         sequence = series.iloc[position - WINDOW + 1 : position + 1].to_numpy(dtype=float)[:, None]
         input_start_date = series.index[position - WINDOW + 1]
         target_end_date = series.index[position + HORIZON]
-        assessment_end_date = series.index[position + control_policy.persistence_window]
+        assessment_end_date = series.index[position + required_future]
 
         for lead in leads:
             candidate_id = f"C_{index_name}_L{int(lead)}_P{position}"
@@ -188,6 +188,9 @@ def build_global_candidate_pool(
         "sequence_shape": list(tensor.shape),
         "window_trading_rows": int(WINDOW),
         "target_horizon_trading_rows": int(HORIZON),
+        "future_assessment_trading_rows": int(
+            control_policy.future_assessment_rows
+        ),
         "event_exclusion_trading_rows": int(NEG_EXCL),
         "rows_by_index": per_index,
     }
