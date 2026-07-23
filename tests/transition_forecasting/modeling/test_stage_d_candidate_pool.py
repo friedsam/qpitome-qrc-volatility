@@ -50,7 +50,7 @@ def test_candidate_pool_uses_exact_trading_row_intervals_and_excludes_events() -
     assert frame.loc[
         frame["control_stratum"].eq(HARD_NEGATIVE),
         "future_threshold_crossings",
-    ].between(1, 9).all()
+    ].between(1, HORIZON).all()
 
     row = frame.iloc[0]
     position = int(row["origin_pos"])
@@ -79,17 +79,19 @@ def test_candidate_ids_and_index_lead_origins_are_unique() -> None:
     assert counts.eq(len(LEADS)).all()
 
 
-def test_persistent_future_is_excluded_from_control_candidates() -> None:
-    dates = pd.bdate_range("2013-01-01", periods=100)
-    values = np.full(len(dates), -2.0)
+def test_persistent_origin_is_excluded_from_control_candidates() -> None:
+    dates = pd.bdate_range("2013-01-01", periods=120)
+    values = np.full(len(dates), -1.0)
+    values[50:] = 1.0
     series = pd.Series(values, index=dates)
 
     frame, tensor = build_candidate_pool_from_series(
         index_name="IDX",
         series=series,
         onset_positions=np.asarray([], dtype=int),
-        threshold=-3.0,
+        threshold=0.0,
     )
 
-    assert frame.empty
-    assert tensor.shape == (0, WINDOW, 1)
+    assert tensor.shape == (len(frame), WINDOW, 1)
+    assert not frame["origin_pos"].eq(49).any()
+    assert not frame["future_persistent"].astype(bool).any()
