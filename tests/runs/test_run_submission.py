@@ -55,7 +55,7 @@ def test_validate_data_plan_does_not_download_or_rebuild() -> None:
     ]
 
 
-def test_transition_data_plan_passes_eight_folds_explicitly() -> None:
+def test_transition_data_plan_is_one_channel_and_passes_eight_folds() -> None:
     runner = load_runner()
     commands = planned_commands(runner, "transition-data")
     fold_command = next(
@@ -68,6 +68,12 @@ def test_transition_data_plan_passes_eight_folds_explicitly() -> None:
     assert runner.TRANSITION_N_FOLDS == 8
     n_folds_index = fold_command.index("--n-folds")
     assert fold_command[n_folds_index + 1] == "8"
+    assert all("--dataset-3d" not in command for command in commands)
+    assert all("--output-3d" not in command for command in commands)
+
+    paths = runner.transition_paths(Path("test-run"))
+    assert "dataset_3d" not in paths
+    assert "folds_3d" not in paths
 
 
 def test_execute_records_successful_commands_and_outputs(
@@ -118,7 +124,7 @@ def test_execute_records_successful_commands_and_outputs(
     assert len(manifest["required_outputs"]["data/result.txt"]["sha256"]) == 64
 
 
-def test_transition_manifest_records_eight_folds(
+def test_transition_manifest_records_eight_folds_and_one_channel(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = load_runner()
@@ -134,6 +140,9 @@ def test_transition_manifest_records_eight_folds(
     assert code == 0
     manifest = json.loads((run_dir / "run_manifest.json").read_text())
     assert manifest["parameters"]["transition_n_folds"] == 8
+    assert manifest["parameters"]["transition_channels"] == [
+        "log_volatility_level"
+    ]
 
 
 def test_execute_stops_after_first_failed_command(
