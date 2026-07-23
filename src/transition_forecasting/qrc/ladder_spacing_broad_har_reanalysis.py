@@ -36,6 +36,38 @@ def _load_parameters(run_dir: Path) -> dict[str, object]:
     return parameters
 
 
+def _load_legacy_spacing_probabilities(
+    cache_path: Path,
+    *,
+    expected_leads: np.ndarray,
+) -> np.ndarray:
+    """Load numeric arrays from the first spacing assay without enabling pickle.
+
+    The original spacing cache writer saved Pandas string columns directly, which
+    produced object arrays. The probability and lead arrays remain plain numeric
+    arrays and are sufficient for safe reanalysis because the cache was written in
+    the selected-frame order inside the same loop. We validate both row count and
+    lead order rather than loading the unsafe object metadata.
+    """
+
+    expected = np.asarray(expected_leads, dtype=int)
+    with np.load(cache_path, allow_pickle=False) as bundle:
+        if "probabilities" not in bundle.files or "lead" not in bundle.files:
+            raise ValueError(f"{cache_path}: missing numeric probability metadata")
+        probabilities = np.asarray(bundle["probabilities"], dtype=float)
+        cached_leads = np.asarray(bundle["lead"], dtype=int)
+    if len(probabilities) != len(expected):
+        raise RuntimeError(
+            f"{cache_path}: probability rows {len(probabilities)} do not match "
+            f"selected panel rows {len(expected)}"
+        )
+    if not np.array_equal(cached_leads, expected):
+        raise RuntimeError(f"{cache_path}: cached lead order differs from selected panel")
+    if probabilities.ndim != 3 or not np.isfinite(probabilities).all():
+        raise ValueError(f"{cache_path}: invalid probability tensor")
+    return probabilities
+
+
 def run_spacing_broad_har_reanalysis(
     *,
     spacing_run: Path,
@@ -73,6 +105,7 @@ def run_spacing_broad_har_reanalysis(
             "har_scope": "all_selected_rows",
             "hard_negative_role": "included_in_har; excluded_from_qrc_fit_and_calibration; validation_diagnostic",
             "quantum_evolution_reused": True,
+            "legacy_object_metadata_ignored": True,
             "test_rows_allowed": False,
         },
         run_id=run_id,
@@ -91,6 +124,7 @@ def run_spacing_broad_har_reanalysis(
         )
         if selected_frame["fold_split"].eq("test").any():
             raise RuntimeError("spacing reanalysis must not receive test rows")
+        expected_leads = selected_frame["lead"].to_numpy(dtype=int)
         for geometry_name in geometry_names:
             cache_path = (
                 spacing_run
@@ -100,18 +134,11 @@ def run_spacing_broad_har_reanalysis(
             )
             if not cache_path.is_file():
                 raise FileNotFoundError(cache_path)
-            with np.load(cache_path, allow_pickle=False) as bundle:
-                probabilities = np.asarray(bundle["probabilities"], dtype=float)
-                cached_ids = np.asarray(bundle["sample_id"]).astype(str)
-            selected_ids = selected_frame["sample_id"].astype(str).to_numpy()
-            if set(cached_ids) != set(selected_ids):
-                raise RuntimeError(
-                    f"fold {fold} geometry {geometry_name}: cache and panel differ"
-                )
-            by_id = selected_frame.set_index(
-                selected_frame["sample_id"].astype(str), drop=False
+            probabilities = _load_legacy_spacing_probabilities(
+                cache_path,
+                expected_leads=expected_leads,
             )
-            frame = by_id.loc[cached_ids].reset_index(drop=True)
+            frame = selected_frame.reset_index(drop=True)
             for family in readout_families:
                 matrix = probabilities_to_mode_family(probabilities, family)
                 for base_model_name, readout_kind in MODEL_SPECS:
@@ -161,6 +188,7 @@ def run_spacing_broad_har_reanalysis(
         "hard_negatives_used_for_har": True,
         "hard_negatives_used_for_qrc_fit_or_calibration": False,
         "quantum_evolution_reused": True,
+        "legacy_object_metadata_ignored": True,
         "test_evaluated": False,
         "selection": selection,
     }
