@@ -11,6 +11,7 @@ from transition_forecasting.data.three_channel import CHANNEL_NAMES, to_three_ch
 from transition_forecasting.modeling.chronological_rematched_dataset import (
     build_rematched_rolling_dataset,
 )
+from transition_forecasting.modeling.control_strata import ControlStrataPolicy
 from transition_forecasting.modeling.stage_d_candidate_pool import (
     build_candidate_pool_from_series,
 )
@@ -57,22 +58,49 @@ def _load_daily_series(dataset_dir: Path) -> dict[str, pd.Series]:
         ordered = group.sort_values("date")
         values = ordered["log_parkinson_volatility"].to_numpy(dtype=float)
         if not np.isfinite(values).all():
-            raise ValueError(f"daily volatility contains non-finite values for {index_name}")
-        result[str(index_name)] = pd.Series(values, index=ordered["date"], name=str(index_name))
+            raise ValueError(
+                f"daily volatility contains non-finite values for {index_name}"
+            )
+        result[str(index_name)] = pd.Series(
+            values,
+            index=ordered["date"],
+            name=str(index_name),
+        )
     return result
+
+
+def _thresholds_from_catalogue(catalogue: pd.DataFrame) -> dict[str, float]:
+    required = {"index", "threshold"}
+    missing = required.difference(catalogue.columns)
+    if missing:
+        raise ValueError(
+            f"transition catalogue is missing control-threshold columns: {sorted(missing)}"
+        )
+    thresholds: dict[str, float] = {}
+    for index_name, group in catalogue.groupby("index", sort=True):
+        values = group["threshold"].astype(float).drop_duplicates()
+        if len(values) != 1 or not np.isfinite(float(values.iloc[0])):
+            raise ValueError(f"{index_name}: transition threshold is not uniquely frozen")
+        thresholds[str(index_name)] = float(values.iloc[0])
+    return thresholds
 
 
 def build_candidate_pool_from_dataset(
     dataset_dir: Path,
+    *,
+    control_policy: ControlStrataPolicy = ControlStrataPolicy(),
 ) -> tuple[pd.DataFrame, np.ndarray, dict[str, object]]:
-    """Rebuild the full eligible control pool from the frozen processed dataset."""
+    """Rebuild the full eligible stratified control pool from frozen data."""
     dataset_dir = Path(dataset_dir).resolve()
     catalogue = pd.read_csv(dataset_dir / "transition_catalogue.csv")
-    required = {"index", "onset_date"}
+    required = {"index", "onset_date", "threshold"}
     missing = required.difference(catalogue.columns)
     if missing:
         raise ValueError(f"transition catalogue is missing columns: {sorted(missing)}")
-    catalogue["onset_date"] = pd.to_datetime(catalogue["onset_date"], errors="raise")
+    catalogue["onset_date"] = pd.to_datetime(
+        catalogue["onset_date"], errors="raise"
+    )
+    thresholds = _thresholds_from_catalogue(catalogue)
     series_by_index = _load_daily_series(dataset_dir)
 
     frames: list[pd.DataFrame] = []
@@ -80,24 +108,37 @@ def build_candidate_pool_from_dataset(
     rows_by_index: dict[str, int] = {}
     for index_name, series in series_by_index.items():
         events = catalogue[catalogue["index"].astype(str).eq(index_name)]
+        if index_name not in thresholds:
+            raise ValueError(f"{index_name}: no frozen transition threshold")
         onset_positions = series.index.get_indexer(events["onset_date"])
         frame, tensor = build_candidate_pool_from_series(
             index_name=index_name,
             series=series,
             onset_positions=onset_positions,
+            threshold=thresholds[index_name],
+            control_policy=control_policy,
         )
         frames.append(frame)
         tensors.append(tensor)
         rows_by_index[index_name] = int(len(frame))
 
     manifest = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-    tensor = np.concatenate(tensors, axis=0) if tensors else np.empty((0, 40, 1), dtype=float)
+    tensor = (
+        np.concatenate(tensors, axis=0)
+        if tensors
+        else np.empty((0, 40, 1), dtype=float)
+    )
     if len(manifest) != len(tensor):
         raise ValueError("candidate manifest and tensor lengths differ")
     if manifest["candidate_id"].duplicated().any():
         raise ValueError("candidate IDs are not unique")
     manifest["_candidate_row"] = np.arange(len(manifest), dtype=int)
 
+    stratum_counts = (
+        manifest["control_stratum"].value_counts().sort_index().astype(int).to_dict()
+        if len(manifest)
+        else {}
+    )
     summary = {
         "candidate_rows": int(len(manifest)),
         "unique_control_origins": int(
@@ -105,6 +146,8 @@ def build_candidate_pool_from_dataset(
         ),
         "indices": int(manifest["index"].nunique()),
         "leads": sorted(int(value) for value in manifest["lead"].unique()),
+        "control_strata_rows": stratum_counts,
+        "control_policy": control_policy.to_dict(),
         "sequence_shape": list(tensor.shape),
         "rows_by_index": rows_by_index,
         "source_dataset": str(dataset_dir),
@@ -176,7 +219,8 @@ def build_one_and_three_channel_folds(
     controls_per_positive: int = DEFAULT_CONTROLS_PER_POSITIVE,
     force: bool = False,
 ) -> dict[str, object]:
-    """Build inspectable 1D and 3D candidate pools and identical fold assignments."""
+    """Build stratified 1D/3D candidate pools and identical fold assignments."""
+    control_policy = ControlStrataPolicy.from_total_controls(controls_per_positive)
     dataset_1d_dir = Path(dataset_1d_dir).resolve()
     dataset_3d_dir = Path(dataset_3d_dir).resolve()
     manifest_1d, tensor_1d = _load_dataset(dataset_1d_dir)
@@ -188,18 +232,35 @@ def build_one_and_three_channel_folds(
         raise ValueError("1D and 3D sample manifests are not aligned")
     expected_3d = to_three_channel(tensor_1d)
     if not np.array_equal(tensor_3d, expected_3d):
-        raise ValueError("3D sequence tensor is not the deterministic transform of the 1D tensor")
+        raise ValueError(
+            "3D sequence tensor is not the deterministic transform of the 1D tensor"
+        )
 
-    candidate_manifest, candidate_1d, candidate_summary = build_candidate_pool_from_dataset(
-        dataset_1d_dir
+    candidate_manifest, candidate_1d, candidate_summary = (
+        build_candidate_pool_from_dataset(
+            dataset_1d_dir,
+            control_policy=control_policy,
+        )
     )
     candidate_3d = to_three_channel(candidate_1d)
-    _write_candidate_pool(dataset_1d_dir, candidate_manifest, candidate_1d, candidate_summary)
+    _write_candidate_pool(
+        dataset_1d_dir,
+        candidate_manifest,
+        candidate_1d,
+        candidate_summary,
+    )
     summary_3d = dict(candidate_summary)
     summary_3d["sequence_shape"] = list(candidate_3d.shape)
     summary_3d["channels"] = CHANNEL_NAMES.tolist()
-    summary_3d["derived_from"] = str(dataset_1d_dir / "control_candidate_tensors.npz")
-    _write_candidate_pool(dataset_3d_dir, candidate_manifest, candidate_3d, summary_3d)
+    summary_3d["derived_from"] = str(
+        dataset_1d_dir / "control_candidate_tensors.npz"
+    )
+    _write_candidate_pool(
+        dataset_3d_dir,
+        candidate_manifest,
+        candidate_3d,
+        summary_3d,
+    )
 
     folds_1d = build_rematched_rolling_dataset(
         manifest_1d,
@@ -225,12 +286,16 @@ def build_one_and_three_channel_folds(
     manifest_fold_1d, tensor_fold_1d, audit_1d, fold_summary_1d = folds_1d
     manifest_fold_3d, tensor_fold_3d, audit_3d, fold_summary_3d = folds_3d
     identity_columns = ["sample_id", "fold", "fold_split"]
-    if not manifest_fold_1d[identity_columns].equals(manifest_fold_3d[identity_columns]):
+    if not manifest_fold_1d[identity_columns].equals(
+        manifest_fold_3d[identity_columns]
+    ):
         raise ValueError("1D and 3D fold manifests differ")
     if not audit_1d.equals(audit_3d):
         raise ValueError("1D and 3D control matching audits differ")
     if not np.array_equal(tensor_fold_3d, to_three_channel(tensor_fold_1d)):
-        raise ValueError("3D fold tensor is not the deterministic transform of the 1D fold tensor")
+        raise ValueError(
+            "3D fold tensor is not the deterministic transform of the 1D fold tensor"
+        )
 
     output_1d = dataset_1d_dir / "purged_walk_forward_folds"
     output_3d = dataset_3d_dir / "purged_walk_forward_folds"
@@ -257,6 +322,7 @@ def build_one_and_three_channel_folds(
         "dataset_1d": str(dataset_1d_dir),
         "dataset_3d": str(dataset_3d_dir),
         "candidate_rows": int(len(candidate_manifest)),
+        "control_policy": control_policy.to_dict(),
         "folds": int(n_folds),
         "fold_output_1d": str(output_1d),
         "fold_output_3d": str(output_3d),
