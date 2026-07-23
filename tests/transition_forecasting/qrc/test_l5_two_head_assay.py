@@ -62,10 +62,15 @@ def test_two_head_fit_returns_complete_signed_correction() -> None:
     y = har + residuals
     specialist_train = np.zeros(rows, dtype=bool)
     specialist_train[:30] = True
-    origin_date = np.asarray([f"2020-01-{value + 1:02d}" for value in range(rows)])
+    origin_date = (
+        pd.date_range("2020-01-01", periods=rows, freq="D")
+        .astype(str)
+        .to_numpy()
+    )
     config = L5TwoHeadAssayConfig(
         alpha_grid=(1.0, 10.0),
-        minimum_specialist_rows=4,
+        minimum_specialist_rows=6,
+        minimum_cv_fit_rows=4,
     )
 
     correction, diagnostics, candidates = fit_l5_two_head(
@@ -82,4 +87,43 @@ def test_two_head_fit_returns_complete_signed_correction() -> None:
     assert np.isfinite(correction).all()
     assert diagnostics["alpha_early"] in config.alpha_grid
     assert diagnostics["alpha_late"] in config.alpha_grid
+    assert set(candidates["head"]) == {"early", "late"}
+
+
+def test_two_head_fit_supports_seven_specialist_rows() -> None:
+    rng = np.random.default_rng(11)
+    rows = 12
+    matrix = rng.normal(size=(rows, 9))
+    residuals = np.zeros((rows, 10), dtype=float)
+    residuals[:, :4] = -0.15 * matrix[:, [0]]
+    residuals[:, 4:] = 0.25 * matrix[:, [1]]
+    har = np.zeros_like(residuals)
+    y = residuals.copy()
+    specialist_train = np.zeros(rows, dtype=bool)
+    specialist_train[:7] = True
+    origin_date = (
+        pd.date_range("2021-02-01", periods=rows, freq="D")
+        .astype(str)
+        .to_numpy()
+    )
+    config = L5TwoHeadAssayConfig(
+        alpha_grid=(10.0, 100.0),
+        minimum_specialist_rows=6,
+        minimum_cv_fit_rows=4,
+    )
+
+    correction, diagnostics, candidates = fit_l5_two_head(
+        matrix,
+        residuals=residuals,
+        har=har,
+        y=y,
+        specialist_train=specialist_train,
+        origin_date=origin_date,
+        config=config,
+    )
+
+    assert correction.shape == residuals.shape
+    assert np.isfinite(correction).all()
+    assert diagnostics["specialist_train_rows"] == 7.0
+    assert diagnostics["cv_predictions"] == 3.0
     assert set(candidates["head"]) == {"early", "late"}
