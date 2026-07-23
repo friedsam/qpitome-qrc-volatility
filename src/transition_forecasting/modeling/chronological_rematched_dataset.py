@@ -6,13 +6,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from transition_forecasting.modeling.chronological_control_matching import (
-    MatchConfig,
-    rematch_controls_within_partition,
-)
 from transition_forecasting.modeling.chronological_splits import (
     IntervalColumns,
     rolling_origin_assignments,
+)
+from transition_forecasting.modeling.control_strata import (
+    TRANSITION,
+    ControlStrataPolicy,
+    rematch_control_strata_within_partition,
 )
 
 
@@ -75,11 +76,20 @@ def _candidate_partition(
     frame["fold_split"] = "unused"
     frame.loc[frame["target_end_date"] <= train_end, "fold_split"] = "train"
     frame.loc[
-        (frame["input_start_date"] >= val_start) & (frame["target_end_date"] <= val_end),
+        (frame["input_start_date"] >= val_start)
+        & (frame["target_end_date"] <= val_end),
         "fold_split",
     ] = "val"
     frame.loc[frame["input_start_date"] >= test_start, "fold_split"] = "test"
     return frame
+
+
+def _complete_positive_ids(audit: pd.DataFrame) -> set[str]:
+    if audit.empty:
+        return set()
+    return set(
+        audit.loc[audit["complete_all_strata"], "positive_sample_id"].astype(str)
+    )
 
 
 def build_rematched_rolling_dataset(
@@ -93,8 +103,13 @@ def build_rematched_rolling_dataset(
     embargo_days: int = 10,
     controls_per_positive: int = 3,
 ) -> tuple[pd.DataFrame, np.ndarray, pd.DataFrame, dict[str, object]]:
-    positives = stage_d_manifest[stage_d_manifest["label"].eq(1)].reset_index(drop=True).copy()
-    positive_source_rows = stage_d_manifest.index[stage_d_manifest["label"].eq(1)].to_numpy(dtype=int)
+    control_policy = ControlStrataPolicy.from_total_controls(controls_per_positive)
+    positives = stage_d_manifest[stage_d_manifest["label"].eq(1)].reset_index(
+        drop=True
+    ).copy()
+    positive_source_rows = stage_d_manifest.index[
+        stage_d_manifest["label"].eq(1)
+    ].to_numpy(dtype=int)
     positives["_positive_tensor_row"] = positive_source_rows
     positives = _validate_positive_intervals(positives)
 
@@ -127,17 +142,15 @@ def build_rematched_rolling_dataset(
             fold_candidates["fold_split"].isin(["train", "val", "test"])
         ].copy()
 
-        matched, match_audit = rematch_controls_within_partition(
+        matched, match_audit = rematch_control_strata_within_partition(
             fold_positives,
             fold_candidates,
-            config=MatchConfig(controls_per_positive=controls_per_positive),
+            policy=control_policy,
         )
         match_audit["fold"] = fold
         audit_frames.append(match_audit)
 
-        complete_ids = set(
-            match_audit.loc[match_audit["complete_match"], "positive_sample_id"].astype(str)
-        )
+        complete_ids = _complete_positive_ids(match_audit)
         kept_positives = fold_positives[
             fold_positives["sample_id"].astype(str).isin(complete_ids)
         ].copy()
@@ -145,14 +158,23 @@ def build_rematched_rolling_dataset(
             matched["matched_positive_id"].astype(str).isin(complete_ids)
         ].copy()
 
+        kept_positives["control_stratum"] = TRANSITION
+        kept_positives["evaluation_stratum"] = TRANSITION
         kept_positives["tensor_source"] = "positive"
         kept_positives["tensor_row"] = kept_positives["_positive_tensor_row"].astype(int)
+        matched["evaluation_stratum"] = matched["control_stratum"].astype(str)
         matched["tensor_source"] = "candidate"
         matched["tensor_row"] = matched["_candidate_row"].astype(int)
 
         combined = pd.concat([kept_positives, matched], ignore_index=True, sort=False)
         combined = combined.sort_values(
-            ["fold_split", "index", "lead", "sample_id"],
+            [
+                "fold_split",
+                "index",
+                "lead",
+                "evaluation_stratum",
+                "sample_id",
+            ],
             kind="mergesort",
         ).reset_index(drop=True)
 
@@ -173,29 +195,50 @@ def build_rematched_rolling_dataset(
     audit = pd.concat(audit_frames, ignore_index=True)
 
     fold_quality = []
-    for fold, group in audit.groupby("fold", sort=True):
+    for (fold, stratum), group in audit.groupby(
+        ["fold", "control_stratum"], sort=True
+    ):
         fold_quality.append(
             {
                 "fold": int(fold),
+                "control_stratum": str(stratum),
                 "positives_requested": int(len(group)),
-                "positives_complete": int(group["complete_match"].sum()),
-                "completion_rate": float(group["complete_match"].mean()),
-                "median_max_selected_distance": float(group["max_selected_distance"].median()),
-                "p95_max_selected_distance": float(group["max_selected_distance"].quantile(0.95)),
+                "positives_complete_in_stratum": int(group["complete_match"].sum()),
+                "positives_complete_all_strata": int(
+                    group["complete_all_strata"].sum()
+                ),
+                "completion_rate_in_stratum": float(group["complete_match"].mean()),
+                "median_max_selected_distance": float(
+                    group["max_selected_distance"].median()
+                ),
+                "p95_max_selected_distance": float(
+                    group["max_selected_distance"].quantile(0.95)
+                ),
             }
         )
 
+    stratum_counts = (
+        manifest.groupby(["fold", "fold_split", "evaluation_stratum"], sort=True)
+        .size()
+        .rename("rows")
+        .reset_index()
+        .to_dict(orient="records")
+    )
     summary = {
         "n_folds": int(n_folds),
         "test_fraction": float(test_fraction),
         "controls_per_positive": int(controls_per_positive),
+        "control_policy": control_policy.to_dict(),
         "manifest_rows": int(len(manifest)),
         "tensor_shape": list(tensor.shape),
         "split_audit": split_audit,
         "fold_summaries": fold_summaries,
-        "fold_match_quality": fold_quality,
+        "fold_match_quality_by_stratum": fold_quality,
+        "fold_stratum_counts": stratum_counts,
         "positive_intervals": "exact_trading_rows",
         "candidate_intervals": "exact_trading_rows",
+        "matching_information": "pre_origin_only",
+        "negative_stratum_information": "future_persistence_label_only",
         "test_evaluated": False,
     }
     return manifest, tensor, audit, summary
