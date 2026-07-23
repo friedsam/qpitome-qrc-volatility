@@ -4,7 +4,11 @@ import numpy as np
 import pandas as pd
 
 from transition_forecasting.catalogue.transition_events import HORIZON, LEADS, WINDOW
-from transition_forecasting.modeling.control_strata import CALM, HARD_NEGATIVE
+from transition_forecasting.modeling.control_strata import (
+    CALM,
+    HARD_NEGATIVE,
+    ControlStrataPolicy,
+)
 from transition_forecasting.modeling.stage_d_candidate_pool import (
     build_candidate_pool_from_series,
 )
@@ -17,6 +21,7 @@ def test_candidate_pool_uses_exact_trading_row_intervals_and_excludes_events() -
     )
     series = pd.Series(values, index=dates)
     onset_position = 100
+    policy = ControlStrataPolicy()
 
     frame, tensor = build_candidate_pool_from_series(
         index_name="IDX",
@@ -24,6 +29,7 @@ def test_candidate_pool_uses_exact_trading_row_intervals_and_excludes_events() -
         onset_positions=np.asarray([onset_position]),
         event_exclusion=5,
         threshold=-3.35,
+        control_policy=policy,
     )
 
     assert not frame.empty
@@ -51,7 +57,9 @@ def test_candidate_pool_uses_exact_trading_row_intervals_and_excludes_events() -
     assert pd.Timestamp(row["input_start_date"]) == dates[position - WINDOW + 1]
     assert pd.Timestamp(row["origin_date"]) == dates[position]
     assert pd.Timestamp(row["target_end_date"]) == dates[position + HORIZON]
-    assert pd.Timestamp(row["future_assessment_end_date"]) == dates[position + 15]
+    assert pd.Timestamp(row["future_assessment_end_date"]) == dates[
+        position + policy.future_assessment_rows
+    ]
 
 
 def test_candidate_ids_and_index_lead_origins_are_unique() -> None:
@@ -84,4 +92,4 @@ def test_persistent_future_is_excluded_from_control_candidates() -> None:
     )
 
     assert frame.empty
-    assert tensor.size == 0
+    assert tensor.shape == (0, WINDOW, 1)
