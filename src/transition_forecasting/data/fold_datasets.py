@@ -106,10 +106,11 @@ def build_candidate_pool_from_dataset(
     frames: list[pd.DataFrame] = []
     tensors: list[np.ndarray] = []
     rows_by_index: dict[str, int] = {}
-    for index_name, series in series_by_index.items():
+    for index_name in sorted(thresholds):
+        if index_name not in series_by_index:
+            raise ValueError(f"{index_name}: daily volatility series is missing")
+        series = series_by_index[index_name]
         events = catalogue[catalogue["index"].astype(str).eq(index_name)]
-        if index_name not in thresholds:
-            raise ValueError(f"{index_name}: no frozen transition threshold")
         onset_positions = series.index.get_indexer(events["onset_date"])
         frame, tensor = build_candidate_pool_from_series(
             index_name=index_name,
@@ -118,6 +119,10 @@ def build_candidate_pool_from_dataset(
             threshold=thresholds[index_name],
             control_policy=control_policy,
         )
+        if frame.empty:
+            raise RuntimeError(
+                f"{index_name}: no eligible calm or hard-negative control candidates"
+            )
         frames.append(frame)
         tensors.append(tensor)
         rows_by_index[index_name] = int(len(frame))
@@ -128,6 +133,8 @@ def build_candidate_pool_from_dataset(
         if tensors
         else np.empty((0, 40, 1), dtype=float)
     )
+    if manifest.empty:
+        raise RuntimeError("no eligible stratified control candidates were built")
     if len(manifest) != len(tensor):
         raise ValueError("candidate manifest and tensor lengths differ")
     if manifest["candidate_id"].duplicated().any():
@@ -136,8 +143,6 @@ def build_candidate_pool_from_dataset(
 
     stratum_counts = (
         manifest["control_stratum"].value_counts().sort_index().astype(int).to_dict()
-        if len(manifest)
-        else {}
     )
     summary = {
         "candidate_rows": int(len(manifest)),
