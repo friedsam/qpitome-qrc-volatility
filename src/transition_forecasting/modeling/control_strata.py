@@ -6,7 +6,12 @@ from typing import Final, Literal
 import numpy as np
 import pandas as pd
 
-from transition_forecasting.catalogue.transition_events import K, M, MATCH_FEATURES
+from transition_forecasting.catalogue.transition_events import (
+    HORIZON,
+    K,
+    M,
+    MATCH_FEATURES,
+)
 from transition_forecasting.modeling.chronological_control_matching import (
     MatchConfig,
     rematch_controls_within_partition,
@@ -29,23 +34,32 @@ class ControlStrataPolicy:
     computed entirely from the 40-day pre-origin history.
     """
 
+    forecast_horizon: int = HORIZON
     persistence_required: int = K
     persistence_window: int = M
-    calm_max_crossings: int = 0
+    calm_max_horizon_crossings: int = 0
     calm_controls_per_positive: int = 2
     hard_controls_per_positive: int = 1
 
     def validate(self) -> None:
+        if self.forecast_horizon < 1:
+            raise ValueError("forecast_horizon must be positive")
         if self.persistence_window < 1:
             raise ValueError("persistence_window must be positive")
         if not 1 <= self.persistence_required <= self.persistence_window:
             raise ValueError("persistence_required must lie inside persistence_window")
-        if not 0 <= self.calm_max_crossings < self.persistence_required:
-            raise ValueError("calm_max_crossings must be below persistence_required")
+        if not 0 <= self.calm_max_horizon_crossings < self.forecast_horizon:
+            raise ValueError(
+                "calm_max_horizon_crossings must lie below forecast_horizon"
+            )
         if self.calm_controls_per_positive < 1:
             raise ValueError("at least one calm control is required per positive")
         if self.hard_controls_per_positive < 1:
             raise ValueError("at least one hard negative is required per positive")
+
+    @property
+    def future_assessment_rows(self) -> int:
+        return self.forecast_horizon + self.persistence_window - 1
 
     @property
     def controls_per_positive(self) -> int:
@@ -60,10 +74,15 @@ class ControlStrataPolicy:
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
+        payload["future_assessment_rows"] = self.future_assessment_rows
         payload["controls_per_positive"] = self.controls_per_positive
         payload["matching_features"] = list(MATCH_FEATURES)
         payload["future_values_used_for"] = "negative_stratum_label_only"
         payload["matching_information"] = "pre_origin_only"
+        payload["persistent_rule"] = (
+            "onset begins within forecast_horizon and has at least "
+            "persistence_required threshold days in the following persistence_window"
+        )
         return payload
 
     @classmethod
@@ -89,45 +108,78 @@ class ControlStrataPolicy:
         return policy
 
 
+def _persistent_onset_offsets(
+    values: np.ndarray,
+    *,
+    threshold: float,
+    policy: ControlStrataPolicy,
+) -> list[int]:
+    high = values >= float(threshold)
+    offsets: list[int] = []
+    for start in range(policy.forecast_horizon):
+        window = high[start : start + policy.persistence_window]
+        if bool(high[start]) and int(window.sum()) >= policy.persistence_required:
+            offsets.append(start + 1)
+    return offsets
+
+
 def classify_control_future(
     future: np.ndarray,
     *,
     threshold: float,
     policy: ControlStrataPolicy = ControlStrataPolicy(),
 ) -> dict[str, object]:
-    """Classify one eligible negative using the positive persistence rule.
+    """Classify a negative using the exact forecast-horizon persistence logic.
 
-    Calm controls have no threshold crossing in the assessment window. Hard
-    negatives cross the threshold transiently but fail the required persistence.
-    Candidates satisfying the positive persistence count are excluded rather than
-    relabeled as controls.
+    A persistent candidate has an onset beginning at h1...hH and satisfies the
+    positive K-of-M rule from that onset. Calm controls have no threshold crossing
+    inside h1...hH. Hard negatives cross during the forecast horizon but never form
+    a persistent onset. Future values never enter matching or model inputs.
     """
 
     policy.validate()
     values = np.asarray(future, dtype=float).reshape(-1)
-    if len(values) < policy.persistence_window:
+    required = policy.future_assessment_rows
+    if len(values) < required:
         raise ValueError(
-            f"future assessment requires {policy.persistence_window} values; got {len(values)}"
+            f"future assessment requires {required} values; got {len(values)}"
         )
-    values = values[: policy.persistence_window]
+    values = values[:required]
     if not np.isfinite(values).all() or not np.isfinite(float(threshold)):
         raise ValueError("future assessment and threshold must be finite")
 
-    crossings = int(np.count_nonzero(values >= float(threshold)))
-    if crossings >= policy.persistence_required:
+    horizon_values = values[: policy.forecast_horizon]
+    horizon_crossings = int(
+        np.count_nonzero(horizon_values >= float(threshold))
+    )
+    persistent_offsets = _persistent_onset_offsets(
+        values,
+        threshold=float(threshold),
+        policy=policy,
+    )
+    persistent = bool(persistent_offsets)
+
+    if persistent:
         stratum: ControlStratum = PERSISTENT_EXCLUDED
-    elif crossings <= policy.calm_max_crossings:
+    elif horizon_crossings <= policy.calm_max_horizon_crossings:
         stratum = CALM
     else:
         stratum = HARD_NEGATIVE
 
     return {
         "control_stratum": stratum,
-        "future_threshold_crossings": crossings,
-        "future_threshold_max": float(values.max()),
-        "future_threshold_max_excess": float(values.max() - float(threshold)),
-        "future_persistent": bool(crossings >= policy.persistence_required),
-        "future_assessment_rows": int(policy.persistence_window),
+        "future_threshold_crossings": horizon_crossings,
+        "future_threshold_max": float(horizon_values.max()),
+        "future_threshold_max_excess": float(
+            horizon_values.max() - float(threshold)
+        ),
+        "future_assessment_max": float(values.max()),
+        "future_persistent": persistent,
+        "future_persistent_onset_count": int(len(persistent_offsets)),
+        "future_first_persistent_offset": (
+            int(persistent_offsets[0]) if persistent_offsets else -1
+        ),
+        "future_assessment_rows": int(required),
     }
 
 
@@ -208,7 +260,9 @@ def rematch_control_strata_within_partition(
 
     uniqueness_key = [*partition_columns, "origin_date"]
     if not matched_all.empty and matched_all.duplicated(uniqueness_key).any():
-        raise ValueError("control origin reuse detected across calm/hard strata or forecast leads")
+        raise ValueError(
+            "control origin reuse detected across calm/hard strata or forecast leads"
+        )
     if not matched_all.empty and matched_all["sample_id"].duplicated().any():
         raise ValueError("stratified control sample IDs are not unique")
 
