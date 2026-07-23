@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from transition_forecasting.catalogue.transition_events import M
 from transition_forecasting.data.three_channel import CHANNEL_NAMES, to_three_channel
 from transition_forecasting.modeling.chronological_rematched_dataset import (
     build_rematched_rolling_dataset,
@@ -83,6 +84,45 @@ def _thresholds_from_catalogue(catalogue: pd.DataFrame) -> dict[str, float]:
             raise ValueError(f"{index_name}: transition threshold is not uniquely frozen")
         thresholds[str(index_name)] = float(values.iloc[0])
     return thresholds
+
+
+def _attach_positive_label_end_dates(
+    manifest: pd.DataFrame,
+    series_by_index: dict[str, pd.Series],
+) -> pd.DataFrame:
+    """Attach the trading date at which each persistent positive label matures."""
+
+    required = {"label", "index", "event_onset", "target_end_date"}
+    missing = required.difference(manifest.columns)
+    if missing:
+        raise ValueError(
+            f"sample manifest lacks positive label-maturity inputs: {sorted(missing)}"
+        )
+    frame = manifest.copy()
+    frame["target_end_date"] = pd.to_datetime(
+        frame["target_end_date"], errors="raise"
+    )
+    frame["label_end_date"] = frame["target_end_date"]
+
+    positives = frame[frame["label"].eq(1)]
+    for row_index, row in positives.iterrows():
+        index_name = str(row["index"])
+        if index_name not in series_by_index:
+            raise ValueError(f"{index_name}: daily series missing for positive label")
+        series = series_by_index[index_name]
+        onset = int(
+            series.index.get_indexer([pd.Timestamp(row["event_onset"])])[0]
+        )
+        label_end = onset + M - 1
+        if onset < 0 or label_end >= len(series):
+            raise ValueError(
+                f"{row['sample_id']}: persistent label maturity is outside the series"
+            )
+        frame.at[row_index, "label_end_date"] = series.index[label_end]
+
+    if frame.loc[frame["label"].eq(1), "label_end_date"].isna().any():
+        raise ValueError("positive label maturity contains missing dates")
+    return frame
 
 
 def build_candidate_pool_from_dataset(
@@ -241,6 +281,10 @@ def build_one_and_three_channel_folds(
             "3D sequence tensor is not the deterministic transform of the 1D tensor"
         )
 
+    daily_series = _load_daily_series(dataset_1d_dir)
+    manifest_1d = _attach_positive_label_end_dates(manifest_1d, daily_series)
+    manifest_3d = _attach_positive_label_end_dates(manifest_3d, daily_series)
+
     candidate_manifest, candidate_1d, candidate_summary = (
         build_candidate_pool_from_dataset(
             dataset_1d_dir,
@@ -328,6 +372,7 @@ def build_one_and_three_channel_folds(
         "dataset_3d": str(dataset_3d_dir),
         "candidate_rows": int(len(candidate_manifest)),
         "control_policy": control_policy.to_dict(),
+        "positive_label_maturity_rows": int(M),
         "folds": int(n_folds),
         "fold_output_1d": str(output_1d),
         "fold_output_3d": str(output_3d),
