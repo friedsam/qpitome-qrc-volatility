@@ -365,7 +365,10 @@ def load_probability_cache(
         if hashlib.sha256(identity_json.encode("utf-8")).hexdigest() != stored_hash:
             raise ValueError("probability cache identity hash is invalid")
         identity = json.loads(identity_json)
-        if expected_identity is not None and identity != expected_identity:
+        if (
+            expected_identity is not None
+            and _canonical_json(expected_identity) != identity_json
+        ):
             raise ValueError("probability cache identity does not match requested run")
         probabilities = validate_probe_probabilities(bundle["probabilities"])
         exact_modes = np.asarray(bundle["exact_modes"], dtype=float)
