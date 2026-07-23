@@ -19,7 +19,7 @@ from transition_forecasting.qrc.temporal_rydberg_ladder import (
 
 
 DEFAULT_FOLD_DIR = Path(
-    "data/processed/transition_forecasting/global_transition_dataset_1d/"
+    "data/processed/global_transition_dataset_1d/"
     "purged_walk_forward_folds"
 )
 DEFAULT_RESULTS_ROOT = Path(
