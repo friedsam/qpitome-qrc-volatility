@@ -5,6 +5,10 @@ from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 
+from transition_forecasting.modeling.deterministic_control_selection import (
+    select_deterministic_control_panel,
+)
+
 CANONICAL_FOLD_SPLITS = ("train", "val", "test")
 DEVELOPMENT_FOLD_SPLITS = ("train", "val")
 
@@ -42,6 +46,15 @@ def select_balanced_episode_rows(
     splits: tuple[str, ...] = DEVELOPMENT_FOLD_SPLITS,
     seed: int = 0,
 ) -> pd.DataFrame:
+    """Select development rows, using deterministic strata when available.
+
+    Redesigned manifests contain ``evaluation_stratum`` and matched-positive linkage.
+    For those manifests the random seed is intentionally ignored: every complete
+    episode is resolved before a chronological cap, and one transition, one calm, and
+    one hard-negative row are retained. Historical manifests keep the prior seeded
+    binary-class selection so archived assays remain readable.
+    """
+
     validate_fold_manifest_schema(manifest)
 
     unknown_splits = set(splits).difference(CANONICAL_FOLD_SPLITS)
@@ -53,13 +66,24 @@ def select_balanced_episode_rows(
         raise ValueError("max_per_class must be positive")
 
     excluded = {str(value) for value in excluded_sample_ids}
-    rows = manifest.loc[
-        manifest["fold"].eq(fold)
-        & manifest["fold_split"].isin(splits)
-        & manifest["lead"].eq(lead)
+    eligible = manifest.copy()
+    eligible["sample_id"] = eligible["sample_id"].astype(str)
+    eligible = eligible.loc[~eligible["sample_id"].isin(excluded)]
+
+    if "evaluation_stratum" in eligible.columns:
+        return select_deterministic_control_panel(
+            eligible,
+            fold=int(fold),
+            leads=(int(lead),),
+            max_episodes_per_split_lead=int(max_per_class),
+            splits=splits,
+        )
+
+    rows = eligible.loc[
+        eligible["fold"].eq(fold)
+        & eligible["fold_split"].isin(splits)
+        & eligible["lead"].eq(lead)
     ].copy()
-    rows["sample_id"] = rows["sample_id"].astype(str)
-    rows = rows.loc[~rows["sample_id"].isin(excluded)]
     rows = rows.sort_values(
         ["fold_split", "label", "episode_id", "origin_date", "sample_id"]
     )
