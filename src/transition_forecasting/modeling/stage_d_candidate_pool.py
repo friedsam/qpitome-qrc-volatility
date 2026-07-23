@@ -109,7 +109,11 @@ def build_candidate_pool_from_series(
             sequences.append(sequence)
 
     frame = pd.DataFrame(rows)
-    tensor = np.asarray(sequences, dtype=float)
+    tensor = (
+        np.asarray(sequences, dtype=float)
+        if sequences
+        else np.empty((0, WINDOW, 1), dtype=float)
+    )
     if not frame.empty:
         if frame["candidate_id"].duplicated().any():
             raise ValueError("candidate IDs are not unique")
