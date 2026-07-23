@@ -16,7 +16,7 @@ from transition_forecasting.modeling.stage_d_candidate_pool import (
 )
 
 
-DEFAULT_N_FOLDS = 3
+DEFAULT_N_FOLDS = 8
 DEFAULT_TEST_FRACTION = 0.17
 DEFAULT_EMBARGO_DAYS = 10
 DEFAULT_CONTROLS_PER_POSITIVE = 3
@@ -230,7 +230,7 @@ def build_one_and_three_channel_folds(
     if not audit_1d.equals(audit_3d):
         raise ValueError("1D and 3D control matching audits differ")
     if not np.array_equal(tensor_fold_3d, to_three_channel(tensor_fold_1d)):
-        raise ValueError("3D fold tensor is not the deterministic transform of the 1D fold tensor")
+        raise ValueError("3D fold tensor is not the deterministic transform of the 1D tensor")
 
     output_1d = dataset_1d_dir / "purged_walk_forward_folds"
     output_3d = dataset_3d_dir / "purged_walk_forward_folds"
