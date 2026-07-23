@@ -11,6 +11,8 @@ on:
       - "src/transition_forecasting/modeling/deterministic_control_selection.py"
       - "src/transition_forecasting/modeling/fold_selection.py"
       - "src/transition_forecasting/data/fold_datasets.py"
+      - "src/transition_forecasting/qrc/stratified_control_metrics.py"
+      - "scripts/transition_forecasting/qrc/summarize_stratified_control_result.py"
       - "tests/transition_forecasting/modeling/test_control_strata.py"
       - "tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py"
       - "tests/transition_forecasting/modeling/test_chronological_control_matching.py"
@@ -18,6 +20,7 @@ on:
       - "tests/transition_forecasting/modeling/test_deterministic_control_selection.py"
       - "tests/transition_forecasting/modeling/test_fold_selection.py"
       - "tests/transition_forecasting/data/test_fold_datasets.py"
+      - "tests/transition_forecasting/qrc/test_stratified_control_metrics.py"
       - ".github/workflows/control-tests.yml"
   workflow_dispatch:
 
@@ -45,3 +48,4 @@ jobs:
           tests/transition_forecasting/modeling/test_deterministic_control_selection.py
           tests/transition_forecasting/modeling/test_fold_selection.py
           tests/transition_forecasting/data/test_fold_datasets.py
+          tests/transition_forecasting/qrc/test_stratified_control_metrics.py
