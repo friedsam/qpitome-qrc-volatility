@@ -80,12 +80,12 @@ def test_execute_records_successful_commands_and_outputs(
         "VALIDATE_DATA_COMMANDS",
         (("python", "first.py"), ("python", "second.py")),
     )
-    monkeypatch.setattr(runner, "REQUIRED_DATA_OUTPUTS", ("data/result.txt",))
     monkeypatch.setattr(runner, "git_value", lambda *args: "test-value")
 
     output = tmp_path / "data" / "result.txt"
     output.parent.mkdir(parents=True)
     output.write_text("stable output\n", encoding="utf-8")
+    monkeypatch.setattr(runner, "REQUIRED_DATA_OUTPUTS", (output,))
 
     calls: list[tuple[str, ...]] = []
 
@@ -184,7 +184,8 @@ def test_execute_fails_when_required_output_is_missing(
     runner = load_runner()
     monkeypatch.setattr(runner, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(runner, "VALIDATE_DATA_COMMANDS", ())
-    monkeypatch.setattr(runner, "REQUIRED_DATA_OUTPUTS", ("missing.txt",))
+    missing = tmp_path / "missing.txt"
+    monkeypatch.setattr(runner, "REQUIRED_DATA_OUTPUTS", (missing,))
     monkeypatch.setattr(runner, "git_value", lambda *args: None)
 
     code, run_dir = runner.execute(
