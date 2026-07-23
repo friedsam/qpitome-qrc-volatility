@@ -10,6 +10,12 @@ import pandas as pd
 
 from transition_forecasting.data.three_channel import CHANNEL_NAMES, to_three_channel
 from transition_forecasting.data.validation import audit_processed_dataset
+from transition_forecasting.modeling.control_strata import (
+    CALM,
+    HARD_NEGATIVE,
+    TRANSITION,
+    ControlStrataPolicy,
+)
 
 FOLD_FILES = (
     "rematched_rolling_manifest.csv",
@@ -35,8 +41,139 @@ def _load_tensor(path: Path) -> tuple[np.ndarray, np.ndarray]:
         return np.asarray(archive["X"]), archive["sample_id"].astype(str)
 
 
+def _validate_candidate_manifest(
+    path: Path,
+    *,
+    label: str,
+    failures: list[str],
+) -> dict[str, object]:
+    frame = pd.read_csv(path)
+    required = {
+        "candidate_id",
+        "index",
+        "lead",
+        "origin_date",
+        "control_stratum",
+        "future_threshold_crossings",
+        "future_persistent",
+    }
+    missing = required.difference(frame.columns)
+    if missing:
+        failures.append(f"{label} candidate manifest missing columns: {sorted(missing)}")
+        return {"rows": int(len(frame)), "missing_columns": sorted(missing)}
+
+    observed = set(frame["control_stratum"].dropna().astype(str).unique())
+    expected = {CALM, HARD_NEGATIVE}
+    if observed != expected:
+        failures.append(
+            f"{label} candidate strata {sorted(observed)} do not equal {sorted(expected)}"
+        )
+    if frame["candidate_id"].astype(str).duplicated().any():
+        failures.append(f"{label} candidate IDs are not unique")
+    if frame["future_persistent"].astype(bool).any():
+        failures.append(f"{label} persistent candidates leaked into controls")
+    if frame.loc[frame["control_stratum"].eq(CALM), "future_threshold_crossings"].ne(0).any():
+        failures.append(f"{label} calm candidates contain threshold crossings")
+    hard_crossings = frame.loc[
+        frame["control_stratum"].eq(HARD_NEGATIVE),
+        "future_threshold_crossings",
+    ]
+    if hard_crossings.le(0).any():
+        failures.append(f"{label} hard negatives lack a threshold crossing")
+
+    return {
+        "rows": int(len(frame)),
+        "stratum_counts": frame["control_stratum"].value_counts().sort_index().astype(int).to_dict(),
+        "unique_origins": int(frame[["index", "origin_date"]].drop_duplicates().shape[0]),
+    }
+
+
+def _validate_fold_manifest(
+    manifest: pd.DataFrame,
+    *,
+    label: str,
+    policy: ControlStrataPolicy,
+    failures: list[str],
+) -> dict[str, object]:
+    required = {
+        "sample_id",
+        "label",
+        "fold",
+        "fold_split",
+        "index",
+        "lead",
+        "origin_date",
+        "evaluation_stratum",
+    }
+    missing = required.difference(manifest.columns)
+    if missing:
+        failures.append(f"{label} fold manifest missing columns: {sorted(missing)}")
+        return {"rows": int(len(manifest)), "missing_columns": sorted(missing)}
+
+    observed = set(manifest["evaluation_stratum"].dropna().astype(str).unique())
+    expected = {TRANSITION, CALM, HARD_NEGATIVE}
+    if observed != expected:
+        failures.append(
+            f"{label} fold strata {sorted(observed)} do not equal {sorted(expected)}"
+        )
+    if manifest["sample_id"].astype(str).duplicated().any():
+        failures.append(f"{label} fold sample IDs are not unique")
+
+    positives = manifest.loc[manifest["label"].eq(1)].copy()
+    controls = manifest.loc[manifest["label"].eq(0)].copy()
+    if not positives["evaluation_stratum"].eq(TRANSITION).all():
+        failures.append(f"{label} positive rows are not labeled transition")
+    if controls.empty or "matched_positive_id" not in controls.columns:
+        failures.append(f"{label} fold controls lack matched-positive linkage")
+    else:
+        positive_keys = set(
+            zip(
+                positives["fold"].astype(int),
+                positives["fold_split"].astype(str),
+                positives["sample_id"].astype(str),
+                strict=True,
+            )
+        )
+        control_keys = set(
+            zip(
+                controls["fold"].astype(int),
+                controls["fold_split"].astype(str),
+                controls["matched_positive_id"].astype(str),
+                strict=True,
+            )
+        )
+        if positive_keys != control_keys:
+            failures.append(f"{label} kept positives and control linkage differ")
+
+        counts = (
+            controls.groupby(
+                ["fold", "fold_split", "matched_positive_id", "evaluation_stratum"],
+                sort=True,
+            )
+            .size()
+            .unstack(fill_value=0)
+        )
+        for stratum, requested in policy.requested_counts.items():
+            if stratum not in counts.columns or not counts[stratum].eq(requested).all():
+                failures.append(
+                    f"{label} controls do not have exactly {requested} {stratum} rows per positive"
+                )
+
+    reuse_key = ["fold", "fold_split", "index", "origin_date"]
+    if not controls.empty and controls.duplicated(reuse_key).any():
+        failures.append(f"{label} control origins are reused within a fold partition")
+
+    return {
+        "rows": int(len(manifest)),
+        "positive_rows": int(len(positives)),
+        "control_rows": int(len(controls)),
+        "stratum_counts": manifest["evaluation_stratum"].value_counts().sort_index().astype(int).to_dict(),
+    }
+
+
 def validate(args: argparse.Namespace) -> dict[str, object]:
     failures: list[str] = []
+    policy = ControlStrataPolicy.from_total_controls(args.controls_per_positive)
     audit_1d = audit_processed_dataset(
         args.dataset_1d,
         controls_per_positive=args.controls_per_positive,
@@ -70,6 +207,14 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
         ]
         candidate_checks[label] = {"missing": missing}
         failures.extend(f"{label} candidate artifact missing: {path}" for path in missing)
+        if not missing:
+            candidate_checks[label].update(
+                _validate_candidate_manifest(
+                    candidate_manifest,
+                    label=label,
+                    failures=failures,
+                )
+            )
 
     fold_checks: dict[str, object] = {}
     fold_payloads: dict[str, tuple[pd.DataFrame, np.ndarray, np.ndarray]] = {}
@@ -80,7 +225,10 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
         failures.extend(f"{label} fold artifact missing: {name}" for name in missing)
         if not missing:
             manifest = pd.read_csv(fold_dir / "rematched_rolling_manifest.csv")
-            with np.load(fold_dir / "rematched_rolling_tensors.npz", allow_pickle=False) as archive:
+            with np.load(
+                fold_dir / "rematched_rolling_tensors.npz",
+                allow_pickle=False,
+            ) as archive:
                 tensor = np.asarray(archive["X"])
                 ids = archive["sample_id"].astype(str)
                 splits = archive["fold_split"].astype(str)
@@ -88,10 +236,20 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
                 failures.append(f"{label} fold manifest and tensor lengths differ")
             if not np.array_equal(manifest["sample_id"].astype(str).to_numpy(), ids):
                 failures.append(f"{label} fold sample IDs are misaligned")
-            if not np.array_equal(manifest["fold_split"].astype(str).to_numpy(), splits):
+            if not np.array_equal(
+                manifest["fold_split"].astype(str).to_numpy(), splits
+            ):
                 failures.append(f"{label} fold split metadata are misaligned")
             if bool((manifest["fold_split"] == "test").sum() == 0):
                 failures.append(f"{label} fixed test assignment is missing")
+            fold_checks[label].update(
+                _validate_fold_manifest(
+                    manifest,
+                    label=label,
+                    policy=policy,
+                    failures=failures,
+                )
+            )
             fold_payloads[label] = (manifest, tensor, ids)
 
     if set(fold_payloads) == {"1d", "3d"}:
@@ -104,12 +262,16 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
             failures.append("1D and 3D fold assignments differ")
         if not np.array_equal(ids_fold_1d, ids_fold_3d):
             failures.append("1D and 3D fold tensor IDs differ")
-        if not np.array_equal(tensor_fold_3d, to_three_channel(tensor_fold_1d)):
+        if not np.array_equal(
+            tensor_fold_3d,
+            to_three_channel(tensor_fold_1d),
+        ):
             failures.append("3D fold tensor is not the deterministic 1D transform")
 
     return {
         "passed": not failures,
         "failures": failures,
+        "control_policy": policy.to_dict(),
         "dataset_1d": audit_1d,
         "candidate_checks": candidate_checks,
         "fold_checks": fold_checks,
