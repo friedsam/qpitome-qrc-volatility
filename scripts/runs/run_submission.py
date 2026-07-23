@@ -3,8 +3,8 @@
 
 The runner provides one stable interface for human, CI, and judge reruns. Existing
 SPY/VIX workflows are preserved. Transition-forecasting workflows write all
-run-specific raw data, processed data, folds, validation reports, checksums, and
-logs under ``results/runs/<run-id>``.
+run-specific raw data, one-channel processed data, folds, validation reports,
+checksums, and logs under ``results/runs/<run-id>``.
 """
 from __future__ import annotations
 
@@ -131,15 +131,12 @@ def transition_paths(run_dir: Path) -> dict[str, Path]:
     raw = root / "raw" / "global_stock_indices_historical_data"
     processed = root / "processed"
     dataset_1d = processed / "global_transition_dataset_1d"
-    dataset_3d = processed / "global_transition_dataset_3d"
     validation_root = root / "validation"
     return {
         "root": root,
         "raw": raw,
         "dataset_1d": dataset_1d,
-        "dataset_3d": dataset_3d,
         "folds_1d": dataset_1d / "purged_walk_forward_folds",
-        "folds_3d": dataset_3d / "purged_walk_forward_folds",
         "validation": validation_root / "data_pipeline_audit.json",
         "checksums": validation_root / "data_pipeline_checksums.json",
     }
@@ -170,8 +167,6 @@ def transition_commands(
             str(paths["raw"]),
             "--output-1d",
             str(paths["dataset_1d"]),
-            "--output-3d",
-            str(paths["dataset_3d"]),
             *overwrite,
         ),
         (
@@ -179,8 +174,6 @@ def transition_commands(
             "scripts/transition_forecasting/data/build_transition_folds.py",
             "--dataset-1d",
             str(paths["dataset_1d"]),
-            "--dataset-3d",
-            str(paths["dataset_3d"]),
             "--n-folds",
             str(TRANSITION_N_FOLDS),
             *overwrite,
@@ -190,8 +183,6 @@ def transition_commands(
             "scripts/transition_forecasting/data/validate_transition_run.py",
             "--dataset-1d",
             str(paths["dataset_1d"]),
-            "--dataset-3d",
-            str(paths["dataset_3d"]),
             "--report",
             str(paths["validation"]),
         ),
@@ -200,8 +191,6 @@ def transition_commands(
             "scripts/transition_forecasting/data/freeze_transition_checksums.py",
             "--dataset-1d",
             str(paths["dataset_1d"]),
-            "--dataset-3d",
-            str(paths["dataset_3d"]),
             "--report",
             str(paths["checksums"]),
         ),
@@ -254,10 +243,8 @@ def transition_required_outputs(run_dir: Path) -> tuple[Path, ...]:
         paths["validation"],
         paths["checksums"],
     ]
-    for dataset_key in ("dataset_1d", "dataset_3d"):
-        outputs.extend(paths[dataset_key] / name for name in dataset_files)
+    outputs.extend(paths["dataset_1d"] / name for name in dataset_files)
     outputs.extend(paths["folds_1d"] / name for name in fold_files)
-    outputs.extend(paths["folds_3d"] / name for name in fold_files)
     return tuple(outputs)
 
 
@@ -341,6 +328,9 @@ def execute(
             "transition_n_folds": (
                 TRANSITION_N_FOLDS if workflow == "transition-data" else None
             ),
+            "transition_channels": (
+                ["log_volatility_level"] if workflow == "transition-data" else None
+            ),
             "force": force,
         },
         "commands": [],
@@ -362,7 +352,9 @@ def execute(
             }
             break
 
-    required_outputs = output_inventory(required_outputs_for_workflow(workflow, run_dir))
+    required_outputs = output_inventory(
+        required_outputs_for_workflow(workflow, run_dir)
+    )
     missing_outputs = [
         path for path, item in required_outputs.items() if not bool(item["exists"])
     ]
