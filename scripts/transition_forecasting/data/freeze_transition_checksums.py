@@ -30,42 +30,47 @@ def sha256(path: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Write SHA-256 fingerprints for the completed transition data stage."
+        description="Write SHA-256 fingerprints for the canonical 1D transition data stage."
     )
     parser.add_argument("--dataset-1d", type=Path, required=True)
-    parser.add_argument("--dataset-3d", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    report: dict[str, object] = {"schema_version": 1, "datasets": {}}
+    report: dict[str, object] = {
+        "schema_version": 2,
+        "dataset": {
+            "label": "1d",
+            "root": str(args.dataset_1d),
+            "files": {},
+        },
+        "three_channel_dataset_built": False,
+    }
     missing: list[str] = []
-    datasets = {"1d": args.dataset_1d, "3d": args.dataset_3d}
 
-    for label, root in datasets.items():
-        files: dict[str, object] = {}
-        for relative in RELATIVE_FILES:
-            path = root / relative
-            exists = path.is_file()
-            item: dict[str, object] = {"exists": exists}
-            if exists:
-                item.update(
-                    {
-                        "size_bytes": path.stat().st_size,
-                        "sha256": sha256(path),
-                    }
-                )
-            else:
-                item.update({"size_bytes": None, "sha256": None})
-                missing.append(str(path))
-            files[relative] = item
-        report["datasets"][label] = {"root": str(root), "files": files}
-
-    report["files_checked"] = len(datasets) * len(RELATIVE_FILES)
+    files: dict[str, object] = {}
+    for relative in RELATIVE_FILES:
+        path = args.dataset_1d / relative
+        exists = path.is_file()
+        item: dict[str, object] = {"exists": exists}
+        if exists:
+            item.update(
+                {
+                    "size_bytes": path.stat().st_size,
+                    "sha256": sha256(path),
+                }
+            )
+        else:
+            item.update({"size_bytes": None, "sha256": None})
+            missing.append(str(path))
+        files[relative] = item
+    report["dataset"]["files"] = files
+    report["files_checked"] = len(RELATIVE_FILES)
     report["missing_files"] = missing
     report["passed"] = not missing
+
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
