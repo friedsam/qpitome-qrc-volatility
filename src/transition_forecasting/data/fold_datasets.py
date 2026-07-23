@@ -86,11 +86,39 @@ def _thresholds_from_catalogue(catalogue: pd.DataFrame) -> dict[str, float]:
     return thresholds
 
 
+def _catalogue_history_end_map(catalogue: pd.DataFrame) -> dict[tuple[str, pd.Timestamp], pd.Timestamp]:
+    required = {"index", "onset_date", "history_end"}
+    missing = required.difference(catalogue.columns)
+    if missing:
+        raise ValueError(
+            f"transition catalogue lacks label-maturity fallback columns: {sorted(missing)}"
+        )
+    frame = catalogue.copy()
+    frame["onset_date"] = pd.to_datetime(frame["onset_date"], errors="raise")
+    frame["history_end"] = pd.to_datetime(frame["history_end"], errors="raise")
+    mapping: dict[tuple[str, pd.Timestamp], pd.Timestamp] = {}
+    for _, row in frame.iterrows():
+        key = (str(row["index"]), pd.Timestamp(row["onset_date"]))
+        value = pd.Timestamp(row["history_end"])
+        existing = mapping.get(key)
+        if existing is not None and existing != value:
+            raise ValueError(f"conflicting catalogue history ends for {key}")
+        mapping[key] = value
+    return mapping
+
+
 def _attach_positive_label_end_dates(
     manifest: pd.DataFrame,
     series_by_index: dict[str, pd.Series],
+    catalogue: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Attach the trading date at which each persistent positive label matures."""
+    """Attach the date at which each persistent positive label is fully known.
+
+    The normal path uses the exact onset-plus-14 trading row from the packaged daily
+    series. A small number of catalogue-confirmed edge events may outlive that packaged
+    series. For those only, the source history end recorded when the event was detected
+    is used as a conservative (never earlier) maturity boundary.
+    """
 
     required = {"label", "index", "event_onset", "target_end_date"}
     missing = required.difference(manifest.columns)
@@ -98,27 +126,44 @@ def _attach_positive_label_end_dates(
         raise ValueError(
             f"sample manifest lacks positive label-maturity inputs: {sorted(missing)}"
         )
+    history_end_by_event = (
+        _catalogue_history_end_map(catalogue) if catalogue is not None else {}
+    )
     frame = manifest.copy()
+    frame["event_onset"] = pd.to_datetime(frame["event_onset"], errors="raise")
     frame["target_end_date"] = pd.to_datetime(
         frame["target_end_date"], errors="raise"
     )
     frame["label_end_date"] = frame["target_end_date"]
+    frame["label_end_date_source"] = "target_end_nonpositive"
 
     positives = frame[frame["label"].eq(1)]
     for row_index, row in positives.iterrows():
         index_name = str(row["index"])
+        onset_date = pd.Timestamp(row["event_onset"])
         if index_name not in series_by_index:
             raise ValueError(f"{index_name}: daily series missing for positive label")
         series = series_by_index[index_name]
-        onset = int(
-            series.index.get_indexer([pd.Timestamp(row["event_onset"])])[0]
-        )
+        onset = int(series.index.get_indexer([onset_date])[0])
         label_end = onset + M - 1
-        if onset < 0 or label_end >= len(series):
-            raise ValueError(
-                f"{row['sample_id']}: persistent label maturity is outside the series"
-            )
-        frame.at[row_index, "label_end_date"] = series.index[label_end]
+        if onset >= 0 and label_end < len(series):
+            maturity = pd.Timestamp(series.index[label_end])
+            source = "exact_trading_row"
+        else:
+            key = (index_name, onset_date)
+            if key not in history_end_by_event:
+                raise ValueError(
+                    f"{row['sample_id']}: persistent label maturity is outside the "
+                    "packaged series and no catalogue history end is available"
+                )
+            maturity = pd.Timestamp(history_end_by_event[key])
+            if maturity < pd.Timestamp(row["target_end_date"]):
+                raise ValueError(
+                    f"{row['sample_id']}: catalogue history end precedes target end"
+                )
+            source = "catalogue_history_end_conservative"
+        frame.at[row_index, "label_end_date"] = maturity
+        frame.at[row_index, "label_end_date_source"] = source
 
     if frame.loc[frame["label"].eq(1), "label_end_date"].isna().any():
         raise ValueError("positive label maturity contains missing dates")
@@ -281,9 +326,14 @@ def build_one_and_three_channel_folds(
             "3D sequence tensor is not the deterministic transform of the 1D tensor"
         )
 
+    catalogue = pd.read_csv(dataset_1d_dir / "transition_catalogue.csv")
     daily_series = _load_daily_series(dataset_1d_dir)
-    manifest_1d = _attach_positive_label_end_dates(manifest_1d, daily_series)
-    manifest_3d = _attach_positive_label_end_dates(manifest_3d, daily_series)
+    manifest_1d = _attach_positive_label_end_dates(
+        manifest_1d, daily_series, catalogue
+    )
+    manifest_3d = _attach_positive_label_end_dates(
+        manifest_3d, daily_series, catalogue
+    )
 
     candidate_manifest, candidate_1d, candidate_summary = (
         build_candidate_pool_from_dataset(
@@ -367,12 +417,20 @@ def build_one_and_three_channel_folds(
         force=force,
     )
 
+    positive_sources = (
+        manifest_1d.loc[manifest_1d["label"].eq(1), "label_end_date_source"]
+        .value_counts()
+        .sort_index()
+        .astype(int)
+        .to_dict()
+    )
     return {
         "dataset_1d": str(dataset_1d_dir),
         "dataset_3d": str(dataset_3d_dir),
         "candidate_rows": int(len(candidate_manifest)),
         "control_policy": control_policy.to_dict(),
         "positive_label_maturity_rows": int(M),
+        "positive_label_maturity_sources": positive_sources,
         "folds": int(n_folds),
         "fold_output_1d": str(output_1d),
         "fold_output_3d": str(output_3d),
