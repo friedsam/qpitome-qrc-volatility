@@ -12,7 +12,6 @@ from sklearn.preprocessing import StandardScaler
 
 from experiments.runs import begin_run
 from transition_forecasting.modeling.stage_e_classical_baselines import TARGET_COLUMNS
-from transition_forecasting.qrc.frozen_chain_readout_tools import chronological_inner_split
 from transition_forecasting.qrc.representation_screen_analysis import (
     _fit_har,
     _prequential_har_residuals,
@@ -49,12 +48,12 @@ class L5TwoHeadAssayConfig:
     max_per_class: int = 12
     sequence_length: int = 40
     prequential_blocks: int = 5
-    inner_holdout_fraction: float = 0.25
+    minimum_cv_fit_rows: int = 4
     split_horizon: int = 4
     alpha_grid: tuple[float, ...] = (1.0, 10.0, 100.0, 1000.0)
     level_channel_name: str = "log_volatility_level"
     fallback_level_channel: int = 0
-    minimum_specialist_rows: int = 8
+    minimum_specialist_rows: int = 6
     required_sign_cells: int = 10
 
     def validate(self) -> None:
@@ -68,8 +67,13 @@ class L5TwoHeadAssayConfig:
             self.selection_seeds
         ):
             raise ValueError("selection_seeds must be nonempty and unique")
-        if self.max_per_class < 1 or self.minimum_specialist_rows < 4:
-            raise ValueError("row limits must be positive")
+        if self.max_per_class < 1 or self.minimum_specialist_rows < 6:
+            raise ValueError("minimum_specialist_rows must be at least six")
+        if not 3 <= self.minimum_cv_fit_rows < self.minimum_specialist_rows:
+            raise ValueError(
+                "minimum_cv_fit_rows must be at least three and smaller than "
+                "minimum_specialist_rows"
+            )
         if not 1 <= self.split_horizon < 10:
             raise ValueError("split_horizon must lie in [1, 9]")
         if not self.alpha_grid or any(float(value) <= 0 for value in self.alpha_grid):
@@ -123,35 +127,74 @@ def _fit_predict_ridge(
     return prediction
 
 
-def _select_alpha(
+def _chronological_expanding_alpha_search(
     matrix: np.ndarray,
     residuals: np.ndarray,
     har: np.ndarray,
     y: np.ndarray,
     *,
-    inner_fit: np.ndarray,
-    inner_tune: np.ndarray,
+    eligible: np.ndarray,
+    origin_date: np.ndarray,
     horizon_slice: slice,
     alpha_grid: tuple[float, ...],
+    minimum_fit_rows: int,
 ) -> tuple[float, pd.DataFrame]:
+    """Select ridge alpha by causal expanding-window predictions.
+
+    The L5 specialist panel contains at most twelve transition rows per fold, so
+    the generic 10/5 inner holdout is impossible. This bounded diagnostic uses
+    each eligible row after an initial chronological fit block as a one-step
+    tuning observation. No validation or test row participates in selection.
+    """
+
+    fit_eligible = np.asarray(eligible, dtype=bool)
+    dates = pd.to_datetime(
+        np.asarray(origin_date).astype(str), utc=True, errors="raise"
+    )
+    eligible_rows = np.flatnonzero(fit_eligible)
+    ordered = eligible_rows[
+        np.argsort(dates[eligible_rows].asi8, kind="mergesort")
+    ]
+    if len(ordered) < minimum_fit_rows + 2:
+        raise ValueError(
+            "not enough specialist rows for expanding alpha selection: "
+            f"rows={len(ordered)}, minimum_fit_rows={minimum_fit_rows}"
+        )
+
     rows: list[dict[str, float]] = []
     for alpha in alpha_grid:
-        correction = _fit_predict_ridge(
-            matrix,
-            residuals[:, horizon_slice],
-            fit_mask=inner_fit,
-            alpha=float(alpha),
-        )
-        prediction = har[:, horizon_slice] + correction
-        tune_truth = y[inner_tune, horizon_slice]
-        tune_prediction = prediction[inner_tune]
+        truth_blocks: list[np.ndarray] = []
+        prediction_blocks: list[np.ndarray] = []
+        for stop in range(int(minimum_fit_rows), len(ordered)):
+            fit_mask = np.zeros(len(matrix), dtype=bool)
+            fit_mask[ordered[:stop]] = True
+            tune_row = int(ordered[stop])
+            correction = _fit_predict_ridge(
+                matrix,
+                residuals[:, horizon_slice],
+                fit_mask=fit_mask,
+                alpha=float(alpha),
+            )
+            truth_blocks.append(np.asarray(y[tune_row, horizon_slice], dtype=float))
+            prediction_blocks.append(
+                np.asarray(
+                    har[tune_row, horizon_slice] + correction[tune_row],
+                    dtype=float,
+                )
+            )
+
+        tune_truth = np.vstack(truth_blocks)
+        tune_prediction = np.vstack(prediction_blocks)
         rows.append(
             {
                 "alpha": float(alpha),
                 "inner_rmse": rmse_loss(tune_truth, tune_prediction),
                 "inner_qlike": qlike_loss(tune_truth, tune_prediction),
+                "cv_predictions": float(len(truth_blocks)),
+                "initial_fit_rows": float(minimum_fit_rows),
             }
         )
+
     selected = min(
         rows,
         key=lambda row: (
@@ -173,20 +216,16 @@ def fit_l5_single_head(
     origin_date: np.ndarray,
     config: L5TwoHeadAssayConfig,
 ) -> tuple[np.ndarray, dict[str, float], pd.DataFrame]:
-    inner_fit, inner_tune = chronological_inner_split(
-        np.asarray(origin_date),
-        np.asarray(specialist_train, dtype=bool),
-        holdout_fraction=config.inner_holdout_fraction,
-    )
-    alpha, candidates = _select_alpha(
+    alpha, candidates = _chronological_expanding_alpha_search(
         matrix,
         residuals,
         har,
         y,
-        inner_fit=inner_fit,
-        inner_tune=inner_tune,
+        eligible=specialist_train,
+        origin_date=origin_date,
         horizon_slice=slice(0, y.shape[1]),
         alpha_grid=config.alpha_grid,
+        minimum_fit_rows=config.minimum_cv_fit_rows,
     )
     correction = _fit_predict_ridge(
         matrix,
@@ -198,8 +237,11 @@ def fit_l5_single_head(
         "alpha": alpha,
         "alpha_early": alpha,
         "alpha_late": alpha,
-        "inner_fit_rows": float(inner_fit.sum()),
-        "inner_tune_rows": float(inner_tune.sum()),
+        "specialist_train_rows": float(
+            np.asarray(specialist_train, dtype=bool).sum()
+        ),
+        "cv_predictions": float(candidates["cv_predictions"].iloc[0]),
+        "minimum_cv_fit_rows": float(config.minimum_cv_fit_rows),
     }
     candidates = candidates.assign(head="single")
     return correction, diagnostics, candidates
@@ -215,33 +257,30 @@ def fit_l5_two_head(
     origin_date: np.ndarray,
     config: L5TwoHeadAssayConfig,
 ) -> tuple[np.ndarray, dict[str, float], pd.DataFrame]:
-    inner_fit, inner_tune = chronological_inner_split(
-        np.asarray(origin_date),
-        np.asarray(specialist_train, dtype=bool),
-        holdout_fraction=config.inner_holdout_fraction,
-    )
     split = int(config.split_horizon)
     early_slice = slice(0, split)
     late_slice = slice(split, y.shape[1])
-    alpha_early, early_candidates = _select_alpha(
+    alpha_early, early_candidates = _chronological_expanding_alpha_search(
         matrix,
         residuals,
         har,
         y,
-        inner_fit=inner_fit,
-        inner_tune=inner_tune,
+        eligible=specialist_train,
+        origin_date=origin_date,
         horizon_slice=early_slice,
         alpha_grid=config.alpha_grid,
+        minimum_fit_rows=config.minimum_cv_fit_rows,
     )
-    alpha_late, late_candidates = _select_alpha(
+    alpha_late, late_candidates = _chronological_expanding_alpha_search(
         matrix,
         residuals,
         har,
         y,
-        inner_fit=inner_fit,
-        inner_tune=inner_tune,
+        eligible=specialist_train,
+        origin_date=origin_date,
         horizon_slice=late_slice,
         alpha_grid=config.alpha_grid,
+        minimum_fit_rows=config.minimum_cv_fit_rows,
     )
     early_correction = _fit_predict_ridge(
         matrix,
@@ -260,8 +299,11 @@ def fit_l5_two_head(
         "alpha": float("nan"),
         "alpha_early": alpha_early,
         "alpha_late": alpha_late,
-        "inner_fit_rows": float(inner_fit.sum()),
-        "inner_tune_rows": float(inner_tune.sum()),
+        "specialist_train_rows": float(
+            np.asarray(specialist_train, dtype=bool).sum()
+        ),
+        "cv_predictions": float(early_candidates["cv_predictions"].iloc[0]),
+        "minimum_cv_fit_rows": float(config.minimum_cv_fit_rows),
     }
     candidates = pd.concat(
         [
@@ -306,7 +348,9 @@ def event_score_table(predictions: pd.DataFrame, split_horizon: int) -> pd.DataF
                 "desired_sign_pattern": bool(
                     early_correction < 0.0 and late_correction > 0.0
                 ),
-                "target_sign_pattern": bool(early_target < 0.0 and late_target > 0.0),
+                "target_sign_pattern": bool(
+                    early_target < 0.0 and late_target > 0.0
+                ),
             }
         )
     return pd.DataFrame(rows)
@@ -378,9 +422,13 @@ def _load_cache(
         cache_ids = np.asarray(bundle["sample_id"]).astype(str)
         modes = np.asarray(bundle["exact_modes"], dtype=float)
     if not np.array_equal(cache_ids, selected_ids):
-        raise RuntimeError(f"{path}: cache IDs do not match the reconstructed panel")
+        raise RuntimeError(
+            f"{path}: cache IDs do not match the reconstructed panel"
+        )
     if modes.shape != (len(selected_ids), 9):
-        raise RuntimeError(f"{path}: expected mode shape {(len(selected_ids), 9)}, got {modes.shape}")
+        raise RuntimeError(
+            f"{path}: expected mode shape {(len(selected_ids), 9)}, got {modes.shape}"
+        )
     return modes
 
 
@@ -409,7 +457,9 @@ def _reference_predictions(
     }
     missing = required.difference(frame.columns)
     if missing:
-        raise ValueError(f"comparison predictions missing columns: {sorted(missing)}")
+        raise ValueError(
+            f"comparison predictions missing columns: {sorted(missing)}"
+        )
     return frame.loc[
         frame["dataset"].eq(dataset_name)
         & frame["selection_seed"].eq(int(selection_seed))
@@ -446,7 +496,9 @@ def _validate_reference_parity(
         }
     ).sort_values(["sample_id", "horizon"])
     if len(har_rows) != len(expected):
-        raise RuntimeError("reference HAR row count differs from reconstructed validation panel")
+        raise RuntimeError(
+            "reference HAR row count differs from reconstructed validation panel"
+        )
     if not np.array_equal(
         har_rows["sample_id"].astype(str).to_numpy(),
         expected["sample_id"].astype(str).to_numpy(),
@@ -454,21 +506,27 @@ def _validate_reference_parity(
         har_rows["horizon"].to_numpy(dtype=int),
         expected["horizon"].to_numpy(dtype=int),
     ):
-        raise RuntimeError("reference HAR rows do not align with reconstructed validation rows")
+        raise RuntimeError(
+            "reference HAR rows do not align with reconstructed validation rows"
+        )
     if not np.allclose(
         har_rows["y_true"].to_numpy(dtype=float),
         expected["y_true"].to_numpy(dtype=float),
         atol=atol,
         rtol=0.0,
     ):
-        raise RuntimeError("reference target values differ from reconstructed targets")
+        raise RuntimeError(
+            "reference target values differ from reconstructed targets"
+        )
     if not np.allclose(
         har_rows["har_pred"].to_numpy(dtype=float),
         expected["har_pred"].to_numpy(dtype=float),
         atol=atol,
         rtol=0.0,
     ):
-        raise RuntimeError("reference HAR predictions differ from reconstructed HAR")
+        raise RuntimeError(
+            "reference HAR predictions differ from reconstructed HAR"
+        )
 
 
 def _convert_reference_rows(reference: pd.DataFrame) -> pd.DataFrame:
@@ -503,7 +561,9 @@ def _convert_reference_rows(reference: pd.DataFrame) -> pd.DataFrame:
     ]
 
 
-def metric_table(predictions: pd.DataFrame, later_folds: tuple[int, ...]) -> pd.DataFrame:
+def metric_table(
+    predictions: pd.DataFrame, later_folds: tuple[int, ...]
+) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     local = predictions.loc[predictions["fold"].isin(later_folds)]
     for (selection_seed, model_name, label), group in local.groupby(
@@ -529,7 +589,9 @@ def sign_summary(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     local = event_scores.loc[event_scores["fold"].isin(later_folds)].copy()
     fold_seed = (
-        local.groupby(["selection_seed", "fold", "model_name", "label"], sort=True)
+        local.groupby(
+            ["selection_seed", "fold", "model_name", "label"], sort=True
+        )
         .agg(
             early_correction=("early_correction", "mean"),
             late_correction=("late_correction", "mean"),
@@ -556,7 +618,9 @@ def sign_summary(
     return fold_seed, pooled
 
 
-def _path_table(predictions: pd.DataFrame, later_folds: tuple[int, ...]) -> pd.DataFrame:
+def _path_table(
+    predictions: pd.DataFrame, later_folds: tuple[int, ...]
+) -> pd.DataFrame:
     local = predictions.loc[
         predictions["fold"].isin(later_folds) & predictions["label"].eq(1)
     ].copy()
@@ -586,9 +650,17 @@ def _plot_paths(paths: pd.DataFrame, output_dir: Path, split_horizon: int) -> No
     ]
     figure, axis = plt.subplots(figsize=(10.5, 6.2))
     har = paths.loc[paths["model_name"].eq("har")].sort_values("horizon")
-    axis.plot(har["horizon"], har["y_true"], marker="o", linewidth=2.5, label="Realized")
+    axis.plot(
+        har["horizon"],
+        har["y_true"],
+        marker="o",
+        linewidth=2.5,
+        label="Realized",
+    )
     for model_name in selected_models:
-        local = paths.loc[paths["model_name"].eq(model_name)].sort_values("horizon")
+        local = paths.loc[paths["model_name"].eq(model_name)].sort_values(
+            "horizon"
+        )
         if local.empty:
             continue
         axis.plot(
@@ -620,7 +692,9 @@ def _plot_paths(paths: pd.DataFrame, output_dir: Path, split_horizon: int) -> No
         label="Required HAR residual correction",
     )
     for model_name in selected_models[1:]:
-        local = paths.loc[paths["model_name"].eq(model_name)].sort_values("horizon")
+        local = paths.loc[paths["model_name"].eq(model_name)].sort_values(
+            "horizon"
+        )
         if local.empty:
             continue
         axis.plot(
@@ -648,7 +722,9 @@ def _plot_fold_seed_signs(
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     models = ["l5_transition_single_head", "l5_transition_two_head"]
-    figure, axes = plt.subplots(1, 2, figsize=(11.5, 5.2), sharex=True, sharey=True)
+    figure, axes = plt.subplots(
+        1, 2, figsize=(11.5, 5.2), sharex=True, sharey=True
+    )
     for axis, model_name in zip(axes, models, strict=True):
         local = fold_seed.loc[
             fold_seed["model_name"].eq(model_name) & fold_seed["label"].eq(1)
@@ -863,7 +939,10 @@ def run_l5_two_head_assay(
         & fold_seed["label"].eq(1)
     ]
     correct_sign_cells = int(
-        ((cell_rows["early_correction"] < 0.0) & (cell_rows["late_correction"] > 0.0)).sum()
+        (
+            (cell_rows["early_correction"] < 0.0)
+            & (cell_rows["late_correction"] > 0.0)
+        ).sum()
     )
     decision = {
         "status": "l5_two_head_assay_complete",
@@ -894,14 +973,20 @@ def run_l5_two_head_assay(
         and decision["rmse_improved_all_seeds"]
     )
 
-    predictions.to_csv(run_dir / "predictions.csv.gz", index=False, compression="gzip")
+    predictions.to_csv(
+        run_dir / "predictions.csv.gz", index=False, compression="gzip"
+    )
     candidates.to_csv(run_dir / "inner_alpha_candidates.csv", index=False)
     metrics.to_csv(run_dir / "metrics_by_seed_and_group.csv", index=False)
-    event_scores.to_csv(run_dir / "event_sign_scores.csv.gz", index=False, compression="gzip")
+    event_scores.to_csv(
+        run_dir / "event_sign_scores.csv.gz", index=False, compression="gzip"
+    )
     fold_seed.to_csv(run_dir / "fold_seed_sign_summary.csv", index=False)
     pooled_sign.to_csv(run_dir / "pooled_sign_summary.csv", index=False)
-    paths.to_csv(run_dir / "l5_transition_mean_paths.csv", index=False)
-    (run_dir / "decision.json").write_text(json.dumps(decision, indent=2) + "\n")
+    paths.to_csv(run_dir / "l5_path_means.csv", index=False)
+    (run_dir / "decision.json").write_text(
+        json.dumps(decision, indent=2) + "\n"
+    )
     _plot_paths(paths, run_dir / "plots", config.split_horizon)
     _plot_fold_seed_signs(fold_seed, run_dir / "plots")
     return run_dir
