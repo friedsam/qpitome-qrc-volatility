@@ -63,17 +63,17 @@ def _candidate(
 def test_future_strata_follow_the_frozen_persistence_rule() -> None:
     policy = ControlStrataPolicy()
     calm = classify_control_future(
-        np.full(policy.persistence_window, -1.0),
+        np.full(policy.future_assessment_rows, -1.0),
         threshold=0.0,
         policy=policy,
     )
     hard = classify_control_future(
-        np.asarray([1.0, 1.0, 1.0] + [-1.0] * 12),
+        np.asarray([1.0, 1.0, 1.0] + [-1.0] * 21),
         threshold=0.0,
         policy=policy,
     )
     persistent = classify_control_future(
-        np.asarray([1.0] * policy.persistence_required + [-1.0] * 5),
+        np.asarray([1.0] * 10 + [-1.0] * 14),
         threshold=0.0,
         policy=policy,
     )
@@ -84,6 +84,26 @@ def test_future_strata_follow_the_frozen_persistence_rule() -> None:
     assert hard["future_threshold_crossings"] == 3
     assert persistent["control_stratum"] == PERSISTENT_EXCLUDED
     assert persistent["future_persistent"] is True
+    assert persistent["future_first_persistent_offset"] == 1
+
+
+def test_persistence_scan_reaches_an_onset_at_horizon_ten_but_not_horizon_eleven() -> None:
+    policy = ControlStrataPolicy()
+    onset_h10 = classify_control_future(
+        np.asarray([-1.0] * 9 + [1.0] * 10 + [-1.0] * 5),
+        threshold=0.0,
+        policy=policy,
+    )
+    onset_h11 = classify_control_future(
+        np.asarray([-1.0] * 10 + [1.0] * 10 + [-1.0] * 4),
+        threshold=0.0,
+        policy=policy,
+    )
+
+    assert onset_h10["control_stratum"] == PERSISTENT_EXCLUDED
+    assert onset_h10["future_first_persistent_offset"] == 10
+    assert onset_h11["control_stratum"] == CALM
+    assert onset_h11["future_threshold_crossings"] == 0
 
 
 def test_historical_total_three_freezes_two_calm_and_one_hard() -> None:
@@ -108,7 +128,10 @@ def test_matching_is_deterministic_preorigin_only_and_without_reuse() -> None:
                 position=position,
                 offset=float(position % 3),
             )
-            for stratum, positions in ((CALM, range(10, 18)), (HARD_NEGATIVE, range(30, 36)))
+            for stratum, positions in (
+                (CALM, range(10, 18)),
+                (HARD_NEGATIVE, range(30, 36)),
+            )
             for lead in (1, 5)
             for position in positions
         ]
@@ -142,8 +165,12 @@ def test_matching_is_deterministic_preorigin_only_and_without_reuse() -> None:
     )
     assert audit_a["complete_all_strata"].all()
     assert audit_b["complete_all_strata"].all()
-    assert not matched_a.duplicated(["fold", "fold_split", "index", "origin_date"]).any()
-    assert matched_a.groupby(["matched_positive_id", "control_stratum"]).size().to_dict() == {
+    assert not matched_a.duplicated(
+        ["fold", "fold_split", "index", "origin_date"]
+    ).any()
+    assert matched_a.groupby(
+        ["matched_positive_id", "control_stratum"]
+    ).size().to_dict() == {
         ("P_L1", CALM): 2,
         ("P_L1", HARD_NEGATIVE): 1,
         ("P_L5", CALM): 2,
@@ -155,7 +182,12 @@ def test_positive_is_incomplete_when_one_required_stratum_is_missing() -> None:
     positives = pd.DataFrame([_positive("P1", 1, 0.0)])
     candidates = pd.DataFrame(
         [
-            _candidate(stratum=CALM, lead=1, position=position, offset=0.0)
+            _candidate(
+                stratum=CALM,
+                lead=1,
+                position=position,
+                offset=0.0,
+            )
             for position in range(10, 14)
         ]
     )
