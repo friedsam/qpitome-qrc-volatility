@@ -42,8 +42,8 @@ class ControlStrataPolicy:
     prior_window: int = PRIOR_WIN
     prior_max_crossings: int = PRIOR_MAX
     calm_max_horizon_crossings: int = 0
-    calm_controls_per_positive: int = 2
-    hard_controls_per_positive: int = 1
+    calm_controls_per_positive: int = 1
+    hard_controls_per_positive: int = 2
 
     def validate(self) -> None:
         if self.forecast_horizon < 1:
@@ -98,17 +98,17 @@ class ControlStrataPolicy:
     def from_total_controls(cls, controls_per_positive: int) -> "ControlStrataPolicy":
         """Preserve the historical total while guaranteeing both strata.
 
-        Odd totals assign the additional control to the calm stratum because calm
-        false-upward corrections are the primary safety diagnostic. The hard-negative
-        stratum always remains represented.
+        Odd totals assign the additional archived control to the hard-negative stratum,
+        which is more prevalent in the provisional audit. Final evaluation selects one
+        calm and one hard control per transition episode.
         """
 
         if controls_per_positive < 2:
             raise ValueError(
                 "deterministic two-stratum controls require at least two controls per positive"
             )
-        hard = controls_per_positive // 2
-        calm = controls_per_positive - hard
+        calm = controls_per_positive // 2
+        hard = controls_per_positive - calm
         policy = cls(
             calm_controls_per_positive=calm,
             hard_controls_per_positive=hard,
