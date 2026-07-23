@@ -10,16 +10,18 @@ from transition_forecasting.data.fold_datasets import (
     DEFAULT_EMBARGO_DAYS,
     DEFAULT_N_FOLDS,
     DEFAULT_TEST_FRACTION,
-    build_one_and_three_channel_folds,
+    build_one_channel_folds,
 )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build candidate pools and purged walk-forward folds."
+        description=(
+            "Build the canonical one-channel pre-control candidate pool and "
+            "purged walk-forward folds."
+        )
     )
     parser.add_argument("--dataset-1d", type=Path, required=True)
-    parser.add_argument("--dataset-3d", type=Path, required=True)
     parser.add_argument("--n-folds", type=int, default=DEFAULT_N_FOLDS)
     parser.add_argument("--test-fraction", type=float, default=DEFAULT_TEST_FRACTION)
     parser.add_argument("--embargo-days", type=int, default=DEFAULT_EMBARGO_DAYS)
@@ -34,9 +36,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    report = build_one_and_three_channel_folds(
+    report = build_one_channel_folds(
         args.dataset_1d,
-        args.dataset_3d,
         n_folds=args.n_folds,
         test_fraction=args.test_fraction,
         embargo_days=args.embargo_days,
