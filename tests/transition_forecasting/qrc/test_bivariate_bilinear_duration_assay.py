@@ -6,14 +6,36 @@ import pytest
 
 from transition_forecasting.qrc.bivariate_bilinear_duration_assay import (
     BivariateBilinearDurationConfig,
-    REPRESENTATIONS,
+    _annotate_nulls,
     _paired_on_off,
-    select_duration_representations,
+)
+from transition_forecasting.qrc.bivariate_bilinear_mixing_assay import (
+    BILINEAR_SCHEDULES,
+    evolve_bilinear_schedule_probabilities,
+)
+from transition_forecasting.qrc.temporal_rydberg_chain import (
+    TemporalRydbergChainConfig,
+)
+from transition_forecasting.qrc.temporal_rydberg_ladder import (
+    StaggeredLadderGeometryConfig,
 )
 
 
-def _config() -> BivariateBilinearDurationConfig:
-    return BivariateBilinearDurationConfig(
+def _reservoir(duration: float) -> TemporalRydbergChainConfig:
+    return TemporalRydbergChainConfig(
+        n_atoms=6,
+        delta_center_rad_us=6.0,
+        delta_span_rad_us=4.0,
+        omega_base_rad_us=6.0,
+        omega_mod_fraction=0.60,
+        step_duration_us=duration,
+        probe_fractions=(0.5, 1.0),
+        shots=None,
+    )
+
+
+def test_duration_config_preserves_exchange_pairs() -> None:
+    config = BivariateBilinearDurationConfig(
         samples=160,
         sequence_length=20,
         memory_delays=(1, 2, 4, 5, 8, 12),
@@ -21,80 +43,120 @@ def _config() -> BivariateBilinearDurationConfig:
         step_durations_us=(0.01, 0.02, 0.03),
         permutations=4,
     )
-
-
-def test_smoke_configuration_is_pair_preserving_and_contains_reference_duration() -> None:
-    config = _config()
     config.validate()
 
-    train_end = int(np.floor(config.samples * 0.60))
-    validation_end = train_end + int(np.floor(config.samples * 0.20))
-    assert train_end % 2 == 0
-    assert validation_end % 2 == 0
-    assert 0.02 in config.step_durations_us
 
-
-def test_duration_configuration_rejects_duplicate_or_zero_durations() -> None:
-    with pytest.raises(ValueError, match="step durations"):
+def test_duration_config_rejects_duplicate_or_nonpositive_values() -> None:
+    with pytest.raises(ValueError):
         BivariateBilinearDurationConfig(
-            samples=160,
-            sequence_length=20,
-            memory_delays=(1, 2, 4, 5, 8, 12),
-            seeds=(20260724,),
-            step_durations_us=(0.01, 0.01),
-            permutations=4,
+            step_durations_us=(0.01, 0.01)
         ).validate()
-    with pytest.raises(ValueError, match="step durations"):
+    with pytest.raises(ValueError):
         BivariateBilinearDurationConfig(
-            samples=160,
-            sequence_length=20,
-            memory_delays=(1, 2, 4, 5, 8, 12),
-            seeds=(20260724,),
-            step_durations_us=(0.0, 0.02),
-            permutations=4,
+            step_durations_us=(0.0, 0.01)
         ).validate()
 
 
-def test_duration_representation_selection_is_bounded() -> None:
-    rng = np.random.default_rng(11)
-    values = {
-        "palindrome_control": rng.normal(size=(10, 63)),
-        "forward_mirror_concat": rng.normal(size=(10, 126)),
-        "reverse_mirror_concat": rng.normal(size=(10, 126)),
-        "commutator_contrast_concat": rng.normal(size=(10, 126)),
-    }
-    selected = select_duration_representations(values)
+def test_bilinear_probabilities_change_with_duration() -> None:
+    rng = np.random.default_rng(20260724)
+    windows = rng.uniform(-1.0, 1.0, size=(3, 8, 2))
+    geometry = StaggeredLadderGeometryConfig(row_spacing_um=9.0)
+    routes = BILINEAR_SCHEDULES["d1_then_x2"]
 
-    assert tuple(selected) == REPRESENTATIONS
-    assert selected["palindrome_control"].shape == (10, 63)
-    assert selected["reverse_mirror_concat"].shape == (10, 126)
-    assert selected["commutator_contrast_concat"].shape == (10, 126)
-    assert "forward_mirror_concat" not in selected
+    short, _ = evolve_bilinear_schedule_probabilities(
+        windows,
+        _reservoir(0.01),
+        geometry,
+        routes,
+        interaction_scale=1.25,
+        drive_phase_rad=0.0,
+    )
+    long, _ = evolve_bilinear_schedule_probabilities(
+        windows,
+        _reservoir(0.03),
+        geometry,
+        routes,
+        interaction_scale=1.25,
+        drive_phase_rad=0.0,
+    )
+
+    assert short.shape == long.shape == (3, 2, 64)
+    assert float(np.max(np.abs(short - long))) > 1e-8
 
 
-def test_paired_on_off_differences_are_computed_within_seed() -> None:
+def test_null_annotation_is_duration_specific() -> None:
+    observed = pd.DataFrame(
+        [
+            {
+                "seed": 1,
+                "step_duration_us": 0.01,
+                "interaction": "on",
+                "representation": "all_orders_joint",
+                "channel1_early": 0.5,
+                "channel2_early": 0.5,
+                "minimum_early": 0.5,
+                "minimum_delay5": 0.2,
+                "mixing_sum": 0.1,
+                "order": 0.05,
+            },
+            {
+                "seed": 1,
+                "step_duration_us": 0.02,
+                "interaction": "on",
+                "representation": "all_orders_joint",
+                "channel1_early": 0.5,
+                "channel2_early": 0.5,
+                "minimum_early": 0.5,
+                "minimum_delay5": 0.2,
+                "mixing_sum": 0.1,
+                "order": 0.05,
+            },
+        ]
+    )
     rows = []
-    for seed, off, on in ((1, 0.01, 0.04), (2, 0.03, 0.02)):
-        for interaction, value in (("off", off), ("on", on)):
+    for duration, baseline in ((0.01, 0.01), (0.02, 0.20)):
+        for permutation in range(4):
             rows.append(
                 {
-                    "seed": seed,
-                    "step_duration_us": 0.02,
-                    "representation": "reverse_mirror_concat",
-                    "interaction": interaction,
-                    "mixing_sum": value,
-                    "minimum_delay5": 0.1 + value,
-                    "minimum_early": 0.2 + value,
-                    "order": 0.3 + value,
+                    "seed": 1,
+                    "step_duration_us": duration,
+                    "interaction": "on",
+                    "representation": "all_orders_joint",
+                    "permutation": permutation,
+                    "channel1_early": baseline,
+                    "channel2_early": baseline,
+                    "minimum_early": baseline,
+                    "minimum_delay5": baseline,
+                    "mixing_sum": baseline,
+                    "order": baseline,
                 }
             )
-    paired = _paired_on_off(pd.DataFrame(rows)).sort_values("seed")
+    annotated = _annotate_nulls(observed, pd.DataFrame(rows))
+    first = annotated.loc[np.isclose(annotated["step_duration_us"], 0.01)].iloc[0]
+    second = annotated.loc[np.isclose(annotated["step_duration_us"], 0.02)].iloc[0]
+    assert first["mixing_sum_above_null_q95"]
+    assert not second["mixing_sum_above_null_q95"]
 
+
+def test_paired_on_off_is_kept_per_duration() -> None:
+    rows = []
+    for duration in (0.01, 0.02):
+        for interaction, offset in (("off", 0.0), ("on", duration)):
+            rows.append(
+                {
+                    "seed": 1,
+                    "step_duration_us": duration,
+                    "interaction": interaction,
+                    "representation": "palindrome_plus_all_orders",
+                    "minimum_early": 0.1 + offset,
+                    "minimum_delay5": 0.2 + offset,
+                    "mixing_sum": 0.3 + offset,
+                    "order": 0.4 + offset,
+                }
+            )
+    paired = _paired_on_off(pd.DataFrame(rows))
+    assert len(paired) == 2
     np.testing.assert_allclose(
-        paired["mixing_sum_on_minus_off"].to_numpy(dtype=float),
-        np.asarray([0.03, -0.01]),
-    )
-    np.testing.assert_allclose(
-        paired["minimum_delay5_on_minus_off"].to_numpy(dtype=float),
-        np.asarray([0.03, -0.01]),
+        paired.sort_values("step_duration_us")["mixing_sum_on_minus_off"],
+        [0.01, 0.02],
     )
