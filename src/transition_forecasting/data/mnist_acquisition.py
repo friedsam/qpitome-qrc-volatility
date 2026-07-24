@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import shutil
 import struct
@@ -35,6 +36,15 @@ def _open_maybe_gzip(path: Path):
     with path.open("rb") as probe:
         signature = probe.read(2)
     return gzip.open(path, "rb") if signature == b"\x1f\x8b" else path.open("rb")
+
+
+def _decoded_sha256(path: Path) -> str:
+    """Hash decoded bytes so raw and gzip copies compare equivalently."""
+    digest = hashlib.sha256()
+    with _open_maybe_gzip(path) as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def read_idx(path: Path) -> np.ndarray:
@@ -97,14 +107,32 @@ def discover_idx_files(root: Path) -> dict[str, Path]:
     missing = sorted(required.difference(found))
     if missing:
         raise ValueError(f"{root}: could not locate IDX streams for {missing}")
-    ambiguous = {
-        role: [str(path) for path in paths]
-        for role, paths in found.items()
-        if len(paths) != 1
-    }
-    if ambiguous:
-        raise ValueError(f"{root}: ambiguous IDX streams: {ambiguous}")
-    return {role: paths[0] for role, paths in found.items()}
+    root = Path(root)
+    resolved: dict[str, Path] = {}
+    conflicting: dict[str, list[str]] = {}
+    for role, paths in found.items():
+        if len(paths) == 1:
+            resolved[role] = paths[0]
+            continue
+
+        digest_groups: dict[str, list[Path]] = {}
+        for path in paths:
+            digest_groups.setdefault(_decoded_sha256(path), []).append(path)
+        if len(digest_groups) != 1:
+            conflicting[role] = [str(path) for path in paths]
+            continue
+
+        resolved[role] = min(
+            paths,
+            key=lambda path: (
+                len(path.relative_to(root).parts),
+                path.as_posix(),
+            ),
+        )
+
+    if conflicting:
+        raise ValueError(f"{root}: conflicting IDX streams: {conflicting}")
+    return resolved
 
 
 def validate_source(root: Path) -> dict[str, object]:
