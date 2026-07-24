@@ -94,7 +94,7 @@ def main() -> None:
         shot_seed=args.seeds[0],
     )
     geometry = StaggeredLadderGeometryConfig(
-        longitudinal_spacing_um=args.ladder_longitud_spacing_um,
+        longitudinal_spacing_um=args.ladder_longitudinal_spacing_um,
         row_spacing_um=args.ladder_row_spacing_um,
         stagger_fraction=args.ladder_stagger_fraction,
         bottom_spacing_scale=args.ladder_bottom_spacing_scale,
