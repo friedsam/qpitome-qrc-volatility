@@ -79,13 +79,16 @@ def load_evaluation_manifest(path: Path) -> pd.DataFrame:
         raise ValueError("evaluation manifest is empty")
     frame = frame.copy()
     frame["ticker"] = frame["sample_id"].map(parse_ticker)
-    frame["origin_date"] = pd.to_datetime(frame["origin_date"], utc=True).dt.normalize()
-    frame["prequential_valid"] = (
-        frame["prequential_valid"]
-        .astype(str)
-        .str.lower()
-        .map({"true": True, "false": False})
-    )
+    frame["origin_date"] = pd.to_datetime(
+        frame["origin_date"], format="mixed", utc=True
+    ).dt.normalize()
+    if frame["prequential_valid"].dtype != bool:
+        frame["prequential_valid"] = (
+            frame["prequential_valid"]
+            .astype(str)
+            .str.lower()
+            .map({"true": True, "false": False})
+        )
     if frame["prequential_valid"].isna().any():
         raise ValueError("prequential_valid contains non-boolean values")
     if frame["fold_split"].eq("test").any():
@@ -96,16 +99,11 @@ def load_evaluation_manifest(path: Path) -> pd.DataFrame:
 
 
 def load_ohlc_panel(path: Path) -> dict[str, pd.DataFrame]:
-    frame = pd.read_csv(
-        path,
-        usecols=["date", "open", "high", "low", "close", "ticker"],
-    )
+    frame = pd.read_csv(path, usecols=["date", "open", "high", "low", "close", "ticker"])
     frame["date"] = pd.to_datetime(frame["date"], utc=True).dt.normalize()
     for column in ("open", "high", "low", "close"):
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
-    frame = frame.sort_values(["ticker", "date"]).drop_duplicates(
-        ["ticker", "date"], keep="last"
-    )
+    frame = frame.sort_values(["ticker", "date"]).drop_duplicates(["ticker", "date"], keep="last")
     output: dict[str, pd.DataFrame] = {}
     for ticker, group in frame.groupby("ticker", sort=True):
         local = group.set_index("date")[["open", "high", "low", "close"]].sort_index()
@@ -194,15 +192,9 @@ def build_feature_tables(
 ]:
     config.validate()
     raw = {
-        "downside_return": np.full(
-            (len(manifest), config.window), np.nan, dtype=float
-        ),
-        "intraday_range": np.full(
-            (len(manifest), config.window), np.nan, dtype=float
-        ),
-        "overnight_return": np.full(
-            (len(manifest), config.window), np.nan, dtype=float
-        ),
+        "downside_return": np.full((len(manifest), config.window), np.nan, dtype=float),
+        "intraday_range": np.full((len(manifest), config.window), np.nan, dtype=float),
+        "overnight_return": np.full((len(manifest), config.window), np.nan, dtype=float),
     }
     base_valid = np.zeros(len(manifest), dtype=bool)
     range_valid = np.zeros(len(manifest), dtype=bool)
@@ -317,23 +309,22 @@ def fit_select_signed_residual(
     y = np.asarray(targets, dtype=float)
     eligible = np.asarray(fit_eligible, dtype=bool) & np.isfinite(x).all(axis=1)
     inner_fit, inner_tune = chronological_inner_split(
-        origin_dates,
-        eligible,
-        config.inner_holdout_fraction,
+        origin_dates, eligible, config.inner_holdout_fraction
     )
     rows: list[dict[str, float]] = []
     for alpha in config.alphas:
         scaler = StandardScaler().fit(x[inner_fit])
-        design = scaler.transform(x)
+        fit_design = scaler.transform(x[inner_fit])
+        tune_design = scaler.transform(x[inner_tune])
         model = Ridge(alpha=float(alpha), fit_intercept=False).fit(
-            design[inner_fit], residual[inner_fit]
+            fit_design, residual[inner_fit]
         )
-        prediction = baseline + model.predict(design)
+        tune_prediction = baseline[inner_tune] + model.predict(tune_design)
         rows.append(
             {
                 "alpha": float(alpha),
-                "inner_rmse": rmse_loss(y[inner_tune], prediction[inner_tune]),
-                "inner_qlike": qlike_loss(y[inner_tune], prediction[inner_tune]),
+                "inner_rmse": rmse_loss(y[inner_tune], tune_prediction),
+                "inner_qlike": qlike_loss(y[inner_tune], tune_prediction),
             }
         )
     selected = min(
@@ -341,15 +332,16 @@ def fit_select_signed_residual(
         key=lambda row: (row["inner_rmse"], row["inner_qlike"], row["alpha"]),
     )
     scaler = StandardScaler().fit(x[eligible])
-    design = scaler.transform(x)
+    fit_design = scaler.transform(x[eligible])
     model = Ridge(alpha=float(selected["alpha"]), fit_intercept=False).fit(
-        design[eligible], residual[eligible]
+        fit_design, residual[eligible]
     )
     correction = np.full_like(baseline, np.nan, dtype=float)
     valid_prediction = np.asarray(prediction_eligible, dtype=bool) & np.isfinite(x).all(
         axis=1
     )
-    correction[valid_prediction] = model.predict(design[valid_prediction])
+    prediction_design = scaler.transform(x[valid_prediction])
+    correction[valid_prediction] = model.predict(prediction_design)
     prediction = baseline + correction
     selected_payload = {
         **selected,
@@ -521,6 +513,24 @@ def run_input_admission_assay(
         compression="gzip",
     )
 
+    if metrics.empty:
+        skip_reasons = (
+            selections.loc[selections["status"].eq("skipped"), "reason"]
+            .value_counts()
+            .head(10)
+            .to_dict()
+            if not selections.empty
+            else {}
+        )
+        availability_counts = {
+            feature_set: int(availability[f"valid__{feature_set}"].sum())
+            for feature_set in FEATURE_SETS
+        }
+        raise RuntimeError(
+            "input admission assay produced no metric rows; "
+            f"availability={availability_counts}; skip_reasons={skip_reasons}"
+        )
+
     complete = metrics.loc[metrics["scope"].eq("all")]
     pivot = complete.pivot_table(
         index=["fold", "lead", "feature_set", "representation"],
@@ -531,9 +541,7 @@ def run_input_admission_assay(
     pivot.columns = [f"{metric}__{model}" for metric, model in pivot.columns]
     pivot = pivot.reset_index()
     if not pivot.empty:
-        pivot["delta_qlike"] = (
-            pivot["qlike__har_plus_input"] - pivot["qlike__har"]
-        )
+        pivot["delta_qlike"] = pivot["qlike__har_plus_input"] - pivot["qlike__har"]
         pivot["delta_rmse"] = pivot["rmse__har_plus_input"] - pivot["rmse__har"]
         pivot.to_csv(output / "paired_fold_deltas.csv", index=False)
         summary_table = (
@@ -560,10 +568,9 @@ def run_input_admission_assay(
         "base_ohlc_valid_rows": int(availability["base_ohlc_valid"].sum()),
         "range_valid_rows": int(availability["range_valid"].sum()),
         "interpretation": (
-            "This is an input-admission screen. Models are no-intercept signed residual "
-            "probes selected by chronological inner RMSE. A channel should not be sent "
-            "through QRC unless it improves the requested lead across folds without "
-            "relying on a universal offset."
+            "This is an input-admission screen. Models are no-intercept signed residual probes "
+            "selected by chronological inner RMSE. A channel should not be sent through QRC unless "
+            "it improves the requested lead across folds without relying on a universal offset."
         ),
     }
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
