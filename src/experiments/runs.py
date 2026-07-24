@@ -49,8 +49,4 @@ def begin_run(
         json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",
     )
-    # Selection tables are common first-class artifacts across the experiment
-    # suite. Creating the directory centrally avoids assay-specific write-order
-    # failures while preserving immutable run-root semantics.
-    (run_dir / "selection_candidates").mkdir()
     return run_dir
