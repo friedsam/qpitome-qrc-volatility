@@ -12,9 +12,11 @@ import numpy as np
 import pandas as pd
 
 from experiments.runs import begin_run
+from transition_forecasting.qrc.bivariate_all_orders_readout_assay import (
+    build_all_orders_representations,
+)
 from transition_forecasting.qrc.bivariate_bilinear_mixing_assay import (
     BILINEAR_SCHEDULES,
-    build_bilinear_representations,
     evolve_bilinear_schedule_probabilities,
 )
 from transition_forecasting.qrc.bivariate_capacity_assay import (
@@ -42,11 +44,7 @@ from transition_forecasting.qrc.temporal_rydberg_ladder import (
 )
 
 PALINDROMIC_SCHEDULE_NAME = "crossover_Ahalf_B_Ahalf"
-REPRESENTATIONS = (
-    "palindrome_control",
-    "reverse_mirror_concat",
-    "commutator_contrast_concat",
-)
+REPRESENTATIONS = ("all_orders_joint", "palindrome_plus_all_orders")
 
 
 @dataclass(frozen=True)
@@ -115,26 +113,17 @@ def _palindromic_schedule():
     )
 
 
-def select_duration_representations(
-    representations: dict[str, np.ndarray],
-) -> dict[str, np.ndarray]:
-    missing = set(REPRESENTATIONS).difference(representations)
-    if missing:
-        raise ValueError(f"missing duration representations: {sorted(missing)}")
-    return {name: np.asarray(representations[name], dtype=float) for name in REPRESENTATIONS}
-
-
 def _annotate_nulls(observed: pd.DataFrame, null_frame: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     for _, current in observed.iterrows():
         local = null_frame.loc[
             null_frame["seed"].eq(current["seed"])
-            & null_frame["interaction"].eq(current["interaction"])
-            & null_frame["representation"].eq(current["representation"])
             & np.isclose(
                 null_frame["step_duration_us"].to_numpy(dtype=float),
                 float(current["step_duration_us"]),
             )
+            & null_frame["interaction"].eq(current["interaction"])
+            & null_frame["representation"].eq(current["representation"])
         ]
         if local.empty:
             raise RuntimeError("missing paired null rows for bilinear duration case")
@@ -166,8 +155,40 @@ def _annotate_nulls(observed: pd.DataFrame, null_frame: pd.DataFrame) -> pd.Data
     return result
 
 
+def _aggregate(seed_summary: pd.DataFrame) -> pd.DataFrame:
+    return seed_summary.groupby(
+        ["step_duration_us", "interaction", "representation"], as_index=False
+    ).agg(
+        seeds=("seed", "nunique"),
+        feature_count=("feature_count", "first"),
+        channel1_early_mean=("channel1_early", "mean"),
+        channel2_early_mean=("channel2_early", "mean"),
+        minimum_early_mean=("minimum_early", "mean"),
+        minimum_early_min=("minimum_early", "min"),
+        early_balance_ratio_mean=("early_balance_ratio", "mean"),
+        early_balance_ratio_min=("early_balance_ratio", "min"),
+        minimum_delay5_mean=("minimum_delay5", "mean"),
+        minimum_delay5_min=("minimum_delay5", "min"),
+        mixing_mean=("mixing_sum", "mean"),
+        mixing_max=("mixing_sum", "max"),
+        mixing_margin_mean=("mixing_margin", "mean"),
+        mixing_margin_min=("mixing_margin", "min"),
+        order_mean=("order", "mean"),
+        effective_rank_mean=("effective_rank_train_validation", "mean"),
+        both_channels_early_above_null_fraction=(
+            "both_channels_early_above_null",
+            "mean",
+        ),
+        minimum_delay5_above_null_fraction=(
+            "minimum_delay5_above_null_q95",
+            "mean",
+        ),
+        mixing_above_null_fraction=("mixing_sum_above_null_q95", "mean"),
+    )
+
+
 def _paired_on_off(seed_summary: pd.DataFrame) -> pd.DataFrame:
-    metrics = ["mixing_sum", "minimum_delay5", "minimum_early", "order"]
+    metrics = ["minimum_early", "minimum_delay5", "mixing_sum", "order"]
     pivot = seed_summary.pivot_table(
         index=["seed", "step_duration_us", "representation"],
         columns="interaction",
@@ -184,125 +205,103 @@ def _paired_on_off(seed_summary: pd.DataFrame) -> pd.DataFrame:
     return pivot
 
 
-def _aggregate(seed_summary: pd.DataFrame, paired: pd.DataFrame) -> pd.DataFrame:
-    aggregate = seed_summary.groupby(
-        ["interaction", "step_duration_us", "representation"], as_index=False
-    ).agg(
-        seeds=("seed", "nunique"),
-        minimum_early_mean=("minimum_early", "mean"),
-        minimum_early_min=("minimum_early", "min"),
-        early_balance_ratio_mean=("early_balance_ratio", "mean"),
-        early_balance_ratio_min=("early_balance_ratio", "min"),
-        minimum_delay5_mean=("minimum_delay5", "mean"),
-        minimum_delay5_min=("minimum_delay5", "min"),
-        mixing_mean=("mixing_sum", "mean"),
-        mixing_max=("mixing_sum", "max"),
-        mixing_margin_mean=("mixing_margin", "mean"),
-        mixing_margin_min=("mixing_margin", "min"),
-        order_mean=("order", "mean"),
-        order_max=("order", "max"),
-        effective_rank_mean=("effective_rank_train_validation", "mean"),
-        both_channels_early_above_null_fraction=(
-            "both_channels_early_above_null",
-            "mean",
-        ),
-        minimum_delay5_above_null_fraction=(
-            "minimum_delay5_above_null_q95",
-            "mean",
-        ),
-        mixing_above_null_fraction=("mixing_sum_above_null_q95", "mean"),
-        order_above_null_fraction=("order_above_null_q95", "mean"),
-    )
-    paired_aggregate = paired.groupby(
-        ["step_duration_us", "representation"], as_index=False
-    ).agg(
-        mixing_on_minus_off_mean=("mixing_sum_on_minus_off", "mean"),
-        mixing_on_minus_off_min=("mixing_sum_on_minus_off", "min"),
-        delay5_on_minus_off_mean=("minimum_delay5_on_minus_off", "mean"),
-        order_on_minus_off_mean=("order_on_minus_off", "mean"),
-    )
-    return aggregate.merge(
-        paired_aggregate,
-        on=["step_duration_us", "representation"],
-        how="left",
-        validate="many_to_one",
-    )
-
-
-def _render_plots(summary: pd.DataFrame, output_dir: Path) -> list[str]:
+def _render_plots(
+    aggregate: pd.DataFrame,
+    paired: pd.DataFrame,
+    output_dir: Path,
+) -> list[str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs: list[str] = []
-    on = summary.loc[summary["interaction"].eq("on")].copy()
+    on = aggregate.loc[aggregate["interaction"].eq("on")].copy()
 
-    figure, axis = plt.subplots(figsize=(10.2, 5.8))
-    for representation in REPRESENTATIONS:
-        local = on.loc[on["representation"].eq(representation)].sort_values(
-            "step_duration_us"
-        )
+    figure, axis = plt.subplots(figsize=(9.8, 5.8))
+    for representation, group in on.groupby("representation", sort=False):
+        ordered = group.sort_values("step_duration_us")
         axis.plot(
-            local["step_duration_us"],
-            local["mixing_margin_mean"],
+            ordered["step_duration_us"],
+            ordered["minimum_delay5_mean"],
+            marker="o",
+            label=representation,
+        )
+    axis.set_xlabel("Step duration (microseconds)")
+    axis.set_ylabel("Mean minimum delay-5 capacity")
+    axis.set_title("Bilinear joint-readout delay-5 memory")
+    axis.grid(alpha=0.25)
+    axis.legend()
+    figure.tight_layout()
+    filename = "bilinear_joint_delay5_vs_duration.png"
+    figure.savefig(output_dir / filename, dpi=220)
+    plt.close(figure)
+    outputs.append(filename)
+
+    figure, axis = plt.subplots(figsize=(9.8, 5.8))
+    for representation, group in on.groupby("representation", sort=False):
+        ordered = group.sort_values("step_duration_us")
+        axis.plot(
+            ordered["step_duration_us"],
+            ordered["mixing_margin_mean"],
             marker="o",
             label=representation,
         )
     axis.axhline(0.0, linewidth=1)
     axis.set_xlabel("Step duration (microseconds)")
     axis.set_ylabel("Mean mixing margin versus paired null")
-    axis.set_title("Bilinear mixing margin versus duration")
+    axis.set_title("Bilinear joint-readout mixing versus duration")
     axis.grid(alpha=0.25)
     axis.legend()
     figure.tight_layout()
-    filename = "bilinear_mixing_margin_vs_duration.png"
+    filename = "bilinear_joint_mixing_margin_vs_duration.png"
     figure.savefig(output_dir / filename, dpi=220)
     plt.close(figure)
     outputs.append(filename)
 
-    figure, axis = plt.subplots(figsize=(10.2, 5.8))
-    for representation in REPRESENTATIONS:
-        local = on.loc[on["representation"].eq(representation)].sort_values(
-            "step_duration_us"
-        )
+    joint = paired.loc[
+        paired["representation"].eq("palindrome_plus_all_orders")
+    ].copy()
+    figure, axis = plt.subplots(figsize=(10.0, 5.8))
+    for seed, group in joint.groupby("seed", sort=True):
+        ordered = group.sort_values("step_duration_us")
         axis.plot(
-            local["step_duration_us"],
-            local["minimum_delay5_mean"],
+            ordered["step_duration_us"],
+            ordered["mixing_sum_on_minus_off"],
             marker="o",
-            label=representation,
+            label=str(seed),
         )
-    axis.set_xlabel("Step duration (microseconds)")
-    axis.set_ylabel("Mean minimum-channel delay-5 capacity")
-    axis.set_title("Bilinear delay-5 memory versus duration")
-    axis.grid(alpha=0.25)
-    axis.legend()
-    figure.tight_layout()
-    filename = "bilinear_delay5_vs_duration.png"
-    figure.savefig(output_dir / filename, dpi=220)
-    plt.close(figure)
-    outputs.append(filename)
-
-    reverse = on.loc[on["representation"].eq("reverse_mirror_concat")].sort_values(
-        "step_duration_us"
-    )
-    figure, axis = plt.subplots(figsize=(10.2, 5.8))
-    axis.plot(
-        reverse["step_duration_us"],
-        reverse["mixing_on_minus_off_mean"],
-        marker="o",
-        label="mean on-off mixing advantage",
-    )
-    axis.plot(
-        reverse["step_duration_us"],
-        reverse["mixing_on_minus_off_min"],
-        marker="o",
-        label="worst-seed on-off advantage",
-    )
     axis.axhline(0.0, linewidth=1)
     axis.set_xlabel("Step duration (microseconds)")
-    axis.set_ylabel("Interaction-on minus interaction-off mixing")
-    axis.set_title("Reverse schedule interaction-assisted mixing")
+    axis.set_ylabel("Mixing capacity: interactions on minus off")
+    axis.set_title("Paired interaction contribution by duration and seed")
+    axis.grid(alpha=0.25)
+    axis.legend(title="seed")
+    figure.tight_layout()
+    filename = "bilinear_joint_paired_interaction_advantage.png"
+    figure.savefig(output_dir / filename, dpi=220)
+    plt.close(figure)
+    outputs.append(filename)
+
+    figure, axis = plt.subplots(figsize=(8.4, 6.2))
+    for representation, group in on.groupby("representation", sort=False):
+        axis.scatter(
+            group["minimum_delay5_mean"],
+            group["mixing_margin_mean"],
+            label=representation,
+        )
+        for _, row in group.iterrows():
+            axis.annotate(
+                f'{float(row["step_duration_us"]):g}',
+                (float(row["minimum_delay5_mean"]), float(row["mixing_margin_mean"])),
+                xytext=(4, 3),
+                textcoords="offset points",
+                fontsize=8,
+            )
+    axis.axhline(0.0, linewidth=1)
+    axis.set_xlabel("Mean minimum delay-5 capacity")
+    axis.set_ylabel("Mean mixing margin")
+    axis.set_title("Bilinear memory–mixing operating points")
     axis.grid(alpha=0.25)
     axis.legend()
     figure.tight_layout()
-    filename = "reverse_on_off_mixing_advantage.png"
+    filename = "bilinear_joint_memory_mixing_operating_points.png"
     figure.savefig(output_dir / filename, dpi=220)
     plt.close(figure)
     outputs.append(filename)
@@ -339,18 +338,17 @@ def run_bivariate_bilinear_duration_assay(
         Path(results_root),
         {
             "config": config.to_dict(),
-            "reservoir": base_reservoir.to_dict(),
+            "base_reservoir": base_reservoir.to_dict(),
             "geometry": geometry_config.to_dict(),
             "financial_data_used": False,
             "financial_test_rows_used": 0,
             "exchange_symmetric_pairs": True,
             "paired_across_durations": True,
             "paired_interaction_control": True,
-            "feature_bank": "occupation_pair_raw",
+            "representations": list(REPRESENTATIONS),
             "scientific_question": (
-                "Does a duration near the palindrome memory optimum make the reverse or "
-                "commutator bilinear representation produce stable interaction-assisted "
-                "mixing while retaining balanced delay-5 memory?"
+                "Can a bilinear-schedule-specific input duration produce permutation-significant "
+                "cross-channel mixing while a joint readout retains balanced delay-5 memory?"
             ),
         },
         run_id=run_id,
@@ -367,7 +365,7 @@ def run_bivariate_bilinear_duration_assay(
     metadata_rows: list[dict[str, object]] = []
 
     for seed in config.seeds:
-        capacity_config = stability_config.capacity_config(seed)
+        capacity_config = stability_config.capacity_config(int(seed))
         windows = generate_exchange_symmetric_windows(stability_config, seed=int(seed))
         targets = build_capacity_targets(windows, capacity_config)
         rng = np.random.default_rng(int(seed) + 2_718_281_828)
@@ -388,7 +386,7 @@ def run_bivariate_bilinear_duration_assay(
 
             for interaction in ("off", "on"):
                 scale = config.interaction_scale if interaction == "on" else 0.0
-                raw_features: dict[str, np.ndarray] = {}
+                raw: dict[str, np.ndarray] = {}
 
                 if interaction == "on":
                     probabilities, metadata = evolve_crossover_probabilities(
@@ -406,7 +404,7 @@ def run_bivariate_bilinear_duration_assay(
                         geometry_config,
                         drive_phase_rad=config.drive_phase_rad,
                     )
-                raw_features["palindrome"] = build_crossover_feature_banks(probabilities)[
+                raw["palindrome"] = build_crossover_feature_banks(probabilities)[
                     "occupation_pair_raw"
                 ]
                 np.savez_compressed(
@@ -433,12 +431,15 @@ def run_bivariate_bilinear_duration_assay(
                         interaction_scale=scale,
                         drive_phase_rad=config.drive_phase_rad,
                     )
-                    raw_features[schedule_name] = build_crossover_feature_banks(
-                        probabilities
-                    )["occupation_pair_raw"]
+                    raw[schedule_name] = build_crossover_feature_banks(probabilities)[
+                        "occupation_pair_raw"
+                    ]
                     np.savez_compressed(
                         probability_dir
-                        / f"seed_{seed}__duration_{duration_tag}__{interaction}__{schedule_name}.npz",
+                        / (
+                            f"seed_{seed}__duration_{duration_tag}__{interaction}"
+                            f"__{schedule_name}.npz"
+                        ),
                         probabilities=probabilities,
                     )
                     metadata_rows.append(
@@ -451,10 +452,9 @@ def run_bivariate_bilinear_duration_assay(
                         }
                     )
 
-                representations = select_duration_representations(
-                    build_bilinear_representations(raw_features)
-                )
-                for representation, matrix in representations.items():
+                representations = build_all_orders_representations(raw)
+                for representation in REPRESENTATIONS:
+                    matrix = representations[representation]
                     task_metrics, diagnostics, candidates = fit_capacity_readout(
                         matrix,
                         targets,
@@ -467,7 +467,10 @@ def run_bivariate_bilinear_duration_assay(
                     task_frames.append(task_metrics)
                     candidates.to_csv(
                         selection_dir
-                        / f"seed_{seed}__duration_{duration_tag}__{interaction}__{representation}.csv",
+                        / (
+                            f"seed_{seed}__duration_{duration_tag}__{interaction}"
+                            f"__{representation}.csv"
+                        ),
                         index=False,
                     )
                     observed_rows.append(
@@ -476,6 +479,7 @@ def run_bivariate_bilinear_duration_assay(
                             "step_duration_us": float(duration),
                             "interaction": interaction,
                             "representation": representation,
+                            "feature_count": int(matrix.shape[1]),
                             **diagnostics,
                             **_metric_payload(task_metrics),
                         }
@@ -506,48 +510,58 @@ def run_bivariate_bilinear_duration_assay(
     observed = pd.DataFrame(observed_rows)
     null_frame = pd.DataFrame(null_rows)
     seed_summary = _annotate_nulls(observed, null_frame)
+    aggregate = _aggregate(seed_summary)
     paired = _paired_on_off(seed_summary)
-    aggregate = _aggregate(seed_summary, paired)
-    plots = _render_plots(aggregate, run_dir / "plots")
+    plots = _render_plots(aggregate, paired, run_dir / "plots")
 
     task_metrics.to_csv(run_dir / "task_metrics.csv.gz", index=False, compression="gzip")
     observed.to_csv(run_dir / "observed_seed_metrics.csv", index=False)
     seed_summary.to_csv(run_dir / "bilinear_duration_seed_summary.csv", index=False)
-    paired.to_csv(run_dir / "paired_on_off_seed_differences.csv", index=False)
+    aggregate.to_csv(run_dir / "bilinear_duration_summary.csv", index=False)
+    paired.to_csv(run_dir / "paired_on_off_differences.csv", index=False)
     null_frame.to_csv(
         run_dir / "paired_permutation_null.csv.gz",
         index=False,
         compression="gzip",
     )
-    aggregate.to_csv(run_dir / "bilinear_duration_summary.csv", index=False)
     pd.DataFrame(metadata_rows).to_csv(run_dir / "simulation_metadata.csv", index=False)
 
-    candidates = aggregate.loc[
-        aggregate["interaction"].eq("on")
-        & ~aggregate["representation"].eq("palindrome_control")
-    ].copy()
-    mixing_pass = candidates.loc[
+    on = aggregate.loc[aggregate["interaction"].eq("on")].copy()
+    paired_positive = (
+        paired.groupby(["step_duration_us", "representation"], as_index=False)
+        .agg(
+            paired_interaction_advantage_all_seeds=(
+                "mixing_sum_on_minus_off",
+                lambda values: bool(
+                    np.asarray(values, dtype=float).shape[0] == len(config.seeds)
+                    and np.all(np.asarray(values, dtype=float) > 0.0)
+                ),
+            )
+        )
+    )
+    candidates = on.merge(
+        paired_positive,
+        on=["step_duration_us", "representation"],
+        how="left",
+    )
+    eligible = candidates.loc[
         candidates["both_channels_early_above_null_fraction"].eq(1.0)
         & candidates["minimum_delay5_above_null_fraction"].eq(1.0)
         & candidates["early_balance_ratio_min"].ge(0.80)
         & candidates["mixing_above_null_fraction"].eq(1.0)
         & candidates["mixing_margin_min"].gt(0.0)
-        & candidates["mixing_on_minus_off_min"].gt(0.0)
+        & candidates["paired_interaction_advantage_all_seeds"].eq(True)
     ].copy()
+    promoted = None
+    if not eligible.empty:
+        promoted = eligible.sort_values(
+            ["mixing_margin_mean", "minimum_delay5_mean", "minimum_early_mean"],
+            ascending=[False, False, False],
+        ).iloc[0]
     strongest = candidates.sort_values(
-        [
-            "mixing_margin_mean",
-            "mixing_on_minus_off_min",
-            "minimum_delay5_mean",
-        ],
+        ["mixing_margin_mean", "minimum_delay5_mean", "minimum_early_mean"],
         ascending=[False, False, False],
     ).iloc[0]
-    promoted = None
-    if not mixing_pass.empty:
-        promoted = mixing_pass.sort_values(
-            ["mixing_margin_mean", "minimum_delay5_mean"],
-            ascending=[False, False],
-        ).iloc[0]
 
     summary = {
         "status": "bivariate_bilinear_duration_complete",
@@ -555,7 +569,6 @@ def run_bivariate_bilinear_duration_assay(
         "durations_completed": int(seed_summary["step_duration_us"].nunique()),
         "representations_completed": int(seed_summary["representation"].nunique()),
         "interaction_conditions_completed": int(seed_summary["interaction"].nunique()),
-        "interaction_scale": float(config.interaction_scale),
         "mixing_gate_passed": bool(promoted is not None),
         "promoted_duration_us": (
             float(promoted["step_duration_us"]) if promoted is not None else None
@@ -565,19 +578,14 @@ def run_bivariate_bilinear_duration_assay(
         ),
         "strongest_candidate_duration_us": float(strongest["step_duration_us"]),
         "strongest_candidate_representation": str(strongest["representation"]),
-        "strongest_candidate_mixing_margin_mean": float(
-            strongest["mixing_margin_mean"]
-        ),
-        "strongest_candidate_worst_seed_on_off_advantage": float(
-            strongest["mixing_on_minus_off_min"]
-        ),
+        "strongest_candidate_mixing_margin_mean": float(strongest["mixing_margin_mean"]),
         "strongest_candidate_minimum_delay5_mean": float(
             strongest["minimum_delay5_mean"]
         ),
         "decision_rule": (
-            "Promote only when a non-palindromic duration preserves balanced early and "
-            "delay-5 memory in every seed, exceeds its paired mixing null in every seed, "
-            "and has positive interaction-on minus interaction-off mixing in every seed."
+            "Promote only when a joint representation preserves balanced early and delay-5 "
+            "memory in every seed, exceeds its paired mixing null in every seed, and has a "
+            "positive interaction-on minus interaction-off mixing difference in every seed."
         ),
         "plots": plots,
         "config": config.to_dict(),
