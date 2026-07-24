@@ -19,6 +19,9 @@ from transition_forecasting.qrc.temporal_rydberg_ladder import (
 
 
 DEFAULT_FOLD_DIR = Path(
+    "data/processed/global_transition_dataset_1d/purged_walk_forward_folds"
+)
+LEGACY_FOLD_DIR = Path(
     "data/processed/transition_forecasting/global_transition_dataset_1d/"
     "purged_walk_forward_folds"
 )
@@ -29,6 +32,66 @@ DEFAULT_CLOSE_PANEL = Path(
 DEFAULT_RESULTS_ROOT = Path(
     "results/transition_forecasting/qrc/run_input_sensitivity_rank_assay"
 )
+_REQUIRED_FOLD_FILES = (
+    "rematched_rolling_manifest.csv",
+    "rematched_rolling_tensors.npz",
+)
+
+
+def _is_fold_dir(path: Path) -> bool:
+    candidate = Path(path)
+    return candidate.is_dir() and all(
+        (candidate / filename).is_file() for filename in _REQUIRED_FOLD_FILES
+    )
+
+
+def resolve_fold_dir(path: Path) -> Path:
+    """Resolve the active fold directory without silently selecting an archive."""
+
+    requested = Path(path)
+    if _is_fold_dir(requested):
+        return requested
+
+    direct_candidates = tuple(
+        candidate
+        for candidate in (DEFAULT_FOLD_DIR, LEGACY_FOLD_DIR)
+        if candidate != requested and _is_fold_dir(candidate)
+    )
+    if len(direct_candidates) == 1:
+        return direct_candidates[0]
+
+    discovered: list[Path] = []
+    processed_root = Path("data/processed")
+    if processed_root.is_dir():
+        for manifest in processed_root.glob(
+            "**/purged_walk_forward_folds/rematched_rolling_manifest.csv"
+        ):
+            candidate = manifest.parent
+            if _is_fold_dir(candidate) and candidate not in discovered:
+                discovered.append(candidate)
+
+    active = [
+        candidate
+        for candidate in discovered
+        if not any("archive" in part.lower() for part in candidate.parts)
+    ]
+    if len(active) == 1:
+        return active[0]
+
+    discovered_text = (
+        "\n".join(f"  - {candidate}" for candidate in discovered)
+        if discovered
+        else "  (none found under data/processed)"
+    )
+    raise FileNotFoundError(
+        "Could not locate the active purged walk-forward fold directory.\n"
+        f"Requested: {requested}\n"
+        "Expected both rematched_rolling_manifest.csv and "
+        "rematched_rolling_tensors.npz.\n"
+        "Discovered candidates:\n"
+        f"{discovered_text}\n"
+        "Pass the intended non-archive directory explicitly with --fold-dir."
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -94,6 +157,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    fold_dir = resolve_fold_dir(args.fold_dir)
+    close_panel = Path(args.close_panel)
+    if not close_panel.is_file():
+        raise FileNotFoundError(f"missing close panel: {close_panel}")
+
     config = InputSensitivityRankConfig(
         folds=tuple(args.folds),
         lead=int(args.lead),
@@ -133,8 +201,8 @@ def main() -> None:
         defect_dy_um=float(args.ladder_defect_dy_um),
     )
     run_dir = run_input_sensitivity_rank_assay(
-        fold_dir=args.fold_dir,
-        close_panel_path=args.close_panel,
+        fold_dir=fold_dir,
+        close_panel_path=close_panel,
         results_root=args.out_root,
         config=config,
         candidate_features=candidate_features,
