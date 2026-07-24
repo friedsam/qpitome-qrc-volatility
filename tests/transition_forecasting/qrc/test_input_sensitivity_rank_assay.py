@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from transition_forecasting.qrc.input_sensitivity_rank_assay import (
+    _feature_views,
     build_perturbation_batch,
     channel_novelty_fraction,
     downside_return_windows,
@@ -13,6 +14,16 @@ from transition_forecasting.qrc.input_sensitivity_rank_assay import (
     load_close_panel,
     matched_channel_cosines,
     parse_ticker,
+)
+from transition_forecasting.qrc.temporal_rydberg_chain import (
+    TemporalRydbergChainConfig,
+)
+from transition_forecasting.qrc.temporal_rydberg_chain_artifacts import (
+    feature_names_from_metadata,
+)
+from transition_forecasting.qrc.temporal_rydberg_ladder import (
+    StaggeredLadderGeometryConfig,
+    build_temporal_rydberg_ladder_features,
 )
 
 
@@ -23,7 +34,9 @@ def test_parse_ticker_from_transition_sample_id() -> None:
 
 def test_downside_windows_are_causal_and_end_at_origin(tmp_path: Path) -> None:
     dates = pd.date_range("2020-01-01", periods=8, freq="D", tz="UTC")
-    close = np.asarray([100.0, 102.0, 101.0, 103.0, 99.0, 98.0, 120.0, 121.0])
+    close = np.asarray(
+        [100.0, 102.0, 101.0, 103.0, 99.0, 98.0, 120.0, 121.0]
+    )
     panel_path = tmp_path / "panel.csv"
     pd.DataFrame(
         {
@@ -106,3 +119,47 @@ def test_matched_channel_cosines_report_parallel_channel_responses() -> None:
     assert rows == 6
     assert np.isclose(mean_absolute, 1.0)
     assert np.isclose(median_absolute, 1.0)
+
+
+def test_sensitivity_pipeline_runs_through_ladder_simulation() -> None:
+    rng = np.random.default_rng(20260724)
+    encoded = rng.uniform(-0.4, 0.4, size=(4, 5, 2))
+    lags = (0, 2)
+    batch, blocks = build_perturbation_batch(encoded, lags=lags, epsilon=0.05)
+    reservoir = TemporalRydbergChainConfig(
+        n_atoms=6,
+        omega_mod_fraction=0.20,
+        step_duration_us=0.005,
+        probe_fractions=(0.5, 1.0),
+        shots=None,
+    )
+    geometry = StaggeredLadderGeometryConfig()
+
+    full_features, metadata = build_temporal_rydberg_ladder_features(
+        batch,
+        reservoir,
+        geometry,
+        interaction_scale=0.25,
+        condition="ordered",
+    )
+    names = feature_names_from_metadata(metadata)
+    probes = tuple(int(value) for value in metadata["probe_steps"])
+    views = _feature_views(full_features, names, probes)
+
+    assert {
+        "full_observables",
+        "occupations",
+        "pair_observables",
+        "connected_correlations",
+        "symmetric_modes",
+    } == set(views)
+    for matrix, view_names in views.values():
+        sensitivity = finite_difference_sensitivity(
+            matrix,
+            samples=len(encoded),
+            lags=lags,
+            blocks=blocks,
+        )
+        assert sensitivity.shape[:3] == (4, 2, 2)
+        assert sensitivity.shape[-1] == len(view_names)
+        assert np.isfinite(sensitivity).all()
