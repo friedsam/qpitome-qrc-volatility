@@ -20,8 +20,8 @@ DEFAULT_RESULTS_ROOT = Path(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Sweep total duration for the reverse and commutator bilinear pulse "
-            "representations with paired interaction-on/off controls."
+            "Sweep the input duration of the bilinear longitudinal/transverse schedules "
+            "using joint all-orders readouts and paired interaction controls."
         )
     )
     parser.add_argument("--samples", type=int, default=640)
@@ -88,7 +88,7 @@ def main() -> None:
         delta_span_rad_us=args.delta_span_rad_us,
         omega_base_rad_us=args.omega_base_rad_us,
         omega_mod_fraction=args.omega_mod_fraction,
-        step_duration_us=0.02,
+        step_duration_us=float(args.step_durations_us[0]),
         probe_fractions=tuple(args.probe_fractions),
         shots=None,
         shot_seed=args.seeds[0],
