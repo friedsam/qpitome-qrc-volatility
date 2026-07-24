@@ -3,6 +3,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from transition_forecasting.modeling.stage_e_classical_baselines import (
+    qlike_loss as production_qlike_loss,
+)
 from transition_forecasting.qrc.residual_head_qlike_dominance import (
     QlikeDominanceConfig,
     annotate_selected_lambdas,
@@ -12,6 +15,18 @@ from transition_forecasting.qrc.residual_head_qlike_dominance import (
     qlike_gain_concentration,
     qlike_gradient_wrt_lambda,
 )
+
+
+def test_cell_loss_matches_production_qlike_in_unclipped_range() -> None:
+    y = np.asarray([[-5.0, -4.5, -3.8]])
+    har = np.asarray([[-4.8, -4.8, -4.1]])
+    correction = np.asarray([[0.2, -0.1, 0.4]])
+    lambda_value = 0.75
+
+    expected = production_qlike_loss(y, har + lambda_value * correction)
+    observed = qlike_cell_loss(y - har, correction, lambda_value)
+
+    np.testing.assert_allclose(observed, expected, atol=1e-12, rtol=0.0)
 
 
 def test_wrong_sign_correction_has_zero_bounded_qlike_optimum() -> None:
