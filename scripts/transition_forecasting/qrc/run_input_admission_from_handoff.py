@@ -18,6 +18,13 @@ from transition_forecasting.qrc.input_admission_assay import (
 )
 
 
+def _normalize_origin_dates(values: pd.Series) -> pd.Series:
+    """Return one canonical UTC ISO representation for mixed handoff timestamps."""
+
+    parsed = pd.to_datetime(values, format="mixed", utc=True, errors="raise")
+    return parsed.dt.normalize().dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def evaluation_frame_from_handoff_zip(path: Path) -> pd.DataFrame:
     source = Path(path)
     if not source.is_file():
@@ -86,7 +93,10 @@ def evaluation_frame_from_handoff_zip(path: Path) -> pd.DataFrame:
         raise RuntimeError("handoff archive unexpectedly contains test rows")
     if output.duplicated(["fold", "sample_id"]).any():
         raise ValueError("handoff archive contains duplicate fold/sample_id rows")
-    return output.sort_values(["fold", "sample_id"]).reset_index(drop=True)
+    output["origin_date"] = _normalize_origin_dates(output["origin_date"])
+    return output.sort_values(["fold", "origin_date", "sample_id"]).reset_index(
+        drop=True
+    )
 
 
 def parse_args() -> argparse.Namespace:
