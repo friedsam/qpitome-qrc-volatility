@@ -33,7 +33,10 @@ def evaluation_frame_from_handoff_zip(path: Path) -> pd.DataFrame:
         if not archive_names:
             raise ValueError("ZIP contains no ladder feature archives")
         for name in archive_names:
-            with np.load(io.BytesIO(bundle.read(name)), allow_pickle=False) as archive:
+            # The immutable handoff archives store string metadata as NumPy object
+            # arrays. Pickle loading is restricted to this explicitly supplied local
+            # ZIP; every numerical array used below is then shape-validated.
+            with np.load(io.BytesIO(bundle.read(name)), allow_pickle=True) as archive:
                 required = {
                     "fold",
                     "sample_id",
