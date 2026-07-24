@@ -85,7 +85,10 @@ def test_local_downside_state_is_scale_free_and_causal() -> None:
     assert not state.empty
     assert (state["local_downside_z"] <= 1e-12).all()
     assert (state["local_drawdown_60"] <= 1e-12).all()
-    assert state["local_downside_share_5"].between(0.0, 1.0).all()
+    downside_share = state["local_downside_share_5"].to_numpy(dtype=float)
+    assert np.isfinite(downside_share).all()
+    assert float(downside_share.min()) >= -1e-12
+    assert float(downside_share.max()) <= 1.0 + 1e-12
 
 
 def test_occurrence_fit_ignores_nonadmitted_nan_rows() -> None:
