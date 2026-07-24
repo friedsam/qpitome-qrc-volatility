@@ -7,6 +7,7 @@ from transition_forecasting.qrc.input_admission_assay import (
     InputAdmissionConfig,
     build_feature_tables,
     extract_market_window,
+    fit_select_signed_residual,
     parse_ticker,
     qlike_loss,
 )
@@ -108,3 +109,34 @@ def test_feature_tables_preserve_rows_and_apply_range_gate() -> None:
     assert matrices[("all_three", "summary")].shape[0] == 1
     assert availability["valid__all_three"].iat[0]
     assert len(names[("downside_return", "sequence")]) == 5
+
+
+def test_signed_residual_fit_ignores_nan_rows_outside_eligible_masks() -> None:
+    rng = np.random.default_rng(20260724)
+    rows = 24
+    features = rng.normal(size=(rows, 4))
+    features[18:] = np.nan
+    residuals = rng.normal(scale=0.1, size=(rows, 10))
+    har = rng.normal(size=(rows, 10))
+    targets = har + residuals
+    dates = pd.Series(pd.date_range("2020-01-01", periods=rows, freq="D", tz="UTC"))
+    fit_eligible = np.zeros(rows, dtype=bool)
+    fit_eligible[:16] = True
+    prediction_eligible = np.zeros(rows, dtype=bool)
+    prediction_eligible[:18] = True
+
+    prediction, selected, candidates = fit_select_signed_residual(
+        features,
+        residuals,
+        har,
+        targets,
+        dates,
+        fit_eligible,
+        prediction_eligible,
+        InputAdmissionConfig(alphas=(0.1, 1.0), inner_holdout_fraction=0.25),
+    )
+
+    assert np.isfinite(prediction[:18]).all()
+    assert np.isnan(prediction[18:]).all()
+    assert selected["alpha"] in {0.1, 1.0}
+    assert len(candidates) == 2
