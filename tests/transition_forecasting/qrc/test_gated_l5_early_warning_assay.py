@@ -15,7 +15,7 @@ from transition_forecasting.qrc.gated_l5_early_warning_assay import (
 def test_gate_recovers_separable_transition_signal() -> None:
     rng = np.random.default_rng(20260724)
     rows = 240
-    labels = np.repeat([0, 1], rows // 2)
+    labels = np.tile([0, 1], rows // 2)
     signal = labels.astype(float) + rng.normal(scale=0.20, size=rows)
     matrix = np.column_stack([signal, rng.normal(size=(rows, 5))])
     fit = np.zeros(rows, dtype=bool)
