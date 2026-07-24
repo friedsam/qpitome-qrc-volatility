@@ -25,7 +25,10 @@ def test_wrong_sign_correction_has_zero_bounded_qlike_optimum() -> None:
     )
 
     np.testing.assert_array_equal(optimum, np.zeros(2))
-    assert np.all(qlike_cell_loss(residual, correction, 0.25) > qlike_cell_loss(residual, correction, 0.0))
+    assert np.all(
+        qlike_cell_loss(residual, correction, 0.25)
+        > qlike_cell_loss(residual, correction, 0.0)
+    )
 
 
 def test_right_sign_optimum_is_residual_ratio_and_respects_cap() -> None:
@@ -39,7 +42,12 @@ def test_right_sign_optimum_is_residual_ratio_and_respects_cap() -> None:
     )
 
     np.testing.assert_allclose(optimum, np.asarray([0.5, 1.25, 1.25]))
-    assert np.isclose(qlike_gradient_wrt_lambda(residual[:1], correction[:1], 0.5)[0], 0.0)
+    gradient = qlike_gradient_wrt_lambda(
+        residual[:1],
+        correction[:1],
+        0.5,
+    )[0]
+    assert np.isclose(gradient, 0.0)
 
 
 def test_qlike_penalizes_equal_underprediction_more_than_overprediction() -> None:
@@ -87,8 +95,12 @@ def test_small_positive_residual_tail_can_select_upward_lambda_against_majority(
     )
     annotated = annotate_selected_lambdas(cells, selections, config)
     concentration = qlike_gain_concentration(annotated, config)
-    top_ten = concentration.loc[concentration["top_fraction"].eq(0.10)].iloc[0]
+    top_ten = concentration.loc[
+        concentration["top_fraction"].eq(0.10)
+    ].iloc[0]
 
     assert top_ten["share_of_positive_gain"] > 0.99
-    assert annotated.loc[annotated["har_residual"].lt(0.0), "qlike_gain"].lt(0.0).all()
-    assert annotated.loc[annotated["har_residual"].gt(0.0), "qlike_gain"].gt(0.0).all()
+    negative = annotated.loc[annotated["har_residual"].lt(0.0), "qlike_gain"]
+    positive = annotated.loc[annotated["har_residual"].gt(0.0), "qlike_gain"]
+    assert negative.lt(0.0).all()
+    assert positive.gt(0.0).all()
