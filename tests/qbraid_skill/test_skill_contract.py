@@ -11,7 +11,6 @@ SKILL_ROOT = REPO_ROOT / "qbraid_skill"
 SKILL_PATH = SKILL_ROOT / "SKILL.md"
 PREFLIGHT_PATH = SKILL_ROOT / "scripts" / "preflight.py"
 README_PATH = REPO_ROOT / "README.md"
-QBRAID_REQUIREMENTS = REPO_ROOT / "requirements-qbraid.txt"
 
 
 def load_preflight() -> ModuleType:
@@ -76,40 +75,24 @@ def test_skill_is_explicit_about_current_scope_and_hardware_boundary() -> None:
     assert "qbraid jobs submit" not in text.lower()
 
 
-def test_qbraid_environment_setup_matches_cli_013() -> None:
+def test_qbraid_setup_uses_portable_virtualenv() -> None:
     skill = SKILL_PATH.read_text(encoding="utf-8")
     readme = README_PATH.read_text(encoding="utf-8")
 
     required_fragments = (
-        "qbraid envs create",
-        "--name qrc-volatility",
-        "--requirements requirements-qbraid.txt",
-        "qbraid envs activate qrc-volatility",
-        "python -m pip install -e . --no-deps",
+        "python3 -m venv .venv",
+        "source .venv/bin/activate",
+        "python -m pip install --upgrade pip",
+        'python -m pip install -e ".[test]"',
     )
     for fragment in required_fragments:
         assert fragment in skill
         assert fragment in readme
 
-    assert "qbraid envs create -f" not in skill
-    assert "qbraid envs create -f" not in readme
+    assert "qbraid envs create" not in skill
+    assert "qbraid envs create" not in readme
     assert "does not create an environment or install dependencies" in skill
     assert "does not create the project environment or install dependencies" in readme
-
-
-def test_qbraid_requirements_cover_current_stage1_dependencies() -> None:
-    text = QBRAID_REQUIREMENTS.read_text(encoding="utf-8")
-
-    for package in (
-        "setuptools",
-        "kaggle",
-        "matplotlib",
-        "numpy",
-        "pandas",
-        "scikit-learn",
-        "pytest",
-    ):
-        assert package in text
 
 
 def test_readme_contains_official_launch_on_qbraid_link() -> None:
