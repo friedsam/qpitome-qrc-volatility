@@ -8,107 +8,72 @@ Phase 3 Global Industry Challenge project for qBraid / MITRE / JonesTrading, Tra
 
 Forecast ten-day volatility paths from ordered forty-day market histories, with primary attention to abrupt calm-to-crisis transitions at leads 1, 5, and 10. Classical HAR forecasts provide the persistence baseline; Rydberg quantum-reservoir features are evaluated as corrections to the HAR residual path.
 
-## Canonical branch flow
+## Judge quick start on qBraid
 
-Components are promoted to `stage1-dev` only after they are complete and validated. Only `stage1-dev` is intended to be merged into `main` for the final submission.
+The **Launch on qBraid** button clones the repository into qBraid Lab when the repository is public. It does not create the project environment or install dependencies.
 
-The canonical Stage 1 data path is deliberately small:
+Run all commands from the repository root.
 
-1. acquire or restore the frozen global-index OHLC inputs;
-2. apply the frozen structural-quality policy;
-3. build one-channel forty-day log-volatility sequences;
-4. construct the binary pre-control candidate pool;
-5. create chronologically purged walk-forward folds;
-6. validate and checksum the resulting artifacts.
+### 1. Create the persistent environment
 
-The former derived three-channel representation is not built by the canonical pipeline. It was redundant for the retained QRC representation and added avoidable runtime and storage cost.
-
-## Environment
-
-### qBraid Lab
-
-The **Launch on qBraid** button clones this public repository into qBraid Lab. It does **not** create, activate, or populate the required Python environment.
-
-From the cloned repository root, inspect the available environments:
+The qBraid Lab image used during development provides `qbraid-cli/0.13.2`. That version creates environments from a pip requirements file:
 
 ```bash
+qbraid --version
 qbraid envs list
+qbraid envs create \
+  --name qrc-volatility \
+  --requirements requirements-qbraid.txt \
+  --kernel-name "QRC Volatility" \
+  --yes
 ```
 
-If `qrc-volatility` does not exist, create it from the committed environment specification:
+If `qrc-volatility` already exists, do not recreate it.
 
-```bash
-qbraid envs create -f environment.yml -y
-```
-
-Activate the environment and install the repository with its test dependencies:
+Activate the environment and install the repository itself without resolving the already-installed dependencies again:
 
 ```bash
 qbraid envs activate qrc-volatility
-python -m pip install -e ".[test]"
+python -m pip install -e . --no-deps
 ```
 
-Use `python -m pip`, not a bare `pip` command. In qBraid Lab, a bare `pip` may target the nonpersistent system interpreter rather than the activated qBraid environment.
-
-Verify that the correct interpreter and repository contract are active:
+Confirm that the persistent environment is active:
 
 ```bash
 which python
 python --version
+python -m pip --version
+```
+
+Do not use a bare `pip` command. In qBraid Lab it may target the nonpersistent system interpreter.
+
+### 2. Run the qBraid Skill preflight
+
+```bash
 python qbraid_skill/scripts/preflight.py --json
+python -m pytest -q tests/qbraid_skill/test_skill_contract.py
 ```
 
-### Conda outside qBraid
-
-Create the same environment with:
-
-```bash
-conda env create -f environment.yml
-conda activate qrc-volatility
-```
-
-For an existing environment:
-
-```bash
-conda env update -f environment.yml --prune
-```
-
-## qBraid Skill
-
-The agent-executable skill package is rooted at:
-
-```text
-qbraid_skill/
-```
-
-Its required Agent Skills entry file is:
+The Agent Skills entry file is:
 
 ```text
 qbraid_skill/SKILL.md
 ```
 
-The current skill is intentionally Stage-1-only. It can navigate, create or activate the project environment, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
+The current skill is intentionally Stage-1-only. It can navigate, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
 
-From the repository root, test the environment and repository contract with:
+### 3. Verify the data source
+
+The large verified transition-data fallback is not currently committed. A clean clone therefore requires working Kaggle authentication until a distributable fallback is added.
 
 ```bash
-python qbraid_skill/scripts/preflight.py --json
 python qbraid_skill/scripts/preflight.py --strict-data-source
-```
-
-In qBraid Lab, use `qbraid skills --help` to confirm the exact local install/test syntax supported by the installed CLI version, then point it at the `qbraid_skill/` package directory.
-
-## Rebuild the transition-data stage
-
-The large verified transition-data fallback is not currently committed to `stage1-dev`. A clean clone therefore requires working Kaggle authentication unless the fallback is supplied separately.
-
-Verify access first:
-
-```bash
 kaggle datasets files guillemservera/global-stock-indices-historical-data
 ```
 
-Then run from the repository root with a new immutable run ID:
+Never paste, print, or commit Kaggle credentials.
+
+### 4. Run the current Stage-1 workflow
 
 ```bash
 RUN_ID="qbraid-stage1-$(date -u +%Y%m%dT%H%M%SZ)"
@@ -119,30 +84,31 @@ python scripts/runs/run_submission.py transition-data \
 
 Use `--transition-source-mode fallback` only when the complete verified fallback snapshot and its `fallback_manifest.json` are present. Do not use `--force` for a fresh run.
 
-The workflow writes acquisition logs, the one-channel processed dataset, candidate pool, folds, validation report, checksums, and a run manifest under `results/runs/<run-id>/`.
+The aggregate judge-facing run is written under:
 
-The scientific result hierarchy remains separate:
+```text
+results/runs/<run-id>/
+```
+
+`scripts/runs/run_submission.py` is the sole planned exception to the normal scientific-result mapping because it assembles a structured, judge-facing package. Normal scientific outputs follow:
 
 ```text
 results/<domain>/<experiment>/run/<run-id>/...
 ```
 
-`scripts/runs/run_submission.py` is the sole planned exception because it assembles one structured, judge-facing aggregate run.
+## Current canonical Stage-1 scope
 
-## Canonical transition-data layout
+1. Acquire or restore frozen global-index OHLC inputs.
+2. Apply the frozen structural-quality policy.
+3. Build one-channel forty-session log-volatility sequences.
+4. Construct the binary pre-control candidate pool.
+5. Create eight chronologically purged walk-forward folds.
+6. Rematch controls within each fold partition.
+7. Validate and checksum all generated artifacts.
 
-```text
-src/transition_forecasting/data/
-src/transition_forecasting/modeling/
-scripts/transition_forecasting/data/
-tests/transition_forecasting/data/
-tests/transition_forecasting/modeling/
-results/runs/<run-id>/
-```
+The former derived three-channel representation is not part of the canonical pipeline.
 
-## Validation
-
-Focused Stage 1 and qBraid Skill checks run through:
+## Full focused validation
 
 ```bash
 python -m pytest -q \
@@ -155,8 +121,31 @@ python -m pytest -q \
   tests/runs/test_run_submission.py
 ```
 
-The common final test partition must remain unopened during development and model selection.
+The fixed final test partition must remain unopened during development and model selection.
 
-## Current recovery state
+## Conda outside qBraid
 
-`stage1-dev` has been restored to the pre-control binary matching protocol. The abandoned calm/hard-negative redesign no longer feeds candidate construction, fold assignment, HAR fitting, or residual generation. The next gate is to rebuild the global one-channel matrix and reproduce the archived pre-control HAR and QRC results before porting further QRC work.
+For local development outside qBraid:
+
+```bash
+conda env create -f environment.yml
+conda activate qrc-volatility
+```
+
+For an existing environment:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+## Repository layout
+
+```text
+qbraid_skill/
+src/transition_forecasting/
+scripts/transition_forecasting/
+tests/transition_forecasting/
+results/
+```
+
+Only validated components are promoted to `stage1-dev`; only the final validated submission state is intended to be merged into `main`.
