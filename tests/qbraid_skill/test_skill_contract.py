@@ -6,7 +6,7 @@ from pathlib import Path
 from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_ROOT = REPO_ROOT / "qbraid_skill"
+SKILL_ROOT = REPO_ROOT / "qbraid_skill" / "qpitome-qrc-volatility"
 SKILL_PATH = SKILL_ROOT / "SKILL.md"
 BOOTSTRAP_PATH = SKILL_ROOT / "scripts" / "bootstrap.py"
 PREFLIGHT_PATH = SKILL_ROOT / "scripts" / "preflight.py"
@@ -34,10 +34,11 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     return fields
 
 
-def test_skill_uses_agent_skills_frontmatter() -> None:
+def test_skill_uses_agent_skills_frontmatter_and_matching_directory() -> None:
     fields = parse_frontmatter(SKILL_PATH.read_text(encoding="utf-8"))
 
     assert fields["name"] == "qpitome-qrc-volatility"
+    assert SKILL_ROOT.name == fields["name"]
     assert "qBraid" in fields["description"]
     assert "reproduce" in fields["description"].lower()
     assert set(fields) == {"name", "description"}
@@ -58,8 +59,8 @@ def test_skill_invokes_only_existing_entry_points() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
 
     for relative in (
-        "qbraid_skill/scripts/bootstrap.py",
-        "qbraid_skill/scripts/preflight.py",
+        "qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py",
+        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
         "scripts/runs/run_submission.py",
     ):
         assert relative in text
@@ -79,11 +80,14 @@ def test_skill_is_explicit_about_scope_and_hardware_boundary() -> None:
 def test_qbraid_setup_is_agent_owned() -> None:
     skill = SKILL_PATH.read_text(encoding="utf-8")
     readme = README_PATH.read_text(encoding="utf-8")
+    bootstrap_command = (
+        "python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json"
+    )
 
     assert "The agent owns environment setup" in skill
     assert "Do not ask the judge to run terminal commands" in skill
-    assert "python3 qbraid_skill/scripts/bootstrap.py --json" in skill
-    assert "python3 qbraid_skill/scripts/bootstrap.py --json" in readme
+    assert bootstrap_command in skill
+    assert bootstrap_command in readme
     assert "Do not ask me to run terminal commands" in readme
     assert "qbraid envs create" not in skill
     assert "qbraid envs create" not in readme
@@ -98,6 +102,7 @@ def test_bootstrap_plan_is_idempotent_and_uses_local_interpreter(tmp_path: Path)
     plan = bootstrap.build_command_plan(venv_dir, skip_tests=False)
     expected_python = bootstrap.venv_python(venv_dir)
 
+    assert bootstrap.REPO_ROOT == REPO_ROOT
     assert plan[0] == [sys.executable, "-m", "venv", str(venv_dir)]
     assert plan[1] == [
         str(expected_python),
@@ -109,7 +114,7 @@ def test_bootstrap_plan_is_idempotent_and_uses_local_interpreter(tmp_path: Path)
     ]
     assert plan[2] == [
         str(expected_python),
-        "qbraid_skill/scripts/preflight.py",
+        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
         "--json",
     ]
     assert plan[3][:4] == [str(expected_python), "-m", "pytest", "-q"]
@@ -129,7 +134,7 @@ def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
     assert plan[0][:4] == [str(python_path), "-m", "pip", "install"]
     assert plan[-1] == [
         str(python_path),
-        "qbraid_skill/scripts/preflight.py",
+        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
         "--json",
     ]
 
@@ -142,7 +147,9 @@ def test_readme_contains_launch_link_and_agent_prompt() -> None:
         "https://account.qbraid.com?gitHubUrl="
         "https://github.com/friedsam/qpitome-qrc-volatility.git"
     ) in text
-    assert "Read qbraid_skill/SKILL.md before acting" in text
+    assert (
+        "Read qbraid_skill/qpitome-qrc-volatility/SKILL.md before acting" in text
+    )
     assert "enable **Agent Mode**" in text
 
 
@@ -150,6 +157,7 @@ def test_preflight_reports_repository_contract_without_credentials() -> None:
     preflight = load_module("qbraid_skill_preflight", PREFLIGHT_PATH)
     report = preflight.build_report()
 
+    assert preflight.REPO_ROOT == REPO_ROOT
     assert report["passed"] is True
     assert report["repository_root"] == str(REPO_ROOT)
     assert report["repository_contract"]["missing_required_paths"] == []
