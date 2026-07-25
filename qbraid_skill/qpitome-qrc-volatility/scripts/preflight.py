@@ -14,14 +14,16 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from transition_forecasting.data.acquisition import validate_source, verify_fallback_manifest
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MIN_PYTHON = (3, 10)
 DATASET = "guillemservera/global-stock-indices-historical-data"
-FALLBACK_MANIFEST = (
+FALLBACK_ROOT = (
     REPO_ROOT
     / "data/fallback/transition_forecasting/global_stock_indices_historical_data"
-    / "fallback_manifest.json"
 )
+FALLBACK_MANIFEST = FALLBACK_ROOT / "fallback_manifest.json"
 
 REQUIRED_PATHS = (
     "pyproject.toml",
@@ -47,7 +49,7 @@ REQUIRED_MODULES = (
 )
 
 
-def command_output(argv: Sequence[str]) -> dict[str, object]:
+def command_output(argv: Sequence[str], *, timeout: int = 30) -> dict[str, object]:
     """Run a read-only command and return a JSON-safe result."""
 
     try:
@@ -57,7 +59,7 @@ def command_output(argv: Sequence[str]) -> dict[str, object]:
             check=False,
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {
@@ -135,6 +137,36 @@ def environment_executable(name: str) -> str | None:
     return shutil.which(name)
 
 
+def fallback_status() -> dict[str, object]:
+    if not FALLBACK_MANIFEST.is_file():
+        return {
+            "manifest": str(FALLBACK_MANIFEST),
+            "available": False,
+            "verified": False,
+            "verification": None,
+            "error": "fallback manifest is absent",
+        }
+    try:
+        verification = verify_fallback_manifest(FALLBACK_ROOT)
+        validation = validate_source(FALLBACK_ROOT)
+    except Exception as exc:
+        return {
+            "manifest": str(FALLBACK_MANIFEST),
+            "available": True,
+            "verified": False,
+            "verification": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    return {
+        "manifest": str(FALLBACK_MANIFEST),
+        "available": True,
+        "verified": True,
+        "verification": verification,
+        "validation": validation,
+        "error": None,
+    }
+
+
 def build_report() -> dict[str, object]:
     required = {
         relative: (REPO_ROOT / relative).is_file() for relative in REQUIRED_PATHS
@@ -149,17 +181,17 @@ def build_report() -> dict[str, object]:
     kaggle_version = (
         command_output((kaggle_path, "--version")) if kaggle_path else None
     )
-    credentials = credential_status()
-    fallback_exists = FALLBACK_MANIFEST.is_file()
     modules = module_status()
-
-    live_ready = bool(
-        kaggle_path
-        and credentials["configured"]
-        and credentials["secure"]
-        and modules.get("kaggle", False)
+    credentials = credential_status()
+    fallback = fallback_status()
+    kaggle_probe = (
+        command_output((kaggle_path, "datasets", "files", DATASET), timeout=60)
+        if kaggle_path and modules.get("kaggle", False)
+        else None
     )
-    fallback_ready = fallback_exists
+
+    live_ready = bool(kaggle_probe and kaggle_probe.get("returncode") == 0)
+    fallback_ready = bool(fallback["verified"])
 
     core_failures: list[str] = []
     if sys.version_info < MIN_PYTHON:
@@ -181,21 +213,42 @@ def build_report() -> dict[str, object]:
         warnings.append(
             "qBraid CLI was not found on PATH; this is expected outside qBraid Lab"
         )
-    if not fallback_exists:
+    if not fallback["available"]:
         warnings.append(
             "The verified transition-data fallback is not present in this checkout"
+        )
+    elif not fallback_ready:
+        warnings.append(
+            "The transition-data fallback is present but failed verification: "
+            + str(fallback["error"])
         )
     if credentials["configured"] and not credentials["secure"]:
         warnings.append(
             "A Kaggle credential file exists but does not have a restrictive permission mode"
         )
+    if kaggle_probe and kaggle_probe.get("returncode") != 0:
+        detail = str(kaggle_probe.get("stderr") or kaggle_probe.get("stdout") or "")
+        warnings.append(
+            "Anonymous Kaggle dataset access probe failed"
+            + (f": {detail[:300]}" if detail else "")
+        )
     if not live_ready and not fallback_ready:
         warnings.append(
-            "No usable transition-data source is available: secure Kaggle access or the verified fallback is required"
+            "No verified transition-data source is available: anonymous Kaggle access or the verified fallback is required"
         )
 
+    recommended_mode = (
+        "auto"
+        if live_ready and fallback_ready
+        else "fallback"
+        if fallback_ready
+        else "live"
+        if live_ready
+        else None
+    )
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "repository_root": str(REPO_ROOT),
         "python": {
             "version": platform.python_version(),
@@ -229,19 +282,16 @@ def build_report() -> dict[str, object]:
             "dataset": DATASET,
             "path": kaggle_path,
             "version": kaggle_version,
+            "dataset_files_probe": kaggle_probe,
+            "anonymous_access_ready": live_ready,
             **credentials,
         },
-        "fallback": {
-            "manifest": str(FALLBACK_MANIFEST),
-            "available": fallback_exists,
-        },
+        "fallback": fallback,
         "data_source": {
             "live_ready": live_ready,
             "fallback_ready": fallback_ready,
             "ready": bool(live_ready or fallback_ready),
-            "recommended_mode": (
-                "fallback" if fallback_ready else "live" if live_ready else None
-            ),
+            "recommended_mode": recommended_mode,
         },
         "core_failures": core_failures,
         "warnings": warnings,
@@ -259,7 +309,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--strict-data-source",
         action="store_true",
-        help="Fail unless either secure Kaggle access or the verified fallback is available",
+        help="Fail unless anonymous Kaggle access or a verified fallback is available",
     )
     return parser.parse_args(argv)
 
