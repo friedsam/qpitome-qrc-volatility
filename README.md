@@ -13,19 +13,20 @@ Forecast ten-day volatility paths from ordered forty-day market histories, empha
 The **Launch on qBraid** button clones the repository when it is public. Open the cloned repository in qBraid Lab, connect qBraid AI to the workspace, enable **Agent Mode**, and give the agent this single instruction:
 
 ```text
-Reproduce and audit this submission. Read qbraid_skill/qpitome-qrc-volatility/SKILL.md before acting and follow it exactly. Create and manage the required environment yourself. Do not ask me to run terminal commands. Do not modify source code, scientific parameters, data contracts, or the reserved test partition, and do not submit hardware jobs. Stop and report the first blocking defect rather than improvising around it.
+Reproduce and audit this submission. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md, not against the repository root, and use absolute paths for file reads. Establish the repository root before running commands and use it as the working directory. Follow the skill exactly. Create and manage the required environment yourself. Do not ask me to run terminal commands. Do not modify source code, scientific parameters, data contracts, or the reserved test partition, and do not submit hardware jobs. Stop and report the first blocking defect rather than improvising around it.
 ```
 
 The agent should independently:
 
-1. record the repository commit, branch, and working-tree state;
-2. create the repository-local `.venv`;
-3. install dependencies;
-4. run preflight and focused contract tests;
-5. select only a verified data-source path;
-6. run the canonical submission runner;
-7. validate manifests, checksums, scientific identity, and result contents;
-8. report success, failure, or a precise blocker.
+1. locate the skill and repository roots without assuming its initial working directory;
+2. record the repository commit, branch, and working-tree state;
+3. create the repository-local `.venv`;
+4. install dependencies;
+5. run preflight and focused contract tests;
+6. select only a verified data-source path;
+7. run the canonical submission runner;
+8. validate manifests, checksums, scientific identity, and result contents;
+9. report success, failure, or a precise blocker.
 
 The standards-compliant Agent Skill directory is:
 
