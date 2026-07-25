@@ -21,7 +21,6 @@ from transition_forecasting.qrc.bivariate_crossover_assay import (
     build_crossover_feature_banks,
     evolve_crossover_probabilities,
 )
-from transition_forecasting.qrc.frozen_chain_readout_tools import chronological_inner_split
 from transition_forecasting.qrc.representation_candidates import (
     CandidateFeatureConfig,
     build_candidate_sequences,
@@ -70,8 +69,8 @@ class FinancialQRCFeatureTransferConfig:
     max_per_class: int = 12
     sequence_length: int = 40
     prequential_blocks: int = 5
-    inner_holdout_fraction: float = 0.25
-    ridge_alphas: tuple[float, ...] = (0.1, 1.0, 10.0, 100.0, 300.0, 1000.0)
+    ridge_alpha: float = 100.0
+    min_causal_residual_rows: int = 10
     selection_seed: int = 20260721
     level_channel_name: str = "log_volatility_level"
     fallback_level_channel: int = 0
@@ -92,10 +91,10 @@ class FinancialQRCFeatureTransferConfig:
             raise ValueError("sample cap and sequence length must be positive")
         if self.prequential_blocks < 2:
             raise ValueError("prequential_blocks must be at least two")
-        if not 0.1 <= self.inner_holdout_fraction <= 0.5:
-            raise ValueError("inner_holdout_fraction must lie in [0.1, 0.5]")
-        if not self.ridge_alphas or any(alpha <= 0 for alpha in self.ridge_alphas):
-            raise ValueError("ridge_alphas must be positive")
+        if self.ridge_alpha <= 0:
+            raise ValueError("ridge_alpha must be positive")
+        if self.min_causal_residual_rows < 5:
+            raise ValueError("min_causal_residual_rows must be at least five")
         if not 1 <= self.split_horizon < len(TARGET_COLUMNS):
             raise ValueError("split_horizon lies outside the target path")
         if self.incumbent_step_duration_us <= 0 or self.repaired_step_duration_us <= 0:
@@ -135,49 +134,18 @@ def _fit_signed_residual_probe(
     config: FinancialQRCFeatureTransferConfig,
     pc1_only: bool,
 ) -> tuple[np.ndarray, dict[str, object], pd.DataFrame]:
-    """Select alpha chronologically, then fit a no-intercept residual probe."""
+    """Fit the predeclared fixed-alpha, no-intercept residual probe."""
 
+    del origin_date  # retained in the interface to make causal provenance explicit
     matrix = np.asarray(features, dtype=float)
     if matrix.ndim != 2 or len(matrix) != len(y) or not np.isfinite(matrix).all():
         raise ValueError("features must be finite and aligned with targets")
     fit_mask = np.asarray(residual_train_mask, dtype=bool)
-    inner_fit, inner_tune = chronological_inner_split(
-        origin_date,
-        fit_mask,
-        holdout_fraction=config.inner_holdout_fraction,
-    )
-
-    candidate_rows: list[dict[str, object]] = []
-    for alpha in config.ridge_alphas:
-        scaler = StandardScaler().fit(matrix[inner_fit])
-        transformed = scaler.transform(matrix)
-        explained = 1.0
-        if pc1_only:
-            pca = PCA(n_components=1, svd_solver="full").fit(transformed[inner_fit])
-            transformed = pca.transform(transformed)
-            explained = float(pca.explained_variance_ratio_.sum())
-        model = Ridge(alpha=float(alpha), fit_intercept=False).fit(
-            transformed[inner_fit], residuals[inner_fit]
+    if fit_mask.shape != (len(matrix),) or fit_mask.sum() < config.min_causal_residual_rows:
+        raise ValueError(
+            "insufficient causal residual rows for fixed probe: "
+            f"{int(fit_mask.sum())} < {config.min_causal_residual_rows}"
         )
-        correction = np.asarray(model.predict(transformed), dtype=float)
-        prediction = har + correction
-        candidate_rows.append(
-            {
-                "alpha": float(alpha),
-                "inner_fit_rows": int(inner_fit.sum()),
-                "inner_tune_rows": int(inner_tune.sum()),
-                "inner_tune_rmse": rmse_loss(y[inner_tune], prediction[inner_tune]),
-                "inner_tune_qlike": qlike_loss(y[inner_tune], prediction[inner_tune]),
-                "pc1_explained_variance": explained,
-                "mean_abs_tune_correction": float(np.mean(np.abs(correction[inner_tune]))),
-            }
-        )
-
-    candidates = pd.DataFrame(candidate_rows).sort_values(
-        ["inner_tune_rmse", "inner_tune_qlike", "alpha"],
-        ascending=[True, True, True],
-    )
-    selected = candidates.iloc[0]
 
     scaler = StandardScaler().fit(matrix[fit_mask])
     transformed = scaler.transform(matrix)
@@ -186,24 +154,37 @@ def _fit_signed_residual_probe(
         pca = PCA(n_components=1, svd_solver="full").fit(transformed[fit_mask])
         transformed = pca.transform(transformed)
         explained = float(pca.explained_variance_ratio_.sum())
-    model = Ridge(alpha=float(selected["alpha"]), fit_intercept=False).fit(
+
+    model = Ridge(alpha=float(config.ridge_alpha), fit_intercept=False).fit(
         transformed[fit_mask], residuals[fit_mask]
     )
     correction = np.asarray(model.predict(transformed), dtype=float)
+    intercept_max_abs = float(np.max(np.abs(np.atleast_1d(model.intercept_))))
+    if intercept_max_abs > 0.0:
+        raise RuntimeError("no-intercept residual probe acquired a nonzero intercept")
+
     diagnostics = {
-        "selected_alpha": float(selected["alpha"]),
+        "selection_policy": "fixed_predeclared_alpha",
+        "selected_alpha": float(config.ridge_alpha),
         "fit_rows": int(fit_mask.sum()),
-        "inner_fit_rows": int(inner_fit.sum()),
-        "inner_tune_rows": int(inner_tune.sum()),
         "feature_width": int(matrix.shape[1]),
         "transformed_width": int(transformed.shape[1]),
         "pc1_only": bool(pc1_only),
         "pc1_explained_variance": explained,
         "coefficient_l2": float(np.linalg.norm(model.coef_)),
-        "intercept_max_abs": float(np.max(np.abs(np.atleast_1d(model.intercept_)))),
+        "intercept_max_abs": intercept_max_abs,
     }
-    if diagnostics["intercept_max_abs"] > 0.0:
-        raise RuntimeError("no-intercept residual probe acquired a nonzero intercept")
+    candidates = pd.DataFrame(
+        [
+            {
+                "selection_policy": "fixed_predeclared_alpha",
+                "alpha": float(config.ridge_alpha),
+                "fit_rows": int(fit_mask.sum()),
+                "pc1_explained_variance": explained,
+                "mean_abs_fit_correction": float(np.mean(np.abs(correction[fit_mask]))),
+            }
+        ]
+    )
     return correction, diagnostics, candidates
 
 
@@ -288,17 +269,16 @@ def _fold_metric_rows(cells: pd.DataFrame) -> list[dict[str, object]]:
             ("late", cells["segment"].eq("late").to_numpy()),
         ):
             mask = population_mask & segment_mask
-            if not mask.any():
-                continue
-            rows.append(
-                {
-                    "fold": int(cells["fold"].iloc[0]),
-                    "architecture": str(cells["architecture"].iloc[0]),
-                    "population": population,
-                    "segment": segment,
-                    **_directional_payload(cells.loc[mask]),
-                }
-            )
+            if mask.any():
+                rows.append(
+                    {
+                        "fold": int(cells["fold"].iloc[0]),
+                        "architecture": str(cells["architecture"].iloc[0]),
+                        "population": population,
+                        "segment": segment,
+                        **_directional_payload(cells.loc[mask]),
+                    }
+                )
     return rows
 
 
@@ -312,27 +292,27 @@ def _label_gap_rows(cells: pd.DataFrame) -> list[dict[str, object]]:
         local = cells.loc[mask]
         control = local.loc[local["label"].eq(0), "qrc_correction"].to_numpy(dtype=float)
         transition = local.loc[local["label"].eq(1), "qrc_correction"].to_numpy(dtype=float)
-        if not len(control) or not len(transition):
-            continue
-        rows.append(
-            {
-                "fold": int(cells["fold"].iloc[0]),
-                "architecture": str(cells["architecture"].iloc[0]),
-                "segment": segment,
-                "control_mean_correction": float(np.mean(control)),
-                "transition_mean_correction": float(np.mean(transition)),
-                "transition_minus_control_correction": float(np.mean(transition) - np.mean(control)),
-            }
-        )
+        if len(control) and len(transition):
+            rows.append(
+                {
+                    "fold": int(cells["fold"].iloc[0]),
+                    "architecture": str(cells["architecture"].iloc[0]),
+                    "segment": segment,
+                    "control_mean_correction": float(np.mean(control)),
+                    "transition_mean_correction": float(np.mean(transition)),
+                    "transition_minus_control_correction": float(
+                        np.mean(transition) - np.mean(control)
+                    ),
+                }
+            )
     return rows
 
 
 def _aggregate_fold_metrics(fold_metrics: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
-    for keys, group in fold_metrics.groupby(
+    for (architecture, population, segment), group in fold_metrics.groupby(
         ["architecture", "population", "segment"], sort=True
     ):
-        architecture, population, segment = keys
         rows.append(
             {
                 "architecture": architecture,
@@ -344,11 +324,17 @@ def _aggregate_fold_metrics(fold_metrics: pd.DataFrame) -> pd.DataFrame:
                 "positive_correlation_folds": int(
                     group["correction_residual_correlation"].gt(0.0).sum()
                 ),
-                "positive_residual_sign_gap_folds": int(group["residual_sign_gap"].gt(0.0).sum()),
+                "positive_residual_sign_gap_folds": int(
+                    group["residual_sign_gap"].gt(0.0).sum()
+                ),
                 "mean_fold_qlike_delta": float(group["qlike_delta"].mean()),
                 "mean_fold_rmse_delta": float(group["rmse_delta"].mean()),
-                "mean_fold_correlation": float(group["correction_residual_correlation"].mean()),
-                "mean_fold_balanced_sign_accuracy": float(group["balanced_sign_accuracy"].mean()),
+                "mean_fold_correlation": float(
+                    group["correction_residual_correlation"].mean()
+                ),
+                "mean_fold_balanced_sign_accuracy": float(
+                    group["balanced_sign_accuracy"].mean()
+                ),
                 "mean_fold_residual_sign_gap": float(group["residual_sign_gap"].mean()),
                 "mean_fold_wrong_up_rate": float(group["wrong_up_rate"].mean()),
                 "mean_fold_wrong_down_rate": float(group["wrong_down_rate"].mean()),
@@ -356,6 +342,75 @@ def _aggregate_fold_metrics(fold_metrics: pd.DataFrame) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def _prepare_folds(
+    *,
+    dataset: object,
+    level_channel: int | None,
+    config: FinancialQRCFeatureTransferConfig,
+    candidate_features: CandidateFeatureConfig,
+) -> list[dict[str, object]]:
+    prepared: list[dict[str, object]] = []
+    for fold in config.folds:
+        selected = _select_rows_for_fold(
+            dataset.manifest,
+            fold=int(fold),
+            leads=(int(config.lead),),
+            max_per_class=int(config.max_per_class),
+            excluded_ids=set(),
+            seed=int(config.selection_seed),
+        )
+        tensor_rows = selected["_tensor_row"].to_numpy(dtype=int)
+        level = extract_level_windows(
+            dataset,
+            tensor_rows,
+            sequence_length=config.sequence_length,
+            level_channel=level_channel,
+        )
+        usable = dataset.valid[tensor_rows] & np.isfinite(level).all(axis=1)
+        frame = selected.loc[usable].reset_index(drop=True)
+        level = level[usable]
+        tensor_rows = tensor_rows[usable]
+        if frame.empty or frame["fold_split"].eq("test").any():
+            raise RuntimeError(f"fold {fold}: invalid development sample selection")
+        train = frame["fold_split"].eq("train").to_numpy()
+        validation = frame["fold_split"].eq("val").to_numpy()
+        if not train.any() or not validation.any():
+            raise RuntimeError(f"fold {fold}: empty train or validation split")
+
+        raw_sequences = build_candidate_sequences(
+            level, "level_instability", candidate_features
+        )
+        channel_scaler = fit_channel_scaler(raw_sequences, train)
+        encoded = transform_candidate_sequences(raw_sequences, channel_scaler)
+        y = frame[list(TARGET_COLUMNS)].to_numpy(dtype=float)
+        har = _fit_har(frame, y, train)
+        residuals, residual_train_mask = _prequential_har_residuals(
+            frame, y, train, blocks=config.prequential_blocks
+        )
+        causal_rows = int(residual_train_mask.sum())
+        if causal_rows < config.min_causal_residual_rows:
+            raise RuntimeError(
+                f"fold {fold}: only {causal_rows} causal residual rows; "
+                f"minimum is {config.min_causal_residual_rows}"
+            )
+        prepared.append(
+            {
+                "fold": int(fold),
+                "frame": frame,
+                "tensor_rows": tensor_rows,
+                "train": train,
+                "validation": validation,
+                "encoded": encoded,
+                "y": y,
+                "har": har,
+                "residuals": residuals,
+                "residual_train_mask": residual_train_mask,
+                "channel_scaler": channel_scaler,
+            }
+        )
+    return prepared
 
 
 def run_financial_qrc_feature_transfer_assay(
@@ -396,6 +451,13 @@ def run_financial_qrc_feature_transfer_assay(
     if base_reservoir.n_atoms != 6 or base_reservoir.shots is not None:
         raise ValueError("financial transfer assay requires exact six-atom simulation")
 
+    prepared = _prepare_folds(
+        dataset=dataset,
+        level_channel=level_channel,
+        config=config,
+        candidate_features=candidate_features,
+    )
+
     run_dir = begin_run(
         Path(results_root),
         {
@@ -408,6 +470,7 @@ def run_financial_qrc_feature_transfer_assay(
             "financial_inputs": "incumbent level plus local instability",
             "financial_test_rows_used": 0,
             "fit_intercept": False,
+            "ridge_selection": "fixed_predeclared_alpha",
             "lambda_calibration": False,
             "qlike_selection": False,
             "scientific_question": (
@@ -418,8 +481,9 @@ def run_financial_qrc_feature_transfer_assay(
         run_id=run_id,
     )
     probability_dir = run_dir / "probabilities"
-    probability_dir.mkdir(parents=True, exist_ok=False)
     selection_dir = run_dir / "selection_candidates"
+    probability_dir.mkdir(parents=True, exist_ok=False)
+    selection_dir.mkdir(parents=True, exist_ok=False)
 
     cell_frames: list[pd.DataFrame] = []
     fold_metric_rows: list[dict[str, object]] = []
@@ -429,45 +493,25 @@ def run_financial_qrc_feature_transfer_assay(
     scaler_rows: list[dict[str, object]] = []
     retained_rows: list[pd.DataFrame] = []
 
-    for fold in config.folds:
-        selected = _select_rows_for_fold(
-            dataset.manifest,
-            fold=int(fold),
-            leads=(int(config.lead),),
-            max_per_class=int(config.max_per_class),
-            excluded_ids=set(),
-            seed=int(config.selection_seed),
-        )
-        tensor_rows = selected["_tensor_row"].to_numpy(dtype=int)
-        level = extract_level_windows(
-            dataset,
-            tensor_rows,
-            sequence_length=config.sequence_length,
-            level_channel=level_channel,
-        )
-        usable = dataset.valid[tensor_rows] & np.isfinite(level).all(axis=1)
-        frame = selected.loc[usable].reset_index(drop=True)
-        level = level[usable]
-        tensor_rows = tensor_rows[usable]
-        if frame.empty or frame["fold_split"].eq("test").any():
-            raise RuntimeError(f"fold {fold}: invalid development sample selection")
-        train = frame["fold_split"].eq("train").to_numpy()
-        validation = frame["fold_split"].eq("val").to_numpy()
-        if not train.any() or not validation.any():
-            raise RuntimeError(f"fold {fold}: empty train or validation split")
+    for payload in prepared:
+        fold = int(payload["fold"])
+        frame = payload["frame"]
+        train = payload["train"]
+        validation = payload["validation"]
+        encoded = payload["encoded"]
+        y = payload["y"]
+        har = payload["har"]
+        residuals = payload["residuals"]
+        residual_train_mask = payload["residual_train_mask"]
+        tensor_rows = payload["tensor_rows"]
+        channel_scaler = payload["channel_scaler"]
 
-        raw_sequences = build_candidate_sequences(
-            level,
-            "level_instability",
-            candidate_features,
-        )
-        channel_scaler = fit_channel_scaler(raw_sequences, train)
-        encoded = transform_candidate_sequences(raw_sequences, channel_scaler)
         scaler_rows.append(
             {
-                "fold": int(fold),
+                "fold": fold,
                 "train_rows": int(train.sum()),
                 "validation_rows": int(validation.sum()),
+                "causal_residual_rows": int(residual_train_mask.sum()),
                 "channel_0_median": float(channel_scaler.medians[0]),
                 "channel_1_median": float(channel_scaler.medians[1]),
                 "channel_0_half_range": float(channel_scaler.half_ranges[0]),
@@ -475,23 +519,10 @@ def run_financial_qrc_feature_transfer_assay(
             }
         )
 
-        y = frame[list(TARGET_COLUMNS)].to_numpy(dtype=float)
-        har = _fit_har(frame, y, train)
-        residuals, residual_train_mask = _prequential_har_residuals(
-            frame,
-            y,
-            train,
-            blocks=config.prequential_blocks,
-        )
-        if residual_train_mask.sum() < 15:
-            raise RuntimeError(
-                f"fold {fold}: only {int(residual_train_mask.sum())} causal residual rows"
-            )
-
         incumbent_reservoir = replace(
             base_reservoir,
             step_duration_us=config.incumbent_step_duration_us,
-            shot_seed=config.selection_seed + int(fold),
+            shot_seed=config.selection_seed + fold,
         )
         incumbent_probabilities, incumbent_metadata = evolve_carrier_mask_probabilities(
             encoded,
@@ -507,7 +538,7 @@ def run_financial_qrc_feature_transfer_assay(
         repaired_reservoir = replace(
             base_reservoir,
             step_duration_us=config.repaired_step_duration_us,
-            shot_seed=config.selection_seed + 10_000 + int(fold),
+            shot_seed=config.selection_seed + 10_000 + fold,
         )
         repaired_probabilities, repaired_metadata = evolve_crossover_probabilities(
             encoded,
@@ -564,23 +595,16 @@ def run_financial_qrc_feature_transfer_assay(
                 config=config,
                 pc1_only=pc1_only,
             )
-            candidates.insert(0, "fold", int(fold))
+            candidates.insert(0, "fold", fold)
             candidates.insert(1, "architecture", architecture)
             candidates.to_csv(
-                selection_dir / f"fold_{fold}__{architecture}.csv",
-                index=False,
+                selection_dir / f"fold_{fold}__{architecture}.csv", index=False
             )
-            fit_rows.append(
-                {
-                    "fold": int(fold),
-                    "architecture": architecture,
-                    **diagnostics,
-                }
-            )
+            fit_rows.append({"fold": fold, "architecture": architecture, **diagnostics})
             train_matrix = np.asarray(matrix[train], dtype=float)
             feature_rows.append(
                 {
-                    "fold": int(fold),
+                    "fold": fold,
                     "architecture": architecture,
                     "rows": int(len(matrix)),
                     "features": int(matrix.shape[1]),
@@ -599,7 +623,7 @@ def run_financial_qrc_feature_transfer_assay(
                 har,
                 correction,
                 validation,
-                fold=int(fold),
+                fold=fold,
                 architecture=architecture,
                 split_horizon=config.split_horizon,
             )
@@ -622,10 +646,7 @@ def run_financial_qrc_feature_transfer_assay(
         retained_rows.append(retained)
         (run_dir / f"fold_{fold}_simulation_metadata.json").write_text(
             json.dumps(
-                {
-                    "incumbent": incumbent_metadata,
-                    "repaired": repaired_metadata,
-                },
+                {"incumbent": incumbent_metadata, "repaired": repaired_metadata},
                 indent=2,
             )
             + "\n",
@@ -688,6 +709,8 @@ def run_financial_qrc_feature_transfer_assay(
         "folds": [int(value) for value in config.folds],
         "lead": int(config.lead),
         "architectures": list(ARCHITECTURES),
+        "ridge_selection": "fixed_predeclared_alpha",
+        "ridge_alpha": float(config.ridge_alpha),
         "primary_directional_ranking": primary["architecture"].tolist(),
         "promotion_rule": (
             "A repaired QRC representation is promising only if its correction-residual "
@@ -709,7 +732,6 @@ def run_financial_qrc_feature_transfer_assay(
         "config": config.to_dict(),
     }
     (run_dir / "summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n",
-        encoding="utf-8",
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
     )
     return run_dir
