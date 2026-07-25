@@ -89,8 +89,7 @@ def test_qbraid_setup_is_agent_owned() -> None:
     assert bootstrap_command in skill
     assert bootstrap_command in readme
     assert "Do not ask me to run terminal commands" in readme
-    assert "qbraid envs create" not in skill
-    assert "qbraid envs create" not in readme
+    assert "Do not substitute `qbraid envs create`" in skill
     assert "source .venv/bin/activate" not in skill
     assert "source .venv/bin/activate" not in readme
 
