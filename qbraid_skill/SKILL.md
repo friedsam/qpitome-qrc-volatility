@@ -48,36 +48,25 @@ qbraid --version
 
 Remain at the repository root returned by Git. If the working tree is dirty, continue only for inspection or after explicitly recording that the run is not from a clean checkout.
 
-### 2. Create or activate the persistent qBraid environment
+### 2. Create or activate the repository-local environment
 
 The Launch on qBraid link clones the repository only. It does not create an environment or install dependencies.
 
-List environments:
+Do not depend on `qbraid envs create`; its accepted requirement syntax varies between Lab images. Use the standard Python virtual-environment interface, which qBraid supports.
+
+If `.venv` is absent:
 
 ```bash
-qbraid envs list
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[test]"
 ```
 
-For qBraid CLI `0.13.x`, if `qrc-volatility` is absent, create it from the committed pip requirements file:
+If `.venv` already exists:
 
 ```bash
-qbraid envs create \
-  --name qrc-volatility \
-  --requirements requirements-qbraid.txt \
-  --kernel-name "QRC Volatility" \
-  --yes
-```
-
-Activate the environment:
-
-```bash
-qbraid envs activate qrc-volatility
-```
-
-Install the repository itself without resolving dependencies a second time:
-
-```bash
-python -m pip install -e . --no-deps
+source .venv/bin/activate
 ```
 
 Use the activated environment's Python interpreter. Do not call a bare `pip` executable.
