@@ -14,11 +14,24 @@ on:
       - "scripts/transition_forecasting/data/validate_transition_run.py"
       - "scripts/transition_forecasting/data/freeze_transition_checksums.py"
       - "scripts/runs/run_submission.py"
+      - "qbraid_skill/**"
+      - "tests/qbraid_skill/**"
       - "tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py"
       - "tests/transition_forecasting/modeling/test_chronological_control_matching.py"
       - "tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py"
       - "tests/transition_forecasting/modeling/test_chronological_splits.py"
       - "tests/transition_forecasting/data/test_fold_datasets.py"
+      - "tests/runs/test_run_submission.py"
+      - ".github/workflows/stage1-transition-data-tests.yml"
+  pull_request:
+    branches: [stage1-dev]
+    paths:
+      - "src/transition_forecasting/**"
+      - "scripts/transition_forecasting/**"
+      - "scripts/runs/run_submission.py"
+      - "qbraid_skill/**"
+      - "tests/qbraid_skill/**"
+      - "tests/transition_forecasting/**"
       - "tests/runs/test_run_submission.py"
       - ".github/workflows/stage1-transition-data-tests.yml"
   workflow_dispatch:
@@ -35,11 +48,12 @@ jobs:
           cache: pip
       - name: Install package and tests
         run: python -m pip install -e ".[test]"
-      - name: Compile source and scripts
-        run: python -m compileall -q src scripts
-      - name: Run Stage 1 transition-data suite
+      - name: Compile source, scripts, and skill helpers
+        run: python -m compileall -q src scripts qbraid_skill/scripts
+      - name: Run Stage 1 transition-data and qBraid skill suite
         run: >-
           python -m pytest -q
+          tests/qbraid_skill/test_skill_contract.py
           tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py
           tests/transition_forecasting/modeling/test_chronological_control_matching.py
           tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py
