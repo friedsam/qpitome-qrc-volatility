@@ -14,30 +14,24 @@ The **Launch on qBraid** button clones the repository into qBraid Lab when the r
 
 Run all commands from the repository root.
 
-### 1. Create the persistent environment
+### 1. Create the repository-local environment
 
-The qBraid Lab image used during development provides `qbraid-cli/0.13.2`. That version creates environments from a pip requirements file:
-
-```bash
-qbraid --version
-qbraid envs list
-qbraid envs create \
-  --name qrc-volatility \
-  --requirements requirements-qbraid.txt \
-  --kernel-name "QRC Volatility" \
-  --yes
-```
-
-If `qrc-volatility` already exists, do not recreate it.
-
-Activate the environment and install the repository itself without resolving the already-installed dependencies again:
+Use the standard Python virtual-environment interface. This avoids dependence on qBraid CLI environment-manager syntax, which differs between Lab images.
 
 ```bash
-qbraid envs activate qrc-volatility
-python -m pip install -e . --no-deps
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[test]"
 ```
 
-Confirm that the persistent environment is active:
+If `.venv` already exists, reuse it:
+
+```bash
+source .venv/bin/activate
+```
+
+Confirm the active interpreter:
 
 ```bash
 which python
@@ -45,7 +39,7 @@ python --version
 python -m pip --version
 ```
 
-Do not use a bare `pip` command. In qBraid Lab it may target the nonpersistent system interpreter.
+Do not use a bare `pip` command. It may target the qBraid system interpreter rather than this repository-local environment.
 
 ### 2. Run the qBraid Skill preflight
 
