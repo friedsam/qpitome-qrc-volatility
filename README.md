@@ -16,27 +16,21 @@ Run all commands from the repository root.
 
 ### 1. Create the repository-local environment
 
-Use the standard Python virtual-environment interface. This avoids dependence on qBraid CLI environment-manager syntax, which differs between Lab images.
+Use a standard repository-local Python virtual environment. The commands below do not depend on qBraid CLI environment-manager syntax and do not rely on shell activation persisting between commands.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[test]"
+if [ ! -x .venv/bin/python ]; then
+  python3 -m venv .venv
+  .venv/bin/python -m pip install --upgrade pip
+fi
+.venv/bin/python -m pip install -e ".[test]"
 ```
 
-If `.venv` already exists, reuse it:
+All remaining commands invoke the environment's interpreter explicitly:
 
 ```bash
-source .venv/bin/activate
-```
-
-Confirm the active interpreter:
-
-```bash
-which python
-python --version
-python -m pip --version
+.venv/bin/python --version
+.venv/bin/python -m pip --version
 ```
 
 Do not use a bare `pip` command. It may target the qBraid system interpreter rather than this repository-local environment.
@@ -44,8 +38,8 @@ Do not use a bare `pip` command. It may target the qBraid system interpreter rat
 ### 2. Run the qBraid Skill preflight
 
 ```bash
-python qbraid_skill/scripts/preflight.py --json
-python -m pytest -q tests/qbraid_skill/test_skill_contract.py
+.venv/bin/python qbraid_skill/scripts/preflight.py --json
+.venv/bin/python -m pytest -q tests/qbraid_skill/test_skill_contract.py
 ```
 
 The Agent Skills entry file is:
@@ -54,25 +48,30 @@ The Agent Skills entry file is:
 qbraid_skill/SKILL.md
 ```
 
-The current skill is intentionally Stage-1-only. It can navigate, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
+The current skill is intentionally Stage-1-only. It can navigate, create the repository-local environment, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
 
 ### 3. Verify the data source
 
 The large verified transition-data fallback is not currently committed. A clean clone therefore requires working Kaggle authentication until a distributable fallback is added.
 
 ```bash
-python qbraid_skill/scripts/preflight.py --strict-data-source
-kaggle datasets files guillemservera/global-stock-indices-historical-data
+.venv/bin/python qbraid_skill/scripts/preflight.py --strict-data-source
+.venv/bin/kaggle datasets files guillemservera/global-stock-indices-historical-data
 ```
 
 Never paste, print, or commit Kaggle credentials.
 
 ### 4. Run the current Stage-1 workflow
 
+First obtain a run ID and then use that exact literal value in the command below:
+
 ```bash
-RUN_ID="qbraid-stage1-$(date -u +%Y%m%dT%H%M%SZ)"
-python scripts/runs/run_submission.py transition-data \
-  --run-id "$RUN_ID" \
+date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
+```
+
+```bash
+.venv/bin/python scripts/runs/run_submission.py transition-data \
+  --run-id <RUN_ID_FROM_PREVIOUS_COMMAND> \
   --transition-source-mode live
 ```
 
@@ -105,7 +104,7 @@ The former derived three-channel representation is not part of the canonical pip
 ## Full focused validation
 
 ```bash
-python -m pytest -q \
+.venv/bin/python -m pytest -q \
   tests/qbraid_skill/test_skill_contract.py \
   tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py \
   tests/transition_forecasting/modeling/test_chronological_control_matching.py \
