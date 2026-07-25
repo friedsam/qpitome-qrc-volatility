@@ -391,6 +391,17 @@ def acquire_source(
 
             install_candidate(candidate, destination, force=force)
 
+    installed_source_comparison = (
+        compare_source_to_fallback(destination, fallback)
+        if fallback_verification is not None
+        else compare_source_to_frozen_inventory(destination, frozen_inventory)
+    )
+    if not installed_source_comparison["matched"]:
+        raise RuntimeError(
+            "Installed raw source does not match the authoritative reference: "
+            + json.dumps(installed_source_comparison, sort_keys=True)
+        )
+
     manifest = {
         "schema_version": 2,
         "dataset": DATASET,
@@ -405,10 +416,11 @@ def acquire_source(
         "live_retrieval_error": live_error,
         "fallback_path": str(fallback),
         "fallback_verification": fallback_verification,
-        "source_comparison": source_comparison,
+        "candidate_comparison": source_comparison,
+        "installed_source_comparison": installed_source_comparison,
         "fallback_substitution": fallback_substitution,
         "substitution_reason": substitution_reason,
-        "authoritative_source_verified": True,
+        "authoritative_source_verified": bool(installed_source_comparison["matched"]),
         "destination": str(destination),
         "started_at_utc": started,
         "finished_at_utc": utc_now(),
