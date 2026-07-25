@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This contract defines the currently testable qBraid execution path. It intentionally covers only functionality present on `stage1-dev`.
+This contract defines the currently testable qBraid execution path on `stage1-dev`.
 
 ## Agent-owned environment setup
 
@@ -12,17 +12,9 @@ The judge should not create or activate an environment manually. The qBraid agen
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 ```
 
-The bootstrap:
+The bootstrap creates `.venv` if absent, installs dependencies, runs preflight, runs the focused Stage-1 and skill tests, and stops on the first failure. Subsequent commands use `.venv/bin/python` or `.venv/bin/kaggle` explicitly.
 
-- creates the repository-local `.venv` if absent;
-- installs the project and test dependencies;
-- runs preflight;
-- runs the focused Stage-1 and skill tests;
-- stops on the first failure.
-
-Subsequent commands must use `.venv/bin/python` or `.venv/bin/kaggle` explicitly. Do not use a bare `pip`, system-wide installation, or rely on shell activation persisting between agent actions.
-
-## Data dependency
+## Data dependency and authority
 
 The transition workflow uses the public Kaggle dataset:
 
@@ -30,9 +22,17 @@ The transition workflow uses the public Kaggle dataset:
 guillemservera/global-stock-indices-historical-data
 ```
 
-The current branch does not contain the large verified fallback snapshot. A clean qBraid clone therefore cannot complete the data run unless secure Kaggle access already exists. Never commit, print, request in chat, or copy credentials into the repository or result directory.
+Current Kaggle CLI releases permit anonymous `datasets files` and `datasets download` for public datasets. Preflight therefore tests the endpoint directly rather than treating credentials as mandatory.
 
-The final submission should prefer a committed credential-free verified fallback.
+The authoritative data policy is:
+
+1. A fallback is usable only after its manifest, complete file set, hashes, and schemas verify.
+2. When anonymous live access and the fallback are both available, `auto` downloads a live candidate and compares its complete data-file inventory to the fallback.
+3. If the candidate differs by any missing, extra, or changed file, it is discarded before installation and the verified fallback is copied instead.
+4. When no fallback exists, a live candidate must match the frozen raw inventory exactly or acquisition fails.
+5. The installed destination is verified again after copying or download.
+
+The acquisition manifest records the candidate comparison, installed-source comparison, fallback substitution flag, and substitution reason.
 
 ## Preflight
 
@@ -43,9 +43,9 @@ The final submission should prefer a committed credential-free verified fallback
 
 Exit codes:
 
-- `0`: repository contract passes; strict mode also found a usable source;
-- `1`: Python, dependency, or repository contract failure;
-- `2`: strict mode found neither secure Kaggle access nor the verified fallback.
+- `0`: repository contract passes; strict mode found anonymous live access or a verified fallback;
+- `1`: Python, dependency, repository, or fallback-verification failure;
+- `2`: strict mode found no verified data source.
 
 Exit code 2 is a data/provenance blocker, not permission to improvise another dataset.
 
@@ -57,23 +57,15 @@ Generate a literal run ID:
 date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
 ```
 
-With the verified fallback:
+Use the exact mode reported by preflight. When both sources are ready:
 
 ```bash
 .venv/bin/python scripts/runs/run_submission.py transition-data \
   --run-id <RUN_ID> \
-  --transition-source-mode fallback
+  --transition-source-mode auto
 ```
 
-With verified live access:
-
-```bash
-.venv/bin/python scripts/runs/run_submission.py transition-data \
-  --run-id <RUN_ID> \
-  --transition-source-mode live
-```
-
-Do not use `auto` while source availability is ambiguous. Do not use `--force` for a new run.
+Use `fallback` or `live` only when preflight reports that as the sole verified mode. Do not use `--force` for a new run.
 
 ## Expected top-level run files
 
@@ -110,15 +102,18 @@ validation/data_pipeline_checksums.json
 
 A run is accepted only when:
 
-1. `run_manifest.json` records `status` as `succeeded`;
+1. `run_manifest.json` records `status: succeeded`;
 2. every required output exists and has a recorded SHA-256 hash;
-3. the data audit records `passed: true`;
-4. the checksum report records `passed: true`;
-5. the test partition remains unevaluated;
-6. the workflow records eight folds and one `log_volatility_level` channel;
-7. the protocol is `precontrol_binary_matching`;
-8. no `.py` file exists beneath the run directory;
-9. all commands, logs, and artifacts correspond to the same explicit run ID.
+3. `raw_acquisition_manifest.json` records `authoritative_source_verified: true`;
+4. `installed_source_comparison.matched` is true;
+5. any live mismatch or failure and fallback substitution are explicitly recorded;
+6. the data audit records `passed: true`;
+7. the checksum report records `passed: true`;
+8. the test partition remains unevaluated;
+9. the workflow records eight folds and one `log_volatility_level` channel;
+10. the protocol is `precontrol_binary_matching`;
+11. no `.py` file exists beneath the run directory;
+12. all commands, logs, and artifacts correspond to the same explicit run ID.
 
 ## Hardware boundary
 
@@ -126,14 +121,4 @@ This run must not query, select, or submit to a QPU. Fresh hardware execution is
 
 ## Current limitations
 
-This Stage-1 contract does not yet reproduce:
-
-- the final financial HAR/QRC comparison;
-- final QRC training or inference;
-- MNIST;
-- qubit scaling;
-- noise analysis;
-- final report tables and figures;
-- final judge-facing artifact collection.
-
-Those stages must be added to the single automated runner before the Phase 3 submission skill is end-to-end.
+This Stage-1 contract does not yet reproduce the final financial HAR/QRC comparison, final QRC training or inference, MNIST, qubit scaling, noise analysis, final report tables and figures, or final judge-facing artifact collection. Those stages must be added to the single automated runner before submission.
