@@ -73,7 +73,7 @@ class FinancialQRCInputOptimizationConfig:
 
     folds: tuple[int, ...] = (4, 5, 6, 7, 8)
     lead: int = 5
-    max_per_class: int = 12
+    max_per_class: int = 24
     maximum_window: int = 40
     windows: tuple[int, ...] = (20, 40)
     prequential_blocks: int = 5
@@ -104,6 +104,8 @@ class FinancialQRCInputOptimizationConfig:
             raise ValueError("windows must lie in [5, maximum_window]")
         if len(set(self.windows)) != len(self.windows):
             raise ValueError("windows must be unique")
+        if self.maximum_window not in self.windows:
+            raise ValueError("windows must include maximum_window for fixed controls")
         if self.prequential_blocks < 2:
             raise ValueError("prequential_blocks must be at least two")
         if self.ridge_alpha <= 0:
