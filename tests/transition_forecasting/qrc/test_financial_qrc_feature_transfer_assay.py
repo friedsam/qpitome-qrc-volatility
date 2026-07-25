@@ -44,7 +44,7 @@ def _reservoir() -> TemporalRydbergChainConfig:
     )
 
 
-def test_identity_carrier_reproduces_incumbent_symmetric_modes() -> None:
+def test_identity_carrier_reproduces_incumbent_density_curvature_modes() -> None:
     rng = np.random.default_rng(20260724)
     windows = rng.uniform(-0.3, 0.3, size=(4, 8, 2))
     geometry = StaggeredLadderGeometryConfig()
@@ -59,11 +59,16 @@ def test_identity_carrier_reproduces_incumbent_symmetric_modes() -> None:
     )
     names = feature_names_from_metadata(incumbent_metadata)
     probes = tuple(int(value) for value in incumbent_metadata["probe_steps"])
-    incumbent_modes, _ = symmetric_ladder_mode_matrix(
+    incumbent_symmetric, _ = symmetric_ladder_mode_matrix(
         incumbent_features,
         names,
         probes,
     )
+    density_curvature_indices = np.asarray(
+        [index for probe in range(len(probes)) for index in (3 * probe, 3 * probe + 2)],
+        dtype=int,
+    )
+    incumbent_density_curvature = incumbent_symmetric[:, density_curvature_indices]
 
     probabilities, _ = evolve_carrier_mask_probabilities(
         windows,
@@ -77,7 +82,12 @@ def test_identity_carrier_reproduces_incumbent_symmetric_modes() -> None:
     carrier_modes = build_crossover_feature_banks(probabilities)[
         "six_mode_density_curvature"
     ]
-    np.testing.assert_allclose(carrier_modes, incumbent_modes, atol=1e-10, rtol=1e-10)
+    np.testing.assert_allclose(
+        carrier_modes,
+        incumbent_density_curvature,
+        atol=1e-10,
+        rtol=1e-10,
+    )
 
 
 def test_signed_probe_recovers_known_direction_without_intercept() -> None:
@@ -92,11 +102,11 @@ def test_signed_probe_recovers_known_direction_without_intercept() -> None:
     valid[:36] = True
     dates = pd.date_range("2020-01-01", periods=rows, freq="D").astype(str).to_numpy()
     config = FinancialQRCFeatureTransferConfig(
-        ridge_alphas=(0.001, 0.01, 0.1),
-        inner_holdout_fraction=0.25,
+        ridge_alpha=0.001,
+        min_causal_residual_rows=10,
     )
 
-    correction, diagnostics, _ = _fit_signed_residual_probe(
+    correction, diagnostics, candidates = _fit_signed_residual_probe(
         x,
         y=y,
         har=har,
@@ -107,8 +117,30 @@ def test_signed_probe_recovers_known_direction_without_intercept() -> None:
         pc1_only=False,
     )
 
+    assert diagnostics["selection_policy"] == "fixed_predeclared_alpha"
+    assert diagnostics["selected_alpha"] == pytest.approx(0.001)
     assert diagnostics["intercept_max_abs"] == 0.0
+    assert len(candidates) == 1
     assert np.corrcoef(correction[36:].reshape(-1), residuals[36:].reshape(-1))[0, 1] > 0.95
+
+
+def test_signed_probe_rejects_too_few_causal_rows() -> None:
+    features = np.arange(30, dtype=float).reshape(10, 3)
+    residuals = np.column_stack([features[:, 0], features[:, 1]])
+    valid = np.zeros(10, dtype=bool)
+    valid[:9] = True
+    config = FinancialQRCFeatureTransferConfig(min_causal_residual_rows=10)
+    with pytest.raises(ValueError, match="insufficient causal residual rows"):
+        _fit_signed_residual_probe(
+            features,
+            y=residuals,
+            har=np.zeros_like(residuals),
+            residuals=residuals,
+            residual_train_mask=valid,
+            origin_date=np.arange(10).astype(str),
+            config=config,
+            pc1_only=False,
+        )
 
 
 def test_directional_payload_rejects_universal_positive_uplift() -> None:
