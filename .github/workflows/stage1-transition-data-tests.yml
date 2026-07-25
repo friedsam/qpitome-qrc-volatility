@@ -66,6 +66,7 @@ jobs:
       - name: Run Stage-1 transition-data suite
         run: >-
           python -m pytest -q --tb=short
+          tests/transition_forecasting/data/test_acquisition.py
           tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py
           tests/transition_forecasting/modeling/test_chronological_control_matching.py
           tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py
