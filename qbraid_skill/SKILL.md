@@ -38,6 +38,8 @@ Read `references/repository-map.md` before changing or troubleshooting paths. Re
 
 ### 1. Establish repository identity
 
+Run:
+
 ```bash
 git rev-parse --show-toplevel
 git rev-parse HEAD
@@ -48,47 +50,39 @@ qbraid --version
 
 Remain at the repository root returned by Git. If the working tree is dirty, continue only for inspection or after explicitly recording that the run is not from a clean checkout.
 
-### 2. Create or activate the repository-local environment
+### 2. Create and populate the repository-local environment
 
-The Launch on qBraid link clones the repository only. It does not create an environment or install dependencies.
+The agent must create the environment itself. Do not ask the user to create or activate it. Do not depend on `qbraid envs create`; its accepted syntax varies between Lab images.
 
-Do not depend on `qbraid envs create`; its accepted requirement syntax varies between Lab images. Use the standard Python virtual-environment interface, which qBraid supports.
-
-If `.venv` is absent:
+Execute this idempotent shell block:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[test]"
+if [ ! -x .venv/bin/python ]; then
+  python3 -m venv .venv
+  .venv/bin/python -m pip install --upgrade pip
+fi
+.venv/bin/python -m pip install -e ".[test]"
 ```
 
-If `.venv` already exists:
+Do not rely on `source .venv/bin/activate`. Agent command executions may occur in separate shells, so activation state may not persist. Invoke `.venv/bin/python` or `.venv/bin/kaggle` explicitly for every subsequent command.
+
+Confirm the environment:
 
 ```bash
-source .venv/bin/activate
-```
-
-Use the activated environment's Python interpreter. Do not call a bare `pip` executable.
-
-Confirm the interpreter:
-
-```bash
-which python
-python --version
-python -m pip --version
+.venv/bin/python --version
+.venv/bin/python -m pip --version
 ```
 
 Then run the deterministic preflight:
 
 ```bash
-python qbraid_skill/scripts/preflight.py --json
+.venv/bin/python qbraid_skill/scripts/preflight.py --json
 ```
 
 For a full data-stage run, require a usable source:
 
 ```bash
-python qbraid_skill/scripts/preflight.py --strict-data-source
+.venv/bin/python qbraid_skill/scripts/preflight.py --strict-data-source
 ```
 
 The strict check must pass before launching the full workflow.
@@ -96,7 +90,7 @@ The strict check must pass before launching the full workflow.
 ### 3. Verify the focused contract tests
 
 ```bash
-python -m pytest -q \
+.venv/bin/python -m pytest -q \
   tests/qbraid_skill/test_skill_contract.py \
   tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py \
   tests/transition_forecasting/modeling/test_chronological_control_matching.py \
@@ -113,29 +107,29 @@ Do not proceed after a failed test.
 The large verified fallback snapshot is not currently committed to `stage1-dev`.
 
 - If `data/fallback/transition_forecasting/global_stock_indices_historical_data/fallback_manifest.json` exists and preflight verifies it, use `fallback`.
-- Otherwise, require a working Kaggle CLI and valid Kaggle authentication, verify access to `guillemservera/global-stock-indices-historical-data`, and use `live`.
+- Otherwise, require working Kaggle authentication, verify access to `guillemservera/global-stock-indices-historical-data`, and use `live`.
 - Do not use `auto` while the fallback is absent.
 - Never request that credentials be pasted into chat, printed, committed, or copied into a run directory.
 
 Verify live access without exposing secrets:
 
 ```bash
-kaggle datasets files guillemservera/global-stock-indices-historical-data
+.venv/bin/kaggle datasets files guillemservera/global-stock-indices-historical-data
 ```
 
 ### 5. Run the canonical Stage-1 workflow
 
-Create one explicit UTC run ID:
+First obtain an explicit UTC run ID:
 
 ```bash
-RUN_ID="qbraid-stage1-$(date -u +%Y%m%dT%H%M%SZ)"
+date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
 ```
 
-For the current clean-clone path, run:
+Copy the returned value literally into the next command. Do not rely on a shell variable surviving across agent tool calls.
 
 ```bash
-python scripts/runs/run_submission.py transition-data \
-  --run-id "$RUN_ID" \
+.venv/bin/python scripts/runs/run_submission.py transition-data \
+  --run-id <RUN_ID_FROM_PREVIOUS_COMMAND> \
   --transition-source-mode live
 ```
 
@@ -161,11 +155,11 @@ Validate all of the following:
 - the recorded fold count is eight;
 - no Python source file appears anywhere under the run directory.
 
-Useful checks:
+Useful checks, replacing `<RUN_ID>` with the literal run ID:
 
 ```bash
-python -m json.tool "results/runs/$RUN_ID/run_manifest.json" >/dev/null
-find "results/runs/$RUN_ID" -type f -name '*.py' -print
+.venv/bin/python -m json.tool "results/runs/<RUN_ID>/run_manifest.json" >/dev/null
+find "results/runs/<RUN_ID>" -type f -name '*.py' -print
 ```
 
 The `find` command must produce no output.
