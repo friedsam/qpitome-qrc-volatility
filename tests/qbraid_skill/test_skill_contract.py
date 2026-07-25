@@ -51,8 +51,20 @@ def test_skill_references_exist_and_remain_inside_package() -> None:
         "references/repository-map.md",
         "references/run-contract.md",
     ):
-        assert f"`{relative}`" in text
+        assert relative in text
         assert (SKILL_ROOT / relative).is_file()
+
+
+def test_skill_requires_explicit_root_and_absolute_resource_resolution() -> None:
+    text = SKILL_PATH.read_text(encoding="utf-8")
+
+    assert "Do not assume the current working directory is the repository root" in text
+    assert "Resolve every relative skill path against `SKILL_ROOT`" in text
+    assert "For file-read operations, use the resulting absolute path" in text
+    assert "For shell commands, set the command working directory to `REPO_ROOT`" in text
+    assert "<SKILL_ROOT>/references/repository-map.md" in text
+    assert "<SKILL_ROOT>/references/run-contract.md" in text
+    assert "<REPO_ROOT>/references/repository-map.md" not in text
 
 
 def test_skill_invokes_only_existing_entry_points() -> None:
@@ -138,7 +150,7 @@ def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
     ]
 
 
-def test_readme_contains_launch_link_and_agent_prompt() -> None:
+def test_readme_contains_launch_link_and_root_safe_agent_prompt() -> None:
     text = README_PATH.read_text(encoding="utf-8")
 
     assert "https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png" in text
@@ -146,9 +158,10 @@ def test_readme_contains_launch_link_and_agent_prompt() -> None:
         "https://account.qbraid.com?gitHubUrl="
         "https://github.com/friedsam/qpitome-qrc-volatility.git"
     ) in text
-    assert (
-        "Read qbraid_skill/qpitome-qrc-volatility/SKILL.md before acting" in text
-    )
+    assert "locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md" in text
+    assert "read it by absolute path" in text
+    assert "Resolve every relative path in that skill against the directory containing SKILL.md" in text
+    assert "not against the repository root" in text
     assert "enable **Agent Mode**" in text
 
 
