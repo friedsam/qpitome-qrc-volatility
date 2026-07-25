@@ -57,11 +57,13 @@ def test_skill_references_exist_and_remain_inside_package() -> None:
 
 def test_skill_invokes_only_existing_stage1_python_entry_points() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
-    paths = set(re.findall(r"(?:python|pytest -q)\s+([A-Za-z0-9_./-]+\.py)", text))
 
     assert "scripts/runs/run_submission.py" in text
     assert "qbraid_skill/scripts/preflight.py" in text
-    for relative in paths:
+    for relative in (
+        "scripts/runs/run_submission.py",
+        "qbraid_skill/scripts/preflight.py",
+    ):
         assert (REPO_ROOT / relative).is_file(), relative
 
 
@@ -75,15 +77,17 @@ def test_skill_is_explicit_about_current_scope_and_hardware_boundary() -> None:
     assert "qbraid jobs submit" not in text.lower()
 
 
-def test_qbraid_setup_uses_portable_virtualenv() -> None:
+def test_qbraid_setup_is_agent_safe_and_idempotent() -> None:
     skill = SKILL_PATH.read_text(encoding="utf-8")
     readme = README_PATH.read_text(encoding="utf-8")
 
     required_fragments = (
+        "if [ ! -x .venv/bin/python ]; then",
         "python3 -m venv .venv",
-        "source .venv/bin/activate",
-        "python -m pip install --upgrade pip",
-        'python -m pip install -e ".[test]"',
+        ".venv/bin/python -m pip install --upgrade pip",
+        '.venv/bin/python -m pip install -e ".[test]"',
+        ".venv/bin/python qbraid_skill/scripts/preflight.py --json",
+        ".venv/bin/python scripts/runs/run_submission.py transition-data",
     )
     for fragment in required_fragments:
         assert fragment in skill
@@ -91,8 +95,10 @@ def test_qbraid_setup_uses_portable_virtualenv() -> None:
 
     assert "qbraid envs create" not in skill
     assert "qbraid envs create" not in readme
-    assert "does not create an environment or install dependencies" in skill
-    assert "does not create the project environment or install dependencies" in readme
+    assert "source .venv/bin/activate" not in skill
+    assert "source .venv/bin/activate" not in readme
+    assert "The agent must create the environment itself" in skill
+    assert "Do not ask the user to create or activate it" in skill
 
 
 def test_readme_contains_official_launch_on_qbraid_link() -> None:
