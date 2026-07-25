@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-root", type=Path, default=DEFAULT_RESULTS_ROOT)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--folds", type=int, nargs="+", default=[4, 5, 6, 7, 8])
-    parser.add_argument("--max-per-class", type=int, default=12)
+    parser.add_argument("--max-per-class", type=int, default=24)
     parser.add_argument("--windows", type=int, nargs="+", default=[20, 40])
     parser.add_argument("--prequential-blocks", type=int, default=5)
     parser.add_argument("--ridge-alpha", type=float, default=100.0)
