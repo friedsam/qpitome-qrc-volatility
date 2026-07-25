@@ -63,8 +63,9 @@ def test_live_mismatch_is_replaced_by_verified_fallback(
 
     assert report["source_mode_used"] == "fallback_after_live_mismatch"
     assert report["fallback_substitution"] is True
-    assert report["source_comparison"]["matched"] is False
+    assert report["candidate_comparison"]["matched"] is False
     assert report["authoritative_source_verified"] is True
+    assert report["installed_source_comparison"]["matched"] is True
     assert acquisition.compare_source_to_fallback(destination, fallback)["matched"] is True
 
     persisted = json.loads(
@@ -94,7 +95,8 @@ def test_live_match_is_kept_and_recorded(
 
     assert report["source_mode_used"] == "live_verified_against_fallback"
     assert report["fallback_substitution"] is False
-    assert report["source_comparison"]["matched"] is True
+    assert report["candidate_comparison"]["matched"] is True
+    assert report["installed_source_comparison"]["matched"] is True
 
 
 def test_live_without_fallback_must_match_frozen_inventory(
