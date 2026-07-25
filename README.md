@@ -23,6 +23,8 @@ The former derived three-channel representation is not built by the canonical pi
 
 ## Environment
 
+For a Conda environment:
+
 ```bash
 conda env create -f environment.yml
 conda activate qrc-volatility
@@ -34,24 +36,69 @@ For an existing environment:
 conda env update -f environment.yml --prune
 ```
 
-## Rebuild the transition data stage
-
-From the repository root:
+On qBraid, use the active environment's Python interpreter:
 
 ```bash
-python scripts/runs/run_submission.py transition-data \
-  --run-id precontrol-rebuild-001 \
-  --transition-source-mode fallback \
-  --force
+python -m pip install -e ".[test]"
 ```
 
-Use `--transition-source-mode live` only when the external source is available and authenticated. The workflow writes acquisition logs, the one-channel processed dataset, candidate pool, folds, validation report, checksums, and a run manifest under `results/runs/<run-id>/`.
+Do not use a bare `pip` command on qBraid because it may target a different, nonpersistent interpreter.
+
+## qBraid Skill
+
+The agent-executable skill package is rooted at:
+
+```text
+qbraid_skill/
+```
+
+Its required Agent Skills entry file is:
+
+```text
+qbraid_skill/SKILL.md
+```
+
+The current skill is intentionally Stage-1-only. It can navigate, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
+
+From the repository root, test the environment and repository contract with:
+
+```bash
+python qbraid_skill/scripts/preflight.py --json
+python qbraid_skill/scripts/preflight.py --strict-data-source
+```
+
+In qBraid Lab, the installed CLI exposes the `qbraid skills` command family. Use `qbraid skills --help` to confirm the exact local install/test syntax for the Lab version, then point it at the `qbraid_skill/` package directory.
+
+## Rebuild the transition-data stage
+
+The large verified transition-data fallback is not currently committed to `stage1-dev`. A clean clone therefore requires working Kaggle authentication unless the fallback is supplied separately.
+
+Verify access first:
+
+```bash
+kaggle datasets files guillemservera/global-stock-indices-historical-data
+```
+
+Then run from the repository root with a new immutable run ID:
+
+```bash
+RUN_ID="qbraid-stage1-$(date -u +%Y%m%dT%H%M%SZ)"
+python scripts/runs/run_submission.py transition-data \
+  --run-id "$RUN_ID" \
+  --transition-source-mode live
+```
+
+Use `--transition-source-mode fallback` only when the complete verified fallback snapshot and its `fallback_manifest.json` are present. Do not use `--force` for a fresh run.
+
+The workflow writes acquisition logs, the one-channel processed dataset, candidate pool, folds, validation report, checksums, and a run manifest under `results/runs/<run-id>/`.
 
 The scientific result hierarchy remains separate:
 
 ```text
-results/<area>/<script-name>/<run-id>/...
+results/<domain>/<experiment>/run/<run-id>/...
 ```
+
+`scripts/runs/run_submission.py` is the sole planned exception because it assembles one structured, judge-facing aggregate run.
 
 ## Canonical transition-data layout
 
@@ -66,10 +113,11 @@ results/runs/<run-id>/
 
 ## Validation
 
-Focused Stage 1 checks run through:
+Focused Stage 1 and qBraid Skill checks run through:
 
 ```bash
 python -m pytest -q \
+  tests/qbraid_skill/test_skill_contract.py \
   tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py \
   tests/transition_forecasting/modeling/test_chronological_control_matching.py \
   tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py \
