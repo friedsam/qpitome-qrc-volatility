@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_VENV = REPO_ROOT / ".venv"
 FOCUSED_TESTS = (
     "tests/qbraid_skill/test_skill_contract.py",
+    "tests/transition_forecasting/data/test_acquisition.py",
     "tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py",
     "tests/transition_forecasting/modeling/test_chronological_control_matching.py",
     "tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py",
