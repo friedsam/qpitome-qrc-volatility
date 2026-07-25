@@ -1,5 +1,7 @@
 # QPITOME QRC Volatility
 
+[<img src="https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png" width="150" alt="Launch on qBraid">](https://account.qbraid.com?gitHubUrl=https://github.com/friedsam/qpitome-qrc-volatility.git)
+
 Phase 3 Global Industry Challenge project for qBraid / MITRE / JonesTrading, Track A: Financial Volatility Prediction.
 
 ## Scientific objective
@@ -23,7 +25,42 @@ The former derived three-channel representation is not built by the canonical pi
 
 ## Environment
 
-For a Conda environment:
+### qBraid Lab
+
+The **Launch on qBraid** button clones this public repository into qBraid Lab. It does **not** create, activate, or populate the required Python environment.
+
+From the cloned repository root, inspect the available environments:
+
+```bash
+qbraid envs list
+```
+
+If `qrc-volatility` does not exist, create it from the committed environment specification:
+
+```bash
+qbraid envs create -f environment.yml -y
+```
+
+Activate the environment and install the repository with its test dependencies:
+
+```bash
+qbraid envs activate qrc-volatility
+python -m pip install -e ".[test]"
+```
+
+Use `python -m pip`, not a bare `pip` command. In qBraid Lab, a bare `pip` may target the nonpersistent system interpreter rather than the activated qBraid environment.
+
+Verify that the correct interpreter and repository contract are active:
+
+```bash
+which python
+python --version
+python qbraid_skill/scripts/preflight.py --json
+```
+
+### Conda outside qBraid
+
+Create the same environment with:
 
 ```bash
 conda env create -f environment.yml
@@ -35,14 +72,6 @@ For an existing environment:
 ```bash
 conda env update -f environment.yml --prune
 ```
-
-On qBraid, use the active environment's Python interpreter:
-
-```bash
-python -m pip install -e ".[test]"
-```
-
-Do not use a bare `pip` command on qBraid because it may target a different, nonpersistent interpreter.
 
 ## qBraid Skill
 
@@ -58,7 +87,7 @@ Its required Agent Skills entry file is:
 qbraid_skill/SKILL.md
 ```
 
-The current skill is intentionally Stage-1-only. It can navigate, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
+The current skill is intentionally Stage-1-only. It can navigate, create or activate the project environment, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
 
 From the repository root, test the environment and repository contract with:
 
@@ -67,7 +96,7 @@ python qbraid_skill/scripts/preflight.py --json
 python qbraid_skill/scripts/preflight.py --strict-data-source
 ```
 
-In qBraid Lab, the installed CLI exposes the `qbraid skills` command family. Use `qbraid skills --help` to confirm the exact local install/test syntax for the Lab version, then point it at the `qbraid_skill/` package directory.
+In qBraid Lab, use `qbraid skills --help` to confirm the exact local install/test syntax supported by the installed CLI version, then point it at the `qbraid_skill/` package directory.
 
 ## Rebuild the transition-data stage
 
