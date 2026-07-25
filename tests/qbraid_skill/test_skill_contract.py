@@ -130,6 +130,7 @@ def test_bootstrap_plan_is_idempotent_and_uses_local_interpreter(tmp_path: Path)
     ]
     assert plan[3][:4] == [str(expected_python), "-m", "pytest", "-q"]
     assert "tests/qbraid_skill/test_skill_contract.py" in plan[3]
+    assert "tests/transition_forecasting/data/test_acquisition.py" in plan[3]
 
 
 def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
@@ -174,7 +175,14 @@ def test_preflight_reports_repository_contract_without_credentials() -> None:
     assert report["repository_root"] == str(REPO_ROOT)
     assert report["repository_contract"]["missing_required_paths"] == []
     assert report["python"]["supported"] is True
-    assert report["data_source"]["recommended_mode"] in {None, "live", "fallback"}
+    assert report["data_source"]["recommended_mode"] in {
+        None,
+        "auto",
+        "live",
+        "fallback",
+    }
+    assert "dataset_files_probe" in report["kaggle"]
+    assert "anonymous_access_ready" in report["kaggle"]
 
 
 def test_preflight_strict_mode_has_distinct_blocked_exit_code() -> None:
