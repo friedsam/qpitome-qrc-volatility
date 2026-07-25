@@ -88,7 +88,16 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--folds", type=int, nargs="+", default=[4, 5, 6, 7, 8])
     parser.add_argument("--lead", type=int, default=5)
-    parser.add_argument("--max-per-class", type=int, default=12)
+    parser.add_argument(
+        "--max-per-class",
+        type=int,
+        default=24,
+        help=(
+            "Maximum episodes per label and split. The default 24 is intentional: "
+            "the causal HAR warm-up and nested chronological readout selection need "
+            "more than the 12-per-class representation-screen panel."
+        ),
+    )
     parser.add_argument("--sequence-length", type=int, default=40)
     parser.add_argument(
         "--representations",
