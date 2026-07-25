@@ -28,7 +28,7 @@ The final financial QRC, classical comparison, MNIST benchmark, scaling study, a
 4. Never select an output by taking the newest directory. Use the explicit run ID created for this execution.
 5. Never infer a missing historical artifact or replace it with a regenerated file while calling it historical.
 6. Do not evaluate the fixed test partition during development.
-7. Do not submit a hardware job. The current workflow is simulator/classical preprocessing only.
+7. Do not submit a hardware job.
 8. Do not place source files inside the result directory.
 9. Stop on failed commands, missing required outputs, source-hash mismatches, or validation failures.
 
@@ -38,15 +38,12 @@ Read `references/repository-map.md` before changing or troubleshooting paths. Re
 
 ### 1. Establish repository identity
 
-Run:
-
 ```bash
 git rev-parse --show-toplevel
 git rev-parse HEAD
 git branch --show-current
 git status --short
-python --version
-python -m pip --version
+qbraid --version
 ```
 
 Remain at the repository root returned by Git. If the working tree is dirty, continue only for inspection or after explicitly recording that the run is not from a clean checkout.
@@ -55,31 +52,37 @@ Remain at the repository root returned by Git. If the working tree is dirty, con
 
 The Launch on qBraid link clones the repository only. It does not create an environment or install dependencies.
 
-List the available qBraid environments:
+List environments:
 
 ```bash
 qbraid envs list
 ```
 
-If `qrc-volatility` is absent, create it from the committed environment specification:
+For qBraid CLI `0.13.x`, if `qrc-volatility` is absent, create it from the committed pip requirements file:
 
 ```bash
-qbraid envs create -f environment.yml -y
+qbraid envs create \
+  --name qrc-volatility \
+  --requirements requirements-qbraid.txt \
+  --kernel-name "QRC Volatility" \
+  --yes
 ```
 
-Activate it before installing or running anything:
+Activate the environment:
 
 ```bash
 qbraid envs activate qrc-volatility
 ```
 
-Use the activated environment's Python interpreter. Do not call a bare `pip` executable.
+Install the repository itself without resolving dependencies a second time:
 
 ```bash
-python -m pip install -e ".[test]"
+python -m pip install -e . --no-deps
 ```
 
-Confirm that the expected interpreter is active:
+Use the activated environment's Python interpreter. Do not call a bare `pip` executable.
+
+Confirm the interpreter:
 
 ```bash
 which python
@@ -122,7 +125,7 @@ The large verified fallback snapshot is not currently committed to `stage1-dev`.
 
 - If `data/fallback/transition_forecasting/global_stock_indices_historical_data/fallback_manifest.json` exists and preflight verifies it, use `fallback`.
 - Otherwise, require a working Kaggle CLI and valid Kaggle authentication, verify access to `guillemservera/global-stock-indices-historical-data`, and use `live`.
-- Do not use `auto` while the fallback is absent; it obscures the real dependency and only fails after attempting both paths.
+- Do not use `auto` while the fallback is absent.
 - Never request that credentials be pasted into chat, printed, committed, or copied into a run directory.
 
 Verify live access without exposing secrets:
@@ -147,9 +150,7 @@ python scripts/runs/run_submission.py transition-data \
   --transition-source-mode live
 ```
 
-Use `--transition-source-mode fallback` only when the verified fallback described above is actually present.
-
-Do not add `--force` to a fresh run. Every run ID must identify an immutable new run directory.
+Use `--transition-source-mode fallback` only when the verified fallback is actually present. Do not add `--force` to a fresh run.
 
 ### 6. Validate the produced run
 
