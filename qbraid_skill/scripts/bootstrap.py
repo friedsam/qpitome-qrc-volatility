@@ -51,7 +51,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Print the plan or final summary as JSON",
+        help="Keep stdout machine-readable and print the plan or summary as JSON",
     )
     parser.add_argument(
         "--skip-tests",
@@ -69,6 +69,13 @@ def repository_failures() -> list[str]:
     return failures
 
 
+def resolve_venv_dir(venv_dir: Path) -> Path:
+    resolved = venv_dir.expanduser()
+    if not resolved.is_absolute():
+        resolved = REPO_ROOT / resolved
+    return resolved
+
+
 def venv_python(venv_dir: Path) -> Path:
     if os.name == "nt":
         return venv_dir / "Scripts" / "python.exe"
@@ -76,9 +83,7 @@ def venv_python(venv_dir: Path) -> Path:
 
 
 def build_command_plan(venv_dir: Path, *, skip_tests: bool) -> list[list[str]]:
-    resolved_venv = venv_dir.expanduser()
-    if not resolved_venv.is_absolute():
-        resolved_venv = REPO_ROOT / resolved_venv
+    resolved_venv = resolve_venv_dir(venv_dir)
     python_path = venv_python(resolved_venv)
 
     commands: list[list[str]] = []
@@ -105,16 +110,24 @@ def printable_command(argv: Sequence[str]) -> str:
     return shlex.join(str(value) for value in argv)
 
 
-def run_command(argv: Sequence[str]) -> None:
-    print(f"+ {printable_command(argv)}", flush=True)
+def run_command(argv: Sequence[str], *, machine_readable: bool) -> None:
+    log_stream = sys.stderr if machine_readable else sys.stdout
+    print(f"+ {printable_command(argv)}", file=log_stream, flush=True)
     environment = os.environ.copy()
     environment.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
-    subprocess.run(
+    completed = subprocess.run(
         list(argv),
         cwd=REPO_ROOT,
         env=environment,
         check=True,
+        capture_output=machine_readable,
+        text=machine_readable,
     )
+    if machine_readable:
+        if completed.stdout:
+            print(completed.stdout.rstrip(), file=sys.stderr)
+        if completed.stderr:
+            print(completed.stderr.rstrip(), file=sys.stderr)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -125,10 +138,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"ERROR: {failure}", file=sys.stderr)
         return 2
 
-    plan = build_command_plan(args.venv_dir, skip_tests=args.skip_tests)
+    resolved_venv = resolve_venv_dir(args.venv_dir)
+    plan = build_command_plan(resolved_venv, skip_tests=args.skip_tests)
     if args.plan:
         payload = {
             "repository_root": str(REPO_ROOT),
+            "venv_dir": str(resolved_venv),
             "commands": plan,
             "skip_tests": bool(args.skip_tests),
         }
@@ -139,11 +154,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(printable_command(command))
         return 0
 
-    completed: list[list[str]] = []
+    completed_commands: list[list[str]] = []
     try:
         for command in plan:
-            run_command(command)
-            completed.append(command)
+            run_command(command, machine_readable=args.json)
+            completed_commands.append(command)
     except subprocess.CalledProcessError as exc:
         print(
             f"ERROR: bootstrap command failed with exit code {exc.returncode}: "
@@ -155,8 +170,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     summary = {
         "status": "succeeded",
         "repository_root": str(REPO_ROOT),
-        "venv_python": str(venv_python(args.venv_dir)),
-        "commands_completed": completed,
+        "venv_python": str(venv_python(resolved_venv)),
+        "commands_completed": completed_commands,
         "focused_tests_run": not args.skip_tests,
     }
     if args.json:
