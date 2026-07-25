@@ -51,12 +51,40 @@ python -m pip --version
 
 Remain at the repository root returned by Git. If the working tree is dirty, continue only for inspection or after explicitly recording that the run is not from a clean checkout.
 
-### 2. Install the project in the active qBraid environment
+### 2. Create or activate the persistent qBraid environment
 
-Use the active environment's Python interpreter. Do not call a bare `pip` executable.
+The Launch on qBraid link clones the repository only. It does not create an environment or install dependencies.
+
+List the available qBraid environments:
+
+```bash
+qbraid envs list
+```
+
+If `qrc-volatility` is absent, create it from the committed environment specification:
+
+```bash
+qbraid envs create -f environment.yml -y
+```
+
+Activate it before installing or running anything:
+
+```bash
+qbraid envs activate qrc-volatility
+```
+
+Use the activated environment's Python interpreter. Do not call a bare `pip` executable.
 
 ```bash
 python -m pip install -e ".[test]"
+```
+
+Confirm that the expected interpreter is active:
+
+```bash
+which python
+python --version
+python -m pip --version
 ```
 
 Then run the deterministic preflight:
