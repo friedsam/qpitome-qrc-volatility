@@ -332,7 +332,7 @@ def acquire_source(
             if source_mode in {"auto", "live"}:
                 try:
                     download_live(candidate)
-                    validate_source(candidate)
+                    validation = validate_source(candidate)
                     source_comparison = (
                         compare_source_to_fallback(candidate, fallback)
                         if fallback_verification is not None
