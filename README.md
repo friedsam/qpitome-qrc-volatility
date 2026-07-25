@@ -13,7 +13,7 @@ Forecast ten-day volatility paths from ordered forty-day market histories, empha
 The **Launch on qBraid** button clones the repository when it is public. Open the cloned repository in qBraid Lab, connect qBraid AI to the workspace, enable **Agent Mode**, and give the agent this single instruction:
 
 ```text
-Reproduce and audit this submission. Read qbraid_skill/SKILL.md before acting and follow it exactly. Create and manage the required environment yourself. Do not ask me to run terminal commands. Do not modify source code, scientific parameters, data contracts, or the reserved test partition, and do not submit hardware jobs. Stop and report the first blocking defect rather than improvising around it.
+Reproduce and audit this submission. Read qbraid_skill/qpitome-qrc-volatility/SKILL.md before acting and follow it exactly. Create and manage the required environment yourself. Do not ask me to run terminal commands. Do not modify source code, scientific parameters, data contracts, or the reserved test partition, and do not submit hardware jobs. Stop and report the first blocking defect rather than improvising around it.
 ```
 
 The agent should independently:
@@ -27,10 +27,16 @@ The agent should independently:
 7. validate manifests, checksums, scientific identity, and result contents;
 8. report success, failure, or a precise blocker.
 
-The Agent Skills entry file is:
+The standards-compliant Agent Skill directory is:
 
 ```text
-qbraid_skill/SKILL.md
+qbraid_skill/qpitome-qrc-volatility/
+```
+
+Its entry file is:
+
+```text
+qbraid_skill/qpitome-qrc-volatility/SKILL.md
 ```
 
 ### Current development boundary
@@ -51,7 +57,7 @@ Use this only to diagnose an agent failure, not as the primary judge workflow.
 From the repository root:
 
 ```bash
-python3 qbraid_skill/scripts/bootstrap.py --json
+python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 ```
 
 The bootstrap is idempotent. It creates `.venv` if needed, installs the project and test dependencies, runs preflight, and runs the focused contract suite. It does not execute scientific results.
@@ -59,8 +65,8 @@ The bootstrap is idempotent. It creates `.venv` if needed, installs the project 
 For direct inspection afterward, invoke the environment explicitly:
 
 ```bash
-.venv/bin/python qbraid_skill/scripts/preflight.py --json
-.venv/bin/python qbraid_skill/scripts/preflight.py --strict-data-source
+.venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --json
+.venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --strict-data-source
 ```
 
 Do not use a bare `pip` command or depend on shell activation persisting between commands.
