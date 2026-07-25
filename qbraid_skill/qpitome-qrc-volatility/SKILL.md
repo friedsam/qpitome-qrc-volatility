@@ -17,14 +17,14 @@ find /home/jovyan -maxdepth 6 -type f \
   -print -quit
 ```
 
-From the returned absolute path, establish these two roots conceptually:
+From the returned absolute path, establish:
 
 - `SKILL_ROOT`: the directory containing this `SKILL.md`;
 - `REPO_ROOT`: two directory levels above `SKILL_ROOT`.
 
 Resolve every relative skill path against `SKILL_ROOT`. For file-read operations, use the resulting absolute path. For shell commands, set the command working directory to `REPO_ROOT`. Do not rely on shell variables or `cd` state persisting between separate agent actions.
 
-Before proceeding, verify that all of these exist:
+Verify these paths before proceeding:
 
 ```text
 <REPO_ROOT>/pyproject.toml
@@ -35,7 +35,7 @@ Before proceeding, verify that all of these exist:
 <SKILL_ROOT>/scripts/preflight.py
 ```
 
-If the skill cannot be located uniquely or these roots cannot be established, stop and report a path-resolution blocker. Do not search for similarly named replacement files or improvise a different repository layout.
+If the skill cannot be located uniquely or these roots cannot be established, stop and report a path-resolution blocker. Do not improvise a different layout.
 
 Operate from `REPO_ROOT`. This is an agent-executable workflow: create the environment, install dependencies, run checks, execute the canonical runner, validate outputs, and report the result. Do not ask the judge to run terminal commands for you.
 
@@ -74,8 +74,6 @@ All shell commands below must execute with working directory `REPO_ROOT`.
 
 ### 1. Establish repository identity
 
-Run:
-
 ```bash
 pwd
 git rev-parse --show-toplevel
@@ -85,7 +83,7 @@ git status --short
 qbraid --version
 ```
 
-Confirm that `pwd` and `git rev-parse --show-toplevel` identify the same repository root. A dirty tree does not authorize cleanup; record the state and continue only with non-destructive inspection unless the user explicitly approves development changes.
+Confirm that `pwd` and `git rev-parse --show-toplevel` identify the same root. Record a dirty tree; do not clean it.
 
 ### 2. Bootstrap and verify the execution environment
 
@@ -95,17 +93,11 @@ The agent owns environment setup. Execute exactly:
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 ```
 
-This idempotent helper:
-
-- creates `.venv` when absent;
-- installs the repository and test dependencies into `.venv`;
-- runs the deterministic preflight;
-- runs the focused Stage-1 and skill contract tests;
-- stops at the first failure.
+The helper creates `.venv` when absent, installs the repository and test dependencies, runs preflight, runs the focused Stage-1 and skill tests, and stops at the first failure.
 
 Do not substitute `qbraid envs create`, a bare `pip`, or a system-wide installation. Do not rely on shell activation persisting between agent actions. Use `.venv/bin/python` and `.venv/bin/kaggle` explicitly afterward.
 
-If bootstrap fails, report its first failing command and stop. Do not improvise another environment strategy inside the reproduction run.
+If bootstrap fails, report its first failing command and stop. Do not improvise another environment strategy.
 
 ### 3. Resolve the data source
 
@@ -115,19 +107,21 @@ Run:
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --strict-data-source
 ```
 
-The preferred final-submission path is the committed verified fallback. Use `fallback` only when this manifest and its complete snapshot exist:
+Preflight performs a read-only anonymous Kaggle `datasets files` probe. Kaggle credentials are not required when the public endpoint succeeds; any configured credentials remain informational and must never be printed or requested in chat.
+
+The verified fallback is valid only when its manifest and complete snapshot pass hash and schema verification:
 
 ```text
 data/fallback/transition_forecasting/global_stock_indices_historical_data/fallback_manifest.json
 ```
 
-Otherwise, use `live` only when preflight confirms secure Kaggle credentials and this read-only access check succeeds:
+Use the mode reported by preflight:
 
-```bash
-.venv/bin/kaggle datasets files guillemservera/global-stock-indices-historical-data
-```
+- `auto`: anonymous Kaggle access and a verified fallback are both available. The runner downloads a live candidate, compares it with the fallback, and installs the fallback instead if any file is missing, extra, or changed.
+- `fallback`: only the verified fallback is available.
+- `live`: only anonymous live access is available. The downloaded candidate must match the frozen raw inventory exactly before installation.
 
-Never ask for credentials to be pasted into chat, printed, committed, or copied into a run directory. If neither source is available, stop and report exit code 2 as a data/provenance blocker.
+If no verified mode is available, stop and report exit code 2 as a data/provenance blocker.
 
 ### 4. Run the canonical Stage-1 workflow
 
@@ -137,25 +131,25 @@ Generate one explicit UTC run ID:
 date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
 ```
 
-Copy that literal value into the command. Do not rely on a shell variable surviving across agent actions.
+Copy the literal value into the command; do not rely on shell state.
 
-For a verified fallback:
-
-```bash
-.venv/bin/python scripts/runs/run_submission.py transition-data \
-  --run-id <RUN_ID> \
-  --transition-source-mode fallback
-```
-
-For verified live access:
+For preflight mode `auto`:
 
 ```bash
 .venv/bin/python scripts/runs/run_submission.py transition-data \
   --run-id <RUN_ID> \
-  --transition-source-mode live
+  --transition-source-mode auto
 ```
 
-Do not use `auto` while source availability is ambiguous. Do not add `--force` to a new run.
+For preflight mode `fallback` or `live`, replace the final argument with that literal mode. Do not add `--force` to a new run.
+
+The raw acquisition manifest must show:
+
+- `authoritative_source_verified: true`;
+- `installed_source_comparison.matched: true`;
+- the candidate comparison;
+- whether fallback substitution occurred;
+- the substitution reason when applicable.
 
 ### 5. Validate the run
 
@@ -165,10 +159,11 @@ The run directory is:
 results/runs/<RUN_ID>/
 ```
 
-Accept the run only if all conditions hold:
+Accept the run only if:
 
 - `run_manifest.json` records `status: succeeded`;
 - every required output exists and has a SHA-256 value;
+- the raw acquisition manifest verifies the installed source against the authoritative reference;
 - the data audit records `passed: true`;
 - the checksum report records `passed: true`;
 - `test_evaluated` remains false;
@@ -177,8 +172,6 @@ Accept the run only if all conditions hold:
 - the control protocol is `precontrol_binary_matching`;
 - no `.py` file exists beneath the run directory;
 - every command, log, and artifact belongs to the same explicit run ID.
-
-Run these direct checks with the literal run ID:
 
 ```bash
 .venv/bin/python -m json.tool results/runs/<RUN_ID>/run_manifest.json >/dev/null
@@ -189,17 +182,7 @@ The `find` command must print nothing.
 
 ### 6. Report precisely
 
-Return:
-
-- commit, branch, and clean/dirty state;
-- Python and qBraid CLI versions;
-- exact commands executed;
-- source mode;
-- run ID and run directory;
-- bootstrap, test, workflow, audit, and checksum status;
-- command runtimes from the manifest;
-- key dataset counts;
-- warnings, skipped operations, and unresolved limitations.
+Return commit, branch, tree state, Python and qBraid versions, exact commands, requested and used source modes, candidate and installed-source comparison results, fallback substitution status, run ID and path, test/workflow/audit/checksum status, runtimes, key counts, warnings, skipped operations, and unresolved limitations.
 
 Never summarize a failed, blocked, or partial run as successful.
 
