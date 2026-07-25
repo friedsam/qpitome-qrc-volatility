@@ -23,18 +23,13 @@ The agent should independently:
 3. create the repository-local `.venv`;
 4. install dependencies;
 5. run preflight and focused contract tests;
-6. select only a verified data-source path;
-7. run the canonical submission runner;
-8. validate manifests, checksums, scientific identity, and result contents;
-9. report success, failure, or a precise blocker.
+6. probe anonymous Kaggle access and verify any committed fallback;
+7. use only the source mode reported by preflight;
+8. run the canonical submission runner;
+9. validate data provenance, manifests, checksums, scientific identity, and result contents;
+10. report success, failure, or a precise blocker.
 
-The standards-compliant Agent Skill directory is:
-
-```text
-qbraid_skill/qpitome-qrc-volatility/
-```
-
-Its entry file is:
+The standards-compliant Agent Skill entry is:
 
 ```text
 qbraid_skill/qpitome-qrc-volatility/SKILL.md
@@ -42,49 +37,57 @@ qbraid_skill/qpitome-qrc-volatility/SKILL.md
 
 ### Current development boundary
 
-This branch currently validates only the Stage-1 transition-data workflow. The verified fallback dataset is not yet committed. Therefore, on a clean account without Kaggle credentials, correct current behavior is:
+This branch currently validates only the Stage-1 transition-data workflow. The final submission must also add the financial QRC, classical comparison, MNIST, qubit-scaling, noise, and final artifact-collection stages to the same automated workflow.
 
-- environment creation succeeds;
-- preflight and focused tests succeed;
-- strict data-source preflight stops with a clear data/provenance blocker;
-- the agent does not ask the judge to debug or supply secrets.
+The source policy is already deterministic:
 
-The final submission must include a credential-free verified data path and add the financial QRC, classical comparison, MNIST, qubit-scaling, noise, and final artifact-collection stages to the same automated workflow.
+- public Kaggle access is probed anonymously;
+- a committed fallback is accepted only after complete manifest/hash/schema verification;
+- when both are available, the live candidate is compared with the fallback;
+- any missing, extra, or changed live file causes fallback substitution before the pipeline runs;
+- without a fallback, live data must match the frozen raw inventory exactly;
+- the installed source is verified again and the decision is recorded in `raw_acquisition_manifest.json`.
 
 ## Manual diagnostic path
 
 Use this only to diagnose an agent failure, not as the primary judge workflow.
 
-From the repository root:
-
 ```bash
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
-```
 
-The bootstrap is idempotent. It creates `.venv` if needed, installs the project and test dependencies, runs preflight, and runs the focused contract suite. It does not execute scientific results.
-
-For direct inspection afterward, invoke the environment explicitly:
-
-```bash
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --json
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --strict-data-source
 ```
 
-Do not use a bare `pip` command or depend on shell activation persisting between commands.
+The bootstrap is idempotent. It creates `.venv` if needed, installs the project and test dependencies, runs preflight, and runs the focused contract suite. It does not execute scientific results. Do not use a bare `pip` command or depend on shell activation persisting between commands.
 
 ## Current Stage-1 workflow
 
-With a verified fallback:
+Generate a literal run ID:
 
 ```bash
 date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
-
-.venv/bin/python scripts/runs/run_submission.py transition-data \
-  --run-id <RUN_ID_FROM_PREVIOUS_COMMAND> \
-  --transition-source-mode fallback
 ```
 
-Use `live` only after secure Kaggle access is verified. Do not use `auto` while source availability is ambiguous, and do not use `--force` for a new run.
+Use the exact source mode reported by preflight. When both anonymous live access and the verified fallback are ready:
+
+```bash
+.venv/bin/python scripts/runs/run_submission.py transition-data \
+  --run-id <RUN_ID_FROM_PREVIOUS_COMMAND> \
+  --transition-source-mode auto
+```
+
+Use `fallback` or `live` only when preflight reports that as the sole verified mode. Do not use `--force` for a new run.
+
+The acquisition manifest must record:
+
+```text
+authoritative_source_verified: true
+installed_source_comparison.matched: true
+candidate_comparison
+fallback_substitution
+substitution_reason
+```
 
 The aggregate judge-facing run is written under:
 
@@ -105,7 +108,7 @@ Run directories may contain data products, configuration snapshots, manifests, l
 
 ## Current canonical Stage-1 scope
 
-1. Acquire or restore frozen global-index OHLC inputs.
+1. Acquire or restore verified global-index OHLC inputs.
 2. Apply the frozen structural-quality policy.
 3. Build one-channel forty-session log-volatility sequences.
 4. Construct the binary pre-control candidate pool.
