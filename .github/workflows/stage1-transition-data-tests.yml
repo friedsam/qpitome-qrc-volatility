@@ -58,7 +58,7 @@ jobs:
       - name: Compile source, scripts, and skill helpers
         run: python -m compileall -q src scripts qbraid_skill
       - name: Validate Agent Skills specification
-        run: skills-ref validate qbraid_skill/qpitome-qrc-volatility
+        run: agentskills validate qbraid_skill/qpitome-qrc-volatility
       - name: Run Stage 1 transition-data and qBraid skill suite
         run: >-
           python -m pytest -q
