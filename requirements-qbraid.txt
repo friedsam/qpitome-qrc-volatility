@@ -1,0 +1,9 @@
+# qBraid Lab dependency set for qbraid-cli 0.13.x.
+# Keep synchronized with pyproject.toml project dependencies and the test extra.
+setuptools>=68
+kaggle>=2.0,<3
+matplotlib>=3.8,<4
+numpy>=1.26,<3
+pandas>=2.1,<3
+scikit-learn>=1.4,<2
+pytest>=8
