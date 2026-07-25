@@ -2,18 +2,25 @@
 
 ## Purpose
 
-This contract defines the currently testable qBraid execution path. It intentionally describes only functionality present on `stage1-dev`.
+This contract defines the currently testable qBraid execution path. It intentionally covers only functionality present on `stage1-dev`.
 
-## Environment
+## Agent-owned environment setup
 
-- Python 3.10 or newer; the project environment currently targets Python 3.11.
-- Install through the active interpreter:
+The judge should not create or activate an environment manually. The qBraid agent runs:
 
 ```bash
-python -m pip install -e ".[test]"
+python3 qbraid_skill/scripts/bootstrap.py --json
 ```
 
-Do not use a bare `pip` command on qBraid. qBraid environments can have multiple Python installations, and installing into the wrong interpreter can produce a nonpersistent or inconsistent environment.
+The bootstrap:
+
+- creates the repository-local `.venv` if absent;
+- installs the project and test dependencies;
+- runs preflight;
+- runs the focused Stage-1 and skill tests;
+- stops on the first failure.
+
+Subsequent commands must use `.venv/bin/python` or `.venv/bin/kaggle` explicitly. Do not use a bare `pip`, system-wide installation, or rely on shell activation persisting between agent actions.
 
 ## Data dependency
 
@@ -23,38 +30,50 @@ The transition workflow uses the public Kaggle dataset:
 guillemservera/global-stock-indices-historical-data
 ```
 
-The current branch does not contain the large verified fallback snapshot. A clean qBraid clone therefore requires:
+The current branch does not contain the large verified fallback snapshot. A clean qBraid clone therefore cannot complete the data run unless secure Kaggle access already exists. Never commit, print, request in chat, or copy credentials into the repository or result directory.
 
-- the Kaggle CLI installed by the project dependencies;
-- a valid `~/.kaggle/access_token` or `~/.kaggle/kaggle.json`;
-- restrictive credential-file permissions;
-- dataset access verified before execution.
-
-Never commit, print, or copy credentials into the repository or result directory.
+The final submission should prefer a committed credential-free verified fallback.
 
 ## Preflight
 
 ```bash
-python qbraid_skill/scripts/preflight.py --json
-python qbraid_skill/scripts/preflight.py --strict-data-source
+.venv/bin/python qbraid_skill/scripts/preflight.py --json
+.venv/bin/python qbraid_skill/scripts/preflight.py --strict-data-source
 ```
 
 Exit codes:
 
-- `0`: repository contract passes; strict mode also has a usable data source;
+- `0`: repository contract passes; strict mode also found a usable source;
 - `1`: Python, dependency, or repository contract failure;
 - `2`: strict mode found neither secure Kaggle access nor the verified fallback.
 
+Exit code 2 is a data/provenance blocker, not permission to improvise another dataset.
+
 ## Canonical command
 
+Generate a literal run ID:
+
 ```bash
-RUN_ID="qbraid-stage1-$(date -u +%Y%m%dT%H%M%SZ)"
-python scripts/runs/run_submission.py transition-data \
-  --run-id "$RUN_ID" \
+date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
+```
+
+With the verified fallback:
+
+```bash
+.venv/bin/python scripts/runs/run_submission.py transition-data \
+  --run-id <RUN_ID> \
+  --transition-source-mode fallback
+```
+
+With verified live access:
+
+```bash
+.venv/bin/python scripts/runs/run_submission.py transition-data \
+  --run-id <RUN_ID> \
   --transition-source-mode live
 ```
 
-Use `fallback` only when the expected fallback manifest and its complete verified snapshot are present. Do not use `auto` on the current clean-clone branch because the absent fallback makes its second path nonfunctional.
+Do not use `auto` while source availability is ambiguous. Do not use `--force` for a new run.
 
 ## Expected top-level run files
 
@@ -97,12 +116,13 @@ A run is accepted only when:
 4. the checksum report records `passed: true`;
 5. the test partition remains unevaluated;
 6. the workflow records eight folds and one `log_volatility_level` channel;
-7. no `.py` file exists under the run directory;
-8. all commands and logs correspond to the same explicit run ID.
+7. the protocol is `precontrol_binary_matching`;
+8. no `.py` file exists beneath the run directory;
+9. all commands, logs, and artifacts correspond to the same explicit run ID.
 
 ## Hardware boundary
 
-This run must not query, select, or submit to a QPU. qBraid Agent Mode requires approval for sensitive hardware execution, but this repository contract is stricter: fresh hardware execution is outside this workflow entirely.
+This run must not query, select, or submit to a QPU. Fresh hardware execution is outside this workflow.
 
 ## Current limitations
 
@@ -116,4 +136,4 @@ This Stage-1 contract does not yet reproduce:
 - final report tables and figures;
 - final judge-facing artifact collection.
 
-Those stages must be added to the single automated runner before the submission skill can be considered end-to-end for Phase 3.
+Those stages must be added to the single automated runner before the Phase 3 submission skill is end-to-end.
