@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_ROOT = REPO_ROOT / "qbraid_skill"
 SKILL_PATH = SKILL_ROOT / "SKILL.md"
 PREFLIGHT_PATH = SKILL_ROOT / "scripts" / "preflight.py"
+README_PATH = REPO_ROOT / "README.md"
 
 
 def load_preflight() -> ModuleType:
@@ -72,6 +73,33 @@ def test_skill_is_explicit_about_current_scope_and_hardware_boundary() -> None:
     assert "The final financial QRC" in text
     assert "MNIST benchmark" in text
     assert "qbraid jobs submit" not in text.lower()
+
+
+def test_qbraid_environment_setup_is_explicit() -> None:
+    skill = SKILL_PATH.read_text(encoding="utf-8")
+    readme = README_PATH.read_text(encoding="utf-8")
+
+    required_commands = (
+        "qbraid envs create -f environment.yml -y",
+        "qbraid envs activate qrc-volatility",
+        'python -m pip install -e ".[test]"',
+    )
+    for command in required_commands:
+        assert command in skill
+        assert command in readme
+
+    assert "does not create an environment or install dependencies" in skill
+    assert "does **not** create, activate, or populate" in readme
+
+
+def test_readme_contains_official_launch_on_qbraid_link() -> None:
+    text = README_PATH.read_text(encoding="utf-8")
+
+    assert "https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png" in text
+    assert (
+        "https://account.qbraid.com?gitHubUrl="
+        "https://github.com/friedsam/qpitome-qrc-volatility.git"
+    ) in text
 
 
 def test_preflight_reports_repository_contract_without_requiring_credentials() -> None:
