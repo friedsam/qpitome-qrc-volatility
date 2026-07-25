@@ -6,41 +6,26 @@ Phase 3 Global Industry Challenge project for qBraid / MITRE / JonesTrading, Tra
 
 ## Scientific objective
 
-Forecast ten-day volatility paths from ordered forty-day market histories, with primary attention to abrupt calm-to-crisis transitions at leads 1, 5, and 10. Classical HAR forecasts provide the persistence baseline; Rydberg quantum-reservoir features are evaluated as corrections to the HAR residual path.
+Forecast ten-day volatility paths from ordered forty-day market histories, emphasizing abrupt calm-to-crisis transitions at leads 1, 5, and 10. Classical HAR forecasts provide the persistence baseline; Rydberg quantum-reservoir features are evaluated as corrections to the HAR residual path.
 
-## Judge quick start on qBraid
+## Judge quick start: qBraid Agent Mode
 
-The **Launch on qBraid** button clones the repository into qBraid Lab when the repository is public. It does not create the project environment or install dependencies.
+The **Launch on qBraid** button clones the repository when it is public. Open the cloned repository in qBraid Lab, connect qBraid AI to the workspace, enable **Agent Mode**, and give the agent this single instruction:
 
-Run all commands from the repository root.
-
-### 1. Create the repository-local environment
-
-Use a standard repository-local Python virtual environment. The commands below do not depend on qBraid CLI environment-manager syntax and do not rely on shell activation persisting between commands.
-
-```bash
-if [ ! -x .venv/bin/python ]; then
-  python3 -m venv .venv
-  .venv/bin/python -m pip install --upgrade pip
-fi
-.venv/bin/python -m pip install -e ".[test]"
+```text
+Reproduce and audit this submission. Read qbraid_skill/SKILL.md before acting and follow it exactly. Create and manage the required environment yourself. Do not ask me to run terminal commands. Do not modify source code, scientific parameters, data contracts, or the reserved test partition, and do not submit hardware jobs. Stop and report the first blocking defect rather than improvising around it.
 ```
 
-All remaining commands invoke the environment's interpreter explicitly:
+The agent should independently:
 
-```bash
-.venv/bin/python --version
-.venv/bin/python -m pip --version
-```
-
-Do not use a bare `pip` command. It may target the qBraid system interpreter rather than this repository-local environment.
-
-### 2. Run the qBraid Skill preflight
-
-```bash
-.venv/bin/python qbraid_skill/scripts/preflight.py --json
-.venv/bin/python -m pytest -q tests/qbraid_skill/test_skill_contract.py
-```
+1. record the repository commit, branch, and working-tree state;
+2. create the repository-local `.venv`;
+3. install dependencies;
+4. run preflight and focused contract tests;
+5. select only a verified data-source path;
+6. run the canonical submission runner;
+7. validate manifests, checksums, scientific identity, and result contents;
+8. report success, failure, or a precise blocker.
 
 The Agent Skills entry file is:
 
@@ -48,34 +33,51 @@ The Agent Skills entry file is:
 qbraid_skill/SKILL.md
 ```
 
-The current skill is intentionally Stage-1-only. It can navigate, create the repository-local environment, preflight, execute, and audit the transition-data workflow. It does not yet claim to reproduce the unfinished final QRC, classical comparison, MNIST, scaling, or noise stages.
+### Current development boundary
 
-### 3. Verify the data source
+This branch currently validates only the Stage-1 transition-data workflow. The verified fallback dataset is not yet committed. Therefore, on a clean account without Kaggle credentials, correct current behavior is:
 
-The large verified transition-data fallback is not currently committed. A clean clone therefore requires working Kaggle authentication until a distributable fallback is added.
+- environment creation succeeds;
+- preflight and focused tests succeed;
+- strict data-source preflight stops with a clear data/provenance blocker;
+- the agent does not ask the judge to debug or supply secrets.
+
+The final submission must include a credential-free verified data path and add the financial QRC, classical comparison, MNIST, qubit-scaling, noise, and final artifact-collection stages to the same automated workflow.
+
+## Manual diagnostic path
+
+Use this only to diagnose an agent failure, not as the primary judge workflow.
+
+From the repository root:
 
 ```bash
-.venv/bin/python qbraid_skill/scripts/preflight.py --strict-data-source
-.venv/bin/kaggle datasets files guillemservera/global-stock-indices-historical-data
+python3 qbraid_skill/scripts/bootstrap.py --json
 ```
 
-Never paste, print, or commit Kaggle credentials.
+The bootstrap is idempotent. It creates `.venv` if needed, installs the project and test dependencies, runs preflight, and runs the focused contract suite. It does not execute scientific results.
 
-### 4. Run the current Stage-1 workflow
+For direct inspection afterward, invoke the environment explicitly:
 
-First obtain a run ID and then use that exact literal value in the command below:
+```bash
+.venv/bin/python qbraid_skill/scripts/preflight.py --json
+.venv/bin/python qbraid_skill/scripts/preflight.py --strict-data-source
+```
+
+Do not use a bare `pip` command or depend on shell activation persisting between commands.
+
+## Current Stage-1 workflow
+
+With a verified fallback:
 
 ```bash
 date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
-```
 
-```bash
 .venv/bin/python scripts/runs/run_submission.py transition-data \
   --run-id <RUN_ID_FROM_PREVIOUS_COMMAND> \
-  --transition-source-mode live
+  --transition-source-mode fallback
 ```
 
-Use `--transition-source-mode fallback` only when the complete verified fallback snapshot and its `fallback_manifest.json` are present. Do not use `--force` for a fresh run.
+Use `live` only after secure Kaggle access is verified. Do not use `auto` while source availability is ambiguous, and do not use `--force` for a new run.
 
 The aggregate judge-facing run is written under:
 
@@ -83,11 +85,16 @@ The aggregate judge-facing run is written under:
 results/runs/<run-id>/
 ```
 
-`scripts/runs/run_submission.py` is the sole planned exception to the normal scientific-result mapping because it assembles a structured, judge-facing package. Normal scientific outputs follow:
+`scripts/runs/run_submission.py` is the sole planned exception to the normal scientific-result mapping because it assembles a structured judge-facing package. Normal scientific outputs follow:
 
 ```text
-results/<domain>/<experiment>/run/<run-id>/...
+src/<domain>/<experiment>/*.py
+scripts/<domain>/<experiment>/*.py
+tests/<domain>/<experiment>/test_*.py
+results/<domain>/<experiment>/run/<run-id>/*
 ```
+
+Run directories may contain data products, configuration snapshots, manifests, logs, predictions, metrics, figures, and checksums. They must not contain copied source code.
 
 ## Current canonical Stage-1 scope
 
@@ -97,28 +104,11 @@ results/<domain>/<experiment>/run/<run-id>/...
 4. Construct the binary pre-control candidate pool.
 5. Create eight chronologically purged walk-forward folds.
 6. Rematch controls within each fold partition.
-7. Validate and checksum all generated artifacts.
+7. Validate and checksum generated artifacts.
 
-The former derived three-channel representation is not part of the canonical pipeline.
+The former derived three-channel representation is not part of the canonical pipeline. The fixed final test partition must remain unopened during development and model selection.
 
-## Full focused validation
-
-```bash
-.venv/bin/python -m pytest -q \
-  tests/qbraid_skill/test_skill_contract.py \
-  tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py \
-  tests/transition_forecasting/modeling/test_chronological_control_matching.py \
-  tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py \
-  tests/transition_forecasting/modeling/test_chronological_splits.py \
-  tests/transition_forecasting/data/test_fold_datasets.py \
-  tests/runs/test_run_submission.py
-```
-
-The fixed final test partition must remain unopened during development and model selection.
-
-## Conda outside qBraid
-
-For local development outside qBraid:
+## Local development outside qBraid
 
 ```bash
 conda env create -f environment.yml
@@ -129,16 +119,6 @@ For an existing environment:
 
 ```bash
 conda env update -f environment.yml --prune
-```
-
-## Repository layout
-
-```text
-qbraid_skill/
-src/transition_forecasting/
-scripts/transition_forecasting/
-tests/transition_forecasting/
-results/
 ```
 
 Only validated components are promoted to `stage1-dev`; only the final validated submission state is intended to be merged into `main`.
