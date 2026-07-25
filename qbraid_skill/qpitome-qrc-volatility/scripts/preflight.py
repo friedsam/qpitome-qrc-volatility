@@ -129,7 +129,7 @@ def credential_status() -> dict[str, object]:
 def environment_executable(name: str) -> str | None:
     """Prefer an executable installed beside the active Python interpreter."""
 
-    candidate = Path(sys.executable).resolve().with_name(name)
+    candidate = Path(sys.executable).with_name(name)
     if candidate.is_file() and os.access(candidate, os.X_OK):
         return str(candidate)
     return shutil.which(name)
@@ -203,8 +203,8 @@ def build_report() -> dict[str, object]:
             "prefix": sys.prefix,
             "minimum_supported": f"{MIN_PYTHON[0]}.{MIN_PYTHON[1]}",
             "supported": sys.version_info >= MIN_PYTHON,
-            "repository_local_venv": Path(sys.executable).resolve().is_relative_to(
-                (REPO_ROOT / ".venv").resolve()
+            "repository_local_venv": Path(sys.executable).absolute().is_relative_to(
+                (REPO_ROOT / ".venv").absolute()
             ),
         },
         "platform": {
