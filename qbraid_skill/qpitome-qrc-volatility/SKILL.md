@@ -5,7 +5,39 @@ description: Reproduce and audit the QPITOME quantum-reservoir volatility submis
 
 # QPITOME QRC Volatility Reproduction
 
-Operate from the repository root. This is an agent-executable workflow: create the environment, install dependencies, run checks, execute the canonical runner, validate outputs, and report the result. Do not ask the judge to run terminal commands for you.
+## Path resolution — perform this first
+
+The qBraid agent may start in `/home/jovyan` rather than in the cloned repository. Do not assume the current working directory is the repository root, and do not resolve skill resources relative to the repository root.
+
+Locate this skill by absolute path:
+
+```bash
+find /home/jovyan -maxdepth 6 -type f \
+  -path '*/qbraid_skill/qpitome-qrc-volatility/SKILL.md' \
+  -print -quit
+```
+
+From the returned absolute path, establish these two roots conceptually:
+
+- `SKILL_ROOT`: the directory containing this `SKILL.md`;
+- `REPO_ROOT`: two directory levels above `SKILL_ROOT`.
+
+Resolve every relative skill path against `SKILL_ROOT`. For file-read operations, use the resulting absolute path. For shell commands, set the command working directory to `REPO_ROOT`. Do not rely on shell variables or `cd` state persisting between separate agent actions.
+
+Before proceeding, verify that all of these exist:
+
+```text
+<REPO_ROOT>/pyproject.toml
+<REPO_ROOT>/scripts/runs/run_submission.py
+<SKILL_ROOT>/references/repository-map.md
+<SKILL_ROOT>/references/run-contract.md
+<SKILL_ROOT>/scripts/bootstrap.py
+<SKILL_ROOT>/scripts/preflight.py
+```
+
+If the skill cannot be located uniquely or these roots cannot be established, stop and report a path-resolution blocker. Do not search for similarly named replacement files or improvise a different repository layout.
+
+Operate from `REPO_ROOT`. This is an agent-executable workflow: create the environment, install dependencies, run checks, execute the canonical runner, validate outputs, and report the result. Do not ask the judge to run terminal commands for you.
 
 ## Current executable scope
 
@@ -22,26 +54,30 @@ The final financial QRC, classical comparison, MNIST benchmark, scaling study, n
 
 ## Non-negotiable rules
 
-1. Run from the repository root.
-2. Do not modify source code, contracts, parameters, data policy, or scientific defaults during reproduction.
-3. Do not clean, reset, stash, or otherwise alter a dirty working tree automatically. Record it.
-4. Use explicit run IDs. Never select the newest result directory.
-5. Never infer a missing historical artifact or represent regenerated evidence as historical.
-6. Do not evaluate the fixed test partition during development.
-7. Do not submit or query a hardware job.
-8. Do not place source files in result directories.
-9. Stop on the first failed command, missing required output, hash mismatch, or validation failure.
-10. Report verified facts separately from limitations and unresolved blockers.
+1. Run from `REPO_ROOT`.
+2. Resolve bundled references and scripts from `SKILL_ROOT`, never from `REPO_ROOT`.
+3. Do not modify source code, contracts, parameters, data policy, or scientific defaults during reproduction.
+4. Do not clean, reset, stash, or otherwise alter a dirty working tree automatically. Record it.
+5. Use explicit run IDs. Never select the newest result directory.
+6. Never infer a missing historical artifact or represent regenerated evidence as historical.
+7. Do not evaluate the fixed test partition during development.
+8. Do not submit or query a hardware job.
+9. Do not place source files in result directories.
+10. Stop on the first failed command, missing required output, hash mismatch, or validation failure.
+11. Report verified facts separately from limitations and unresolved blockers.
 
-Read `references/repository-map.md` before troubleshooting paths. Read `references/run-contract.md` before scientific execution.
+Read `<SKILL_ROOT>/references/repository-map.md` before troubleshooting paths. Read `<SKILL_ROOT>/references/run-contract.md` before scientific execution. Replace `<SKILL_ROOT>` with the actual absolute directory in file-tool calls.
 
 ## Procedure
+
+All shell commands below must execute with working directory `REPO_ROOT`.
 
 ### 1. Establish repository identity
 
 Run:
 
 ```bash
+pwd
 git rev-parse --show-toplevel
 git rev-parse HEAD
 git branch --show-current
@@ -49,7 +85,7 @@ git status --short
 qbraid --version
 ```
 
-Remain at the Git root. A dirty tree does not authorize cleanup; record the state and continue only with non-destructive inspection unless the user explicitly approves development changes.
+Confirm that `pwd` and `git rev-parse --show-toplevel` identify the same repository root. A dirty tree does not authorize cleanup; record the state and continue only with non-destructive inspection unless the user explicitly approves development changes.
 
 ### 2. Bootstrap and verify the execution environment
 
@@ -174,7 +210,7 @@ On failure:
 1. stop;
 2. preserve any failed run directory and logs;
 3. identify the first failing command;
-4. classify the failure as environment, data/provenance, or code;
+4. classify the failure as path resolution, environment, data/provenance, or code;
 5. report the exact error;
 6. do not patch scientific behavior during reproduction.
 
