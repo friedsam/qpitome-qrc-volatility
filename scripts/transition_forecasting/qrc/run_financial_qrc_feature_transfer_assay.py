@@ -51,13 +51,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-per-class", type=int, default=12)
     parser.add_argument("--sequence-length", type=int, default=40)
     parser.add_argument("--prequential-blocks", type=int, default=5)
-    parser.add_argument("--inner-holdout-fraction", type=float, default=0.25)
     parser.add_argument(
-        "--ridge-alphas",
+        "--ridge-alpha",
         type=float,
-        nargs="+",
-        default=[0.1, 1.0, 10.0, 100.0, 300.0, 1000.0],
+        default=100.0,
+        help="Predeclared fixed Ridge alpha; no alpha optimization is performed.",
     )
+    parser.add_argument("--min-causal-residual-rows", type=int, default=10)
     parser.add_argument("--selection-seed", type=int, default=20260721)
     parser.add_argument("--instability-window", type=int, default=5)
     parser.add_argument("--incumbent-step-duration-us", type=float, default=0.03)
@@ -95,8 +95,8 @@ def main() -> None:
         max_per_class=int(args.max_per_class),
         sequence_length=int(args.sequence_length),
         prequential_blocks=int(args.prequential_blocks),
-        inner_holdout_fraction=float(args.inner_holdout_fraction),
-        ridge_alphas=tuple(args.ridge_alphas),
+        ridge_alpha=float(args.ridge_alpha),
+        min_causal_residual_rows=int(args.min_causal_residual_rows),
         selection_seed=int(args.selection_seed),
         incumbent_step_duration_us=float(args.incumbent_step_duration_us),
         repaired_step_duration_us=float(args.repaired_step_duration_us),
