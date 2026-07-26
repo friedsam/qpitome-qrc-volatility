@@ -1,4 +1,4 @@
-"""MNIST acquisition with live Kaggle and hash-verified fallback modes."""
+"""MNIST acquisition with anonymous checksum-pinned live and fallback modes."""
 from __future__ import annotations
 
 import gzip
@@ -6,8 +6,8 @@ import hashlib
 import json
 import shutil
 import struct
-import subprocess
 import tempfile
+import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -19,17 +19,28 @@ from transition_forecasting.data.acquisition import (
     verify_fallback_manifest,
 )
 
-DATASET = "hojjatk/mnist-dataset"
-DATASET_URL = "https://www.kaggle.com/datasets/hojjatk/mnist-dataset"
-LICENSE = "Original MNIST dataset terms; see source manifest"
+DATASET = "MNIST handwritten digit database"
+DATASET_URL = "https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz"
+DATASET_PAGE = "https://keras.io/api/datasets/mnist/"
+MNIST_HOMEPAGE = "http://yann.lecun.com/exdb/mnist/"
+MNIST_NPZ_SHA256 = "731c5ac602752760c8e48fbffcf8c3b850d9dc2a2aedcf2cc48468fc17b673d1"
+LICENSE = "Creative Commons Attribution-ShareAlike 3.0"
 SOURCE_DESCRIPTION = (
-    "MNIST handwritten digit database (LeCun, Cortes, Burges), "
-    "original IDX byte streams."
+    "MNIST handwritten digit database (LeCun, Cortes, Burges), distributed "
+    "through the checksum-pinned Keras public dataset mirror."
 )
 IDX_IMAGE_MAGIC = 2051
 IDX_LABEL_MAGIC = 2049
 EXPECTED_COUNTS = {"train": 60000, "test": 10000}
 EXPECTED_IMAGE_SHAPE = (28, 28)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _open_maybe_gzip(path: Path):
@@ -135,12 +146,49 @@ def discover_idx_files(root: Path) -> dict[str, Path]:
     return resolved
 
 
-def validate_source(root: Path) -> dict[str, object]:
-    roles = discover_idx_files(root)
+def discover_mnist_npz(root: Path) -> Path | None:
+    """Locate the checksum-pinned Keras MNIST archive when present."""
+    root = Path(root)
+    candidates = sorted(
+        path for path in root.rglob("mnist.npz") if path.is_file()
+    )
+    if not candidates:
+        return None
+    matches = [path for path in candidates if _sha256(path) == MNIST_NPZ_SHA256]
+    if not matches:
+        observed = {str(path): _sha256(path) for path in candidates}
+        raise ValueError(
+            f"{root}: MNIST NPZ checksum mismatch; expected {MNIST_NPZ_SHA256}, "
+            f"observed={observed}"
+        )
+    return min(
+        matches,
+        key=lambda path: (
+            len(path.relative_to(root).parts),
+            path.as_posix(),
+        ),
+    )
+
+
+def _load_mnist_npz(path: Path) -> dict[str, np.ndarray]:
+    with np.load(path, allow_pickle=False) as payload:
+        required = {"x_train", "y_train", "x_test", "y_test"}
+        missing = sorted(required.difference(payload.files))
+        if missing:
+            raise ValueError(f"{path}: MNIST NPZ is missing arrays {missing}")
+        return {
+            "train_images": np.asarray(payload["x_train"], dtype=np.uint8),
+            "train_labels": np.asarray(payload["y_train"], dtype=np.uint8),
+            "test_images": np.asarray(payload["x_test"], dtype=np.uint8),
+            "test_labels": np.asarray(payload["y_test"], dtype=np.uint8),
+        }
+
+
+def _validate_arrays(arrays: dict[str, np.ndarray]) -> dict[str, object]:
     summary: dict[str, object] = {}
     for split, expected_count in EXPECTED_COUNTS.items():
-        images = read_idx(roles[f"{split}_images"])
-        labels = read_idx(roles[f"{split}_labels"])
+        images = np.asarray(arrays[f"{split}_images"])
+        labels = np.asarray(arrays[f"{split}_labels"])
         expected_shape = (expected_count, *EXPECTED_IMAGE_SHAPE)
         if images.shape != expected_shape:
             raise ValueError(
@@ -150,12 +198,37 @@ def validate_source(root: Path) -> dict[str, object]:
             raise ValueError(
                 f"{split} labels have shape {labels.shape}; expected {(expected_count,)}"
             )
+        if images.dtype != np.uint8 or labels.dtype != np.uint8:
+            raise ValueError(f"{split} MNIST arrays must use uint8")
         present = np.unique(labels)
         if present.tolist() != list(range(10)):
             raise ValueError(f"{split} labels do not cover digits 0-9")
-        summary[f"{split}_images"] = roles[f"{split}_images"].relative_to(root).as_posix()
-        summary[f"{split}_labels"] = roles[f"{split}_labels"].relative_to(root).as_posix()
         summary[f"{split}_count"] = expected_count
+        summary[f"{split}_image_shape"] = list(EXPECTED_IMAGE_SHAPE)
+    return summary
+
+
+def validate_source(root: Path) -> dict[str, object]:
+    root = Path(root)
+    archive = discover_mnist_npz(root)
+    if archive is not None:
+        arrays = _load_mnist_npz(archive)
+        summary = _validate_arrays(arrays)
+        summary.update(
+            {
+                "source_format": "keras_npz",
+                "archive": archive.relative_to(root).as_posix(),
+                "archive_sha256": _sha256(archive),
+            }
+        )
+    else:
+        roles = discover_idx_files(root)
+        arrays = {role: read_idx(path) for role, path in roles.items()}
+        summary = _validate_arrays(arrays)
+        summary["source_format"] = "canonical_idx"
+        for role, path in roles.items():
+            summary[role] = path.relative_to(root).as_posix()
+
     records = file_inventory(root)
     if not records:
         raise ValueError(f"no source files found under {root}")
@@ -169,6 +242,9 @@ def write_live_source_manifest(destination: Path) -> None:
         "schema_version": 1,
         "dataset": DATASET,
         "dataset_url": DATASET_URL,
+        "dataset_page": DATASET_PAGE,
+        "mnist_homepage": MNIST_HOMEPAGE,
+        "archive_sha256": MNIST_NPZ_SHA256,
         "license": LICENSE,
         "source_description": SOURCE_DESCRIPTION,
         "downloaded_at_utc": utc_now(),
@@ -182,25 +258,26 @@ def write_live_source_manifest(destination: Path) -> None:
 
 
 def download_live(destination: Path) -> None:
-    kaggle = shutil.which("kaggle")
-    if kaggle is None:
-        raise RuntimeError("Kaggle CLI not found")
+    """Download the Keras-hosted MNIST NPZ anonymously and verify SHA-256."""
+    destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=False)
-    subprocess.run(
-        [
-            kaggle,
-            "datasets",
-            "download",
-            "--dataset",
-            DATASET,
-            "--path",
-            str(destination),
-            "--unzip",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
+    archive = destination / "mnist.npz"
+    request = urllib.request.Request(
+        DATASET_URL,
+        headers={"User-Agent": "qpitome-qrc-volatility/0.1"},
     )
+    digest = hashlib.sha256()
+    with urllib.request.urlopen(request, timeout=120) as response, archive.open("wb") as output:
+        for chunk in iter(lambda: response.read(1024 * 1024), b""):
+            digest.update(chunk)
+            output.write(chunk)
+    observed = digest.hexdigest()
+    if observed != MNIST_NPZ_SHA256:
+        archive.unlink(missing_ok=True)
+        raise ValueError(
+            f"downloaded MNIST checksum {observed} does not match {MNIST_NPZ_SHA256}"
+        )
+    validate_source(destination)
     write_live_source_manifest(destination)
 
 
@@ -223,7 +300,7 @@ def acquire_mnist(
     source_mode: str = "auto",
     force: bool = False,
 ) -> dict[str, object]:
-    """Resolve MNIST live first, then use the verified fallback snapshot."""
+    """Resolve anonymous live MNIST first, then a hash-verified fallback snapshot."""
     if source_mode not in {"auto", "live", "fallback"}:
         raise ValueError(f"unsupported source mode: {source_mode}")
     destination = Path(destination)
@@ -262,6 +339,8 @@ def acquire_mnist(
         "schema_version": 1,
         "dataset": DATASET,
         "dataset_url": DATASET_URL,
+        "dataset_page": DATASET_PAGE,
+        "archive_sha256": MNIST_NPZ_SHA256,
         "license": LICENSE,
         "source_description": SOURCE_DESCRIPTION,
         "source_mode_requested": source_mode,
@@ -281,8 +360,15 @@ def acquire_mnist(
 
 
 def load_mnist(root: Path) -> dict[str, np.ndarray]:
-    roles = discover_idx_files(root)
-    return {role: read_idx(path) for role, path in roles.items()}
+    root = Path(root)
+    archive = discover_mnist_npz(root)
+    if archive is not None:
+        arrays = _load_mnist_npz(archive)
+    else:
+        roles = discover_idx_files(root)
+        arrays = {role: read_idx(path) for role, path in roles.items()}
+    _validate_arrays(arrays)
+    return arrays
 
 
 def write_fallback_manifest(root: Path) -> Path:
@@ -293,7 +379,7 @@ def write_fallback_manifest(root: Path) -> Path:
         "schema_version": 1,
         "dataset": DATASET,
         "role": "repository fallback source snapshot",
-        "source_boundary": "raw MNIST IDX input",
+        "source_boundary": "raw MNIST NPZ or IDX input",
         "generated_at_utc": utc_now(),
         "file_count": len(records),
         "files": records,
