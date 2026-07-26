@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fold", type=int, default=5)
     parser.add_argument("--lead", type=int, default=5)
     parser.add_argument("--sequence-length", type=int, default=40)
-    parser.add_argument("--max-per-class", type=int, default=2)
+    parser.add_argument("--max-per-class", type=int, default=12)
     parser.add_argument("--selection-seed", type=int, default=20260726)
     parser.add_argument("--ridge-alpha", type=float, default=100.0)
     parser.add_argument("--correction-lambda", type=float, default=1.0)
