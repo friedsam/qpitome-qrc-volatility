@@ -18,13 +18,19 @@ from transition_forecasting.modeling.classical_benchmarks.esn_tuning import (
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Tune the direct ESN on folds 4-6 with transition-first guardrails, then confirm on folds 7-8."
+        description=(
+            "Development-only bounded direct-ESN tuning on folds 4-6 with "
+            "transition-first guardrails, followed by a confirmation recheck."
+        )
     )
     parser.add_argument("--dataset-root", type=Path, required=True)
     parser.add_argument(
         "--results-root",
         type=Path,
-        default=Path("results/transition_forecasting/modeling/classical_benchmarks/esn_tuning"),
+        default=Path(
+            "results/transition_forecasting/modeling/"
+            "classical_benchmarks/esn_tuning/run"
+        ),
     )
     parser.add_argument("--run-id", required=True)
     args = parser.parse_args()
