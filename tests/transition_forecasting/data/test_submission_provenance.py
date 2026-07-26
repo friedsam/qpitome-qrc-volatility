@@ -46,6 +46,18 @@ def test_expose_adds_environment_bin_to_path(
     assert os.environ["PATH"].split(os.pathsep)[0] == str(bin_dir)
 
 
+def test_tempdir_stages_on_destination_filesystem_and_restores(tmp_path: Path) -> None:
+    destination = tmp_path / "mounted-workspace" / "raw" / "dataset"
+    previous = provenance.tempfile.tempdir
+
+    with provenance.destination_filesystem_tempdir(destination):
+        assert Path(provenance.tempfile.gettempdir()) == destination.parent
+        with provenance.tempfile.TemporaryDirectory(prefix="probe-") as temporary:
+            assert Path(temporary).parent == destination.parent
+
+    assert provenance.tempfile.tempdir == previous
+
+
 def test_fallback_must_match_frozen_inventory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
