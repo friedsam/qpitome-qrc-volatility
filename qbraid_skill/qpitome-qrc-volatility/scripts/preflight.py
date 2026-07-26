@@ -14,7 +14,10 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from transition_forecasting.data.acquisition import validate_source, verify_fallback_manifest
+from transition_forecasting.data.submission_provenance import (
+    active_environment_executable,
+    verify_submission_fallback,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MIN_PYTHON = (3, 10)
@@ -24,6 +27,9 @@ FALLBACK_ROOT = (
     / "data/fallback/transition_forecasting/global_stock_indices_historical_data"
 )
 FALLBACK_MANIFEST = FALLBACK_ROOT / "fallback_manifest.json"
+FROZEN_INVENTORY = (
+    REPO_ROOT / "config/transition_forecasting/contracts/global_index_ohlc_inventory.csv"
+)
 
 REQUIRED_PATHS = (
     "pyproject.toml",
@@ -37,6 +43,7 @@ REQUIRED_PATHS = (
     "scripts/transition_forecasting/data/build_transition_folds.py",
     "scripts/transition_forecasting/data/validate_transition_run.py",
     "scripts/transition_forecasting/data/freeze_transition_checksums.py",
+    "src/transition_forecasting/data/submission_provenance.py",
     "config/transition_forecasting/contracts/global_index_ohlc_inventory.csv",
     "config/transition_forecasting/contracts/global_range_quality.csv",
 )
@@ -95,20 +102,18 @@ def module_status() -> dict[str, bool]:
 
 
 def credential_status() -> dict[str, object]:
-    home = Path.home()
     candidates = (
-        home / ".kaggle/access_token",
-        home / ".kaggle/kaggle.json",
+        Path.home() / ".kaggle/access_token",
+        Path.home() / ".kaggle/kaggle.json",
     )
     records = []
     for path in candidates:
         exists = path.is_file()
-        mode = oct(path.stat().st_mode & 0o777) if exists else None
         records.append(
             {
                 "path": str(path),
                 "exists": exists,
-                "mode": mode,
+                "mode": oct(path.stat().st_mode & 0o777) if exists else None,
                 "secure_mode": bool(exists and (path.stat().st_mode & 0o077) == 0),
             }
         )
@@ -128,15 +133,6 @@ def credential_status() -> dict[str, object]:
     }
 
 
-def environment_executable(name: str) -> str | None:
-    """Prefer an executable installed beside the active Python interpreter."""
-
-    candidate = Path(sys.executable).with_name(name)
-    if candidate.is_file() and os.access(candidate, os.X_OK):
-        return str(candidate)
-    return shutil.which(name)
-
-
 def fallback_status() -> dict[str, object]:
     if not FALLBACK_MANIFEST.is_file():
         return {
@@ -147,8 +143,10 @@ def fallback_status() -> dict[str, object]:
             "error": "fallback manifest is absent",
         }
     try:
-        verification = verify_fallback_manifest(FALLBACK_ROOT)
-        validation = validate_source(FALLBACK_ROOT)
+        verification = verify_submission_fallback(
+            FALLBACK_ROOT,
+            FROZEN_INVENTORY,
+        )
     except Exception as exc:
         return {
             "manifest": str(FALLBACK_MANIFEST),
@@ -162,7 +160,6 @@ def fallback_status() -> dict[str, object]:
         "available": True,
         "verified": True,
         "verification": verification,
-        "validation": validation,
         "error": None,
     }
 
@@ -174,7 +171,7 @@ def build_report() -> dict[str, object]:
     missing_required = [path for path, exists in required.items() if not exists]
 
     qbraid_path = shutil.which("qbraid")
-    kaggle_path = environment_executable("kaggle")
+    kaggle_path = active_environment_executable("kaggle")
     qbraid_version = (
         command_output((qbraid_path, "--version")) if qbraid_path else None
     )
@@ -248,7 +245,7 @@ def build_report() -> dict[str, object]:
     )
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "repository_root": str(REPO_ROOT),
         "python": {
             "version": platform.python_version(),
