@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "scientific_identity": "current rematched one-channel transition path forecasting",
+  "selection_folds": [4, 5, 6],
+  "confirmation_folds": [7, 8],
+  "linear": {
+    "har_alpha": 100.0,
+    "sequence_ridge_alpha": 3000.0
+  },
+  "garch": {
+    "p": 1,
+    "q": 1,
+    "mean": "Zero",
+    "distribution": "StudentsT",
+    "history": 2500,
+    "minimum_history": 250,
+    "backend": "arch"
+  },
+  "esn": {
+    "config_id": "short_leak095",
+    "n": 300,
+    "connectivity": 0.02,
+    "spectral_radius": 0.55,
+    "input_scale": 0.2,
+    "leak": 0.95,
+    "alpha": 120000.0,
+    "seeds": [1, 2, 3, 4, 5],
+    "representation": "level_diff_time",
+    "pooling": "final_mean_std",
+    "washout": 10
+  },
+  "reporting": {
+    "groups": ["Transition", "L1", "L5", "L10", "Controls", "Pooled"],
+    "metrics": ["RMSE", "QLIKE", "MZ alpha", "MZ beta", "MZ R2"],
+    "test_evaluated": false,
+    "common_row_policy": "intersection across all reported models"
+  },
+  "provenance": {
+    "benchmark_branch": "classical-transition-benchmarks-work",
+    "tuning_run": "esn_transition_tuned_001",
+    "protocol_note": "Folds 7-8 are a confirmation recheck because earlier bounded development results were viewed before final tuning."
+  }
+}
