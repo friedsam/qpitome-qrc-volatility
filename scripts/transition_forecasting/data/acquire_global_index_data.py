@@ -5,7 +5,15 @@ import argparse
 import json
 from pathlib import Path
 
-from transition_forecasting.data.acquisition import acquire_source
+from transition_forecasting.data.acquisition import (
+    DEFAULT_FROZEN_INVENTORY,
+    acquire_source,
+)
+from transition_forecasting.data.submission_provenance import (
+    expose_active_environment_executable,
+    preserve_source_manifest,
+    verify_submission_fallback,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_FALLBACK = (
@@ -31,11 +39,25 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    expose_active_environment_executable("kaggle")
+
+    fallback_verification = None
+    if (args.fallback / "fallback_manifest.json").is_file():
+        fallback_verification = verify_submission_fallback(
+            args.fallback,
+            DEFAULT_FROZEN_INVENTORY,
+        )
+
     report = acquire_source(
         args.destination,
         args.fallback,
         source_mode=args.source_mode,
         force=args.force,
+    )
+    report["submission_fallback_verification"] = fallback_verification
+    report["source_manifest_preserved_from_fallback"] = preserve_source_manifest(
+        args.fallback,
+        args.destination,
     )
     print(json.dumps(report, indent=2))
     return 0
