@@ -4,7 +4,10 @@ import json
 import os
 import shutil
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 from transition_forecasting.data.acquisition import (
     DATASET,
@@ -49,6 +52,25 @@ def expose_active_environment_executable(name: str) -> str | None:
     if parent not in path_entries:
         os.environ["PATH"] = os.pathsep.join([parent, *path_entries])
     return executable
+
+
+@contextmanager
+def destination_filesystem_tempdir(destination: Path) -> Iterator[None]:
+    """Place tempfile-backed acquisition staging beside the final destination.
+
+    ``Path.rename`` is atomic only within one filesystem. qBraid mounts the
+    workspace separately from ``/tmp``, so acquisition staging must be created
+    under the destination parent to avoid ``EXDEV`` cross-device failures.
+    """
+
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    previous = tempfile.tempdir
+    tempfile.tempdir = str(destination.parent)
+    try:
+        yield
+    finally:
+        tempfile.tempdir = previous
 
 
 def verify_submission_fallback(
