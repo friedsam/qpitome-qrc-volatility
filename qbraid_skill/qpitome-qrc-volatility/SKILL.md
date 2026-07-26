@@ -1,6 +1,6 @@
 ---
 name: qpitome-qrc-volatility
-description: Reproduce and audit the QPITOME quantum-reservoir volatility submission on qBraid. Use when an agent must set up the repository, validate provenance and scientific identity, run the canonical workflow, and report reproducibility without modifying science or submitting hardware jobs.
+description: Reproduce and audit the QPITOME volatility submission data and frozen classical comparison on qBraid without modifying science or opening the reserved test partition.
 ---
 
 # QPITOME QRC Volatility Reproduction
@@ -17,62 +17,71 @@ find /home/jovyan -maxdepth 6 -type f \
   -print -quit
 ```
 
-From the returned absolute path, establish:
+From the returned path establish:
 
-- `SKILL_ROOT`: the directory containing this `SKILL.md`;
+- `SKILL_ROOT`: the directory containing `SKILL.md`;
 - `REPO_ROOT`: two directory levels above `SKILL_ROOT`.
 
-Resolve every relative skill path against `SKILL_ROOT`. For file-read operations, use the resulting absolute path. For shell commands, set the command working directory to `REPO_ROOT`. Do not rely on shell variables or `cd` state persisting between separate agent actions.
+Resolve every relative skill path against `SKILL_ROOT`. For file reads, use absolute paths. For shell commands, set the working directory explicitly to `REPO_ROOT`. Do not rely on `cd`, shell variables, or environment activation persisting between agent actions.
 
-Verify these paths before proceeding:
+Verify:
 
 ```text
 <REPO_ROOT>/pyproject.toml
 <REPO_ROOT>/scripts/runs/run_submission.py
+<REPO_ROOT>/config/transition_forecasting/classical_benchmarks/frozen_submission.json
 <SKILL_ROOT>/references/repository-map.md
 <SKILL_ROOT>/references/run-contract.md
 <SKILL_ROOT>/scripts/bootstrap.py
 <SKILL_ROOT>/scripts/preflight.py
+<SKILL_ROOT>/scripts/preflight_classical.py
 ```
 
-If the skill cannot be located uniquely or these roots cannot be established, stop and report a path-resolution blocker. Do not improvise a different layout.
+If root resolution is ambiguous or a required path is absent, stop and report a path-resolution blocker.
 
-Operate from `REPO_ROOT`. This is an agent-executable workflow: create the environment, install dependencies, run checks, execute the canonical runner, validate outputs, and report the result. Do not ask the judge to run terminal commands for you.
+## Executable scope
 
-## Current executable scope
+The canonical agent workflow now reproduces:
 
-The current branch reproduces the transition-forecasting data stage only:
+1. verified global-index OHLC acquisition or fallback restoration;
+2. the frozen one-channel transition dataset and eight rematched folds;
+3. persistence, canonical HAR, and direct sequence-ridge forecasts;
+4. zero-mean Student-t GARCH(1,1) using the `arch` backend;
+5. the frozen tuned direct ESN and identically specified shuffled-order control;
+6. exact-common-row classical tables for Transition, L1, L5, L10, Controls, and Pooled;
+7. RMSE, log-volatility QLIKE, and Mincer-Zarnowitz intercept, slope, and R²;
+8. manifests, logs, checksums, coverage, predictions, and validation reports.
 
-- acquisition and source verification for global-index OHLC data;
-- frozen structural-quality corrections;
-- one-channel 40-session log-volatility sequences;
-- binary control-candidate construction;
-- eight purged walk-forward folds with fold-local rematching;
-- validation, checksums, logs, and run provenance.
+The ESN is not retuned during reproduction. Parameters come only from:
 
-The final financial QRC, classical comparison, MNIST benchmark, scaling study, noise study, and final artifact collection are not yet wired into this branch. Do not claim otherwise.
+```text
+config/transition_forecasting/classical_benchmarks/frozen_submission.json
+```
+
+Financial QRC, MNIST, qubit scaling, noise studies, and fresh hardware execution are not part of this workflow yet. Do not claim otherwise.
 
 ## Non-negotiable rules
 
-1. Run from `REPO_ROOT`.
-2. Resolve bundled references and scripts from `SKILL_ROOT`, never from `REPO_ROOT`.
+1. Run commands from `REPO_ROOT`.
+2. Resolve bundled references and scripts from `SKILL_ROOT`.
 3. Do not modify source code, contracts, parameters, data policy, or scientific defaults during reproduction.
 4. Do not clean, reset, stash, or otherwise alter a dirty working tree automatically. Record it.
-5. Use explicit run IDs. Never select the newest result directory.
+5. Use one explicit run ID. Never select the newest result directory.
 6. Never infer a missing historical artifact or represent regenerated evidence as historical.
-7. Do not evaluate the fixed test partition during development.
-8. Do not submit or query a hardware job.
+7. Do not evaluate the fixed test partition.
+8. Do not submit, query, or select a hardware job.
 9. Do not place source files in result directories.
 10. Stop on the first failed command, missing required output, hash mismatch, or validation failure.
 11. Report verified facts separately from limitations and unresolved blockers.
+12. Do not replace the required `arch` GARCH backend with the development SciPy fallback.
 
-Read `<SKILL_ROOT>/references/repository-map.md` before troubleshooting paths. Read `<SKILL_ROOT>/references/run-contract.md` before scientific execution. Replace `<SKILL_ROOT>` with the actual absolute directory in file-tool calls.
+Read `<SKILL_ROOT>/references/repository-map.md` before troubleshooting paths. Read `<SKILL_ROOT>/references/run-contract.md` before scientific execution.
 
 ## Procedure
 
-All shell commands below must execute with working directory `REPO_ROOT`.
+All shell commands below run with working directory `REPO_ROOT`.
 
-### 1. Establish repository identity
+### 1. Record repository identity
 
 ```bash
 pwd
@@ -85,21 +94,19 @@ qbraid --version
 
 Confirm that `pwd` and `git rev-parse --show-toplevel` identify the same root. Record a dirty tree; do not clean it.
 
-### 2. Bootstrap and verify the execution environment
+### 2. Bootstrap and verify the environment
 
-The agent owns environment setup. Execute exactly:
+Execute exactly:
 
 ```bash
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 ```
 
-The helper creates `.venv` when absent, installs the repository and test dependencies, runs preflight, runs the focused Stage-1 and skill tests, and stops at the first failure.
+Bootstrap creates or reuses `.venv`, installs `.[test]`, runs the data preflight, runs the classical preflight, and executes the focused contract suite. Do not substitute a bare `pip`, system installation, `qbraid envs create`, or shell activation. Use `.venv/bin/python` afterward.
 
-Do not substitute `qbraid envs create`, a bare `pip`, or a system-wide installation. Do not rely on shell activation persisting between agent actions. Use `.venv/bin/python` and `.venv/bin/kaggle` explicitly afterward.
+If bootstrap fails, stop and report its first failed command.
 
-If bootstrap fails, report its first failing command and stop. Do not improvise another environment strategy.
-
-### 3. Resolve the data source
+### 3. Resolve the verified data source
 
 Run:
 
@@ -107,71 +114,58 @@ Run:
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --strict-data-source
 ```
 
-Preflight performs a read-only anonymous Kaggle `datasets files` probe. Kaggle credentials are not required when the public endpoint succeeds; any configured credentials remain informational and must never be printed or requested in chat.
+Use exactly the mode reported by preflight:
 
-The verified fallback is valid only when its manifest and complete snapshot pass hash and schema verification:
+- `auto`: anonymous live access and the verified fallback are available;
+- `fallback`: only the verified fallback is available;
+- `live`: only anonymous live access is available.
 
-```text
-data/fallback/transition_forecasting/global_stock_indices_historical_data/fallback_manifest.json
-```
+If no verified mode is available, stop with the data/provenance blocker. Do not improvise another dataset.
 
-Use the mode reported by preflight:
+### 4. Run the canonical data-plus-classical workflow
 
-- `auto`: anonymous Kaggle access and a verified fallback are both available. The runner downloads a live candidate, compares it with the fallback, and installs the fallback instead if any file is missing, extra, or changed.
-- `fallback`: only the verified fallback is available.
-- `live`: only anonymous live access is available. The downloaded candidate must match the frozen raw inventory exactly before installation.
-
-If no verified mode is available, stop and report exit code 2 as a data/provenance blocker.
-
-### 4. Run the canonical Stage-1 workflow
-
-Generate one explicit UTC run ID:
+Generate one literal UTC run ID:
 
 ```bash
-date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
+date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ
 ```
 
-Copy the literal value into the command; do not rely on shell state.
-
-For preflight mode `auto`:
+Copy the literal value into:
 
 ```bash
-.venv/bin/python scripts/runs/run_submission.py transition-data \
+.venv/bin/python scripts/runs/run_submission.py financial-classical \
   --run-id <RUN_ID> \
-  --transition-source-mode auto
+  --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
 
-For preflight mode `fallback` or `live`, replace the final argument with that literal mode. Do not add `--force` to a new run.
+Do not add `--force` to a new run. The workflow builds the data first, then runs linear/HAR, GARCH, ESN, the canonical comparison, and the classical validator. It stops after the first nonzero command.
 
-The raw acquisition manifest must show:
+### 5. Validate the aggregate run
 
-- `authoritative_source_verified: true`;
-- `installed_source_comparison.matched: true`;
-- the candidate comparison;
-- whether fallback substitution occurred;
-- the substitution reason when applicable.
-
-### 5. Validate the run
-
-The run directory is:
+The aggregate directory is:
 
 ```text
 results/runs/<RUN_ID>/
 ```
 
-Accept the run only if:
+Accept the run only when:
 
-- `run_manifest.json` records `status: succeeded`;
-- every required output exists and has a SHA-256 value;
-- the raw acquisition manifest verifies the installed source against the authoritative reference;
-- the data audit records `passed: true`;
-- the checksum report records `passed: true`;
+- `run_manifest.json` records `status: succeeded` and `workflow: financial-classical`;
+- every required output exists with a SHA-256 value;
+- the acquisition manifest records authoritative-source verification and a matched installed source;
+- the data audit and checksum report pass;
+- `classical_baseline_audit.json` records `passed: true`;
+- the canonical prediction file contains exactly the six agreed classical models;
+- reporting groups are exactly Transition, L1, L5, L10, Controls, and Pooled;
+- no control-by-lead row exists;
+- folds are 4–8 and all prediction rows have `fold_split=val`;
+- the GARCH configuration records backend `arch`;
+- the ESN configuration matches the frozen specification;
 - `test_evaluated` remains false;
-- the representation is one-channel `log_volatility_level`;
-- the fold count is eight;
-- the control protocol is `precontrol_binary_matching`;
-- no `.py` file exists beneath the run directory;
-- every command, log, and artifact belongs to the same explicit run ID.
+- no `.py` file exists beneath the aggregate result directory;
+- every command, log, and artifact belongs to the same literal run ID.
+
+Check at minimum:
 
 ```bash
 .venv/bin/python -m json.tool results/runs/<RUN_ID>/run_manifest.json >/dev/null
@@ -182,7 +176,18 @@ The `find` command must print nothing.
 
 ### 6. Report precisely
 
-Return commit, branch, tree state, Python and qBraid versions, exact commands, requested and used source modes, candidate and installed-source comparison results, fallback substitution status, run ID and path, test/workflow/audit/checksum status, runtimes, key counts, warnings, skipped operations, and unresolved limitations.
+Return:
+
+- commit, branch, and working-tree state;
+- Python and qBraid versions;
+- bootstrap, preflight, and focused-test results;
+- requested and used source modes and fallback-substitution status;
+- exact run ID and path;
+- command statuses and runtimes;
+- data audit, checksum, and classical audit status;
+- GARCH coverage and backend;
+- the canonical Transition/L1/L5/L10/Controls/Pooled metrics table;
+- skipped operations, warnings, and unresolved limitations.
 
 Never summarize a failed, blocked, or partial run as successful.
 
@@ -191,10 +196,10 @@ Never summarize a failed, blocked, or partial run as successful.
 On failure:
 
 1. stop;
-2. preserve any failed run directory and logs;
+2. preserve the failed run directory and logs;
 3. identify the first failing command;
-4. classify the failure as path resolution, environment, data/provenance, or code;
-5. report the exact error;
+4. classify the failure as path resolution, environment, data/provenance, classical computation, or validation;
+5. report the exact error and log path;
 6. do not patch scientific behavior during reproduction.
 
 Development fixes belong in a separate task and commit.
