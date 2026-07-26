@@ -633,14 +633,16 @@ def run_mnist_palindrome_feature_shard(
     return run_dir
 
 
-def _load_shard(path: Path) -> tuple[dict[str, object], dict[str, np.ndarray]]:
+def _load_shard(
+    path: Path,
+) -> tuple[dict[str, object], dict[str, object], dict[str, np.ndarray]]:
     summary = _read_json(path / "summary.json")
     params = _read_json(path / "params.json")
     with np.load(path / "features.npz", allow_pickle=False) as payload:
         arrays = {name: np.asarray(payload[name]) for name in payload.files}
     if summary.get("status") != "mnist_palindrome_feature_shard_complete":
         raise ValueError(f"incomplete MNIST shard: {path}")
-    return params, arrays
+    return params, summary, arrays
 
 
 def merge_mnist_palindrome_shards(
@@ -657,12 +659,15 @@ def merge_mnist_palindrome_shards(
         raise ValueError("at least one shard directory is required")
     records = [_load_shard(path) for path in paths]
     params = [item[0] for item in records]
+    shard_summaries = [item[1] for item in records]
     identities = {str(item["identity_sha256"]) for item in params}
     datasets = {str(item["dataset_sha256"]) for item in params}
     shard_counts = {int(item["shard_count"]) for item in params}
     if len(identities) != 1 or len(datasets) != 1 or len(shard_counts) != 1:
         raise ValueError("shards do not share one identity, dataset, and shard count")
-    if params[0]["identity"]["config"] != config.to_dict():
+    if payload_sha256(params[0]["identity"]["config"]) != payload_sha256(
+        config.to_dict()
+    ):
         raise ValueError("merge config differs from the shard identity")
     shard_count = shard_counts.pop()
     shard_indices = sorted(int(item["shard_index"]) for item in params)
@@ -671,7 +676,7 @@ def merge_mnist_palindrome_shards(
             f"shard coverage mismatch: expected {list(range(shard_count))}, observed {shard_indices}"
         )
 
-    arrays = [item[1] for item in records]
+    arrays = [item[2] for item in records]
     available_fields = set(arrays[0])
     if any(set(item) != available_fields for item in arrays[1:]):
         raise ValueError("shards contain different feature fields")
@@ -693,19 +698,47 @@ def merge_mnist_palindrome_shards(
     run_dir = Path(results_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     _atomic_savez(run_dir / "mnist_palindrome_features.npz", **merged)
+    shard_manifest = pd.DataFrame(
+        [
+            {
+                "shard_path": str(path),
+                "shard_index": int(param["shard_index"]),
+                "shard_count": int(param["shard_count"]),
+                "rows": int(summary["rows"]),
+                "batch_count": int(summary["batch_count"]),
+                "wall_seconds": float(summary["wall_seconds"]),
+                "feature_width": int(summary["feature_width"]),
+            }
+            for path, param, summary in zip(
+                paths, params, shard_summaries, strict=True
+            )
+        ]
+    ).sort_values("shard_index")
+    shard_manifest.to_csv(run_dir / "shard_manifest.csv", index=False)
+    runtime = {
+        "feature_generation_shard_seconds_sum": float(
+            shard_manifest["wall_seconds"].sum()
+        ),
+        "feature_generation_parallel_wall_seconds_estimate": float(
+            shard_manifest["wall_seconds"].max()
+        ),
+        "shards": int(len(shard_manifest)),
+    }
     _write_json(
         run_dir / "params.json",
         {
             "schema_version": 1,
             "run_id": run_id,
             "created_at_utc": utc_now(),
+            "identity": params[0]["identity"],
             "identity_sha256": next(iter(identities)),
             "dataset_sha256": next(iter(datasets)),
             "source_shards": [str(path) for path in paths],
             "config": config.to_dict(),
+            "feature_generation_runtime": runtime,
         },
     )
-    _finalize_mnist_readouts(run_dir, merged, config)
+    _finalize_mnist_readouts(run_dir, merged, config, runtime=runtime)
     return run_dir
 
 
@@ -818,6 +851,8 @@ def _finalize_mnist_readouts(
     run_dir: Path,
     merged: dict[str, np.ndarray],
     config: MnistPalindromeBenchmarkConfig,
+    *,
+    runtime: dict[str, object],
 ) -> None:
     labels = np.asarray(merged["labels"], dtype=int)
     split = np.asarray(merged["split"]).astype("U")
@@ -946,6 +981,12 @@ def _finalize_mnist_readouts(
             "feature_bank": config.feature_bank,
             "qrc_feature_width": int(np.asarray(merged["qrc_features"]).shape[1]),
         },
+        "runtime_seconds": {
+            **runtime,
+            "readout_training_sum": float(
+                sum(result.training_seconds for result in models)
+            ),
+        },
         "primary_metrics": {
             "accuracy": float(primary["test_accuracy"]),
             "macro_f1": float(primary["test_macro_f1"]),
@@ -967,6 +1008,7 @@ def _finalize_mnist_readouts(
             "model_comparison": "model_comparison.csv",
             "predictions": "mnist_predictions.csv",
             "per_class_metrics": "per_class_metrics.csv",
+            "shard_manifest": "shard_manifest.csv",
             "confusion_matrices": confusion_outputs,
         },
     }
