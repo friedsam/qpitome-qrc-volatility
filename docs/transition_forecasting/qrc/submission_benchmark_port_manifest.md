@@ -199,18 +199,124 @@ results/transition_forecasting/qrc/palindrome_noise_assay/palindrome_noise_prima
     plots/
 ```
 
+## Palindrome reservoir-size scaling benchmark
+
+### New files produced by this work
+
+| Status | Path | Role |
+|---|---|---|
+| port | `src/transition_forecasting/qrc/palindrome_scaling_assay.py` | Fixed-width, variable-size palindrome simulator and bounded exact performance/resource scaling assay. |
+| port | `scripts/transition_forecasting/qrc/run_palindrome_scaling_assay.py` | Frozen runner for exact 5–12-atom performance and 5–20-atom analytical resources. |
+| port | `tests/transition_forecasting/qrc/test_palindrome_scaling_assay.py` | Six-atom geometry/readout parity, generalized geometry, fixed-width feature, and resource-accounting tests. |
+
+### Frozen scaling protocol
+
+- Development-only fold 5, lead 5, using the same 48-row panel as the noise and shot assays; no test rows.
+- Exact statevector forecast evaluation for 5–12 atoms.
+- Analytical state dimension and raw-state memory reporting for 5–20 atoms.
+- Empirical log2 runtime extrapolation beyond the exact 12-atom boundary; no forecast metric extrapolation.
+- Same two-channel `level_instability` sequence, A/4→B/2→A/4 schedule, interaction scale 1.25, 0.02 μs steps, and three probes.
+- Six-atom geometry is reproduced exactly; larger sizes extend the same two-row staggered construction.
+- Readout width remains fixed at six size-normalized density/curvature features to avoid conflating reservoir size with classical readout width.
+- StandardScaler and Ridge(alpha=100, `fit_intercept=False`) are refit separately for each exact atom count on the same causal residual-training rows.
+
+### Verified primary result
+
+Run ID:
+
+```text
+palindrome_scaling_primary_001
+```
+
+Acceptance facts:
+
+- Six-atom QLIKE and RMSE reproduce the noise-assay ideal result to machine precision.
+- Best exact QLIKE occurs at 9 atoms: 1.0850000548, versus 1.0971696782 at 6 atoms.
+- Best exact RMSE occurs at 11 atoms: 0.515463, while 9 atoms gives 0.515609.
+- Performance is non-monotonic and deteriorates again at 12 atoms.
+- None of the exact sizes beats HAR on this bounded panel; pooled metrics are secondary to transition-direction diagnostics.
+- Runtime grows from about 0.063 s at 5 atoms to 11.0 s at 12 atoms.
+- The 20-atom empirical runtime projection is about 7,695 s for the 48-row panel; its raw batched state array alone is about 0.75 GiB.
+
+Expected result directory:
+
+```text
+results/transition_forecasting/qrc/palindrome_scaling_assay/palindrome_scaling_primary_001/
+    params.json
+    summary.json
+    scaling_metrics.csv
+    resource_scaling.csv
+    predictions.csv.gz
+    retained_samples.csv
+    features/
+    plots/
+```
+
+## Frozen palindrome finite-shot benchmark
+
+### New files produced by this work
+
+| Status | Path | Role |
+|---|---|---|
+| port | `src/transition_forecasting/qrc/palindrome_shot_assay.py` | Finite-shot assay with exact-state probability generation, frozen readout, deterministic multinomial replicates, and transition-versus-control directional diagnostics. |
+| port | `scripts/transition_forecasting/qrc/run_palindrome_shot_assay.py` | Frozen runner for shot-count and measurement-seed grids. |
+| port | `tests/transition_forecasting/qrc/test_palindrome_shot_assay.py` | Stable seed, row-order invariance, direction-preservation, aggregation, and frozen-architecture tests. |
+| port | `src/transition_forecasting/qrc/ladder_finite_shot_sampling.py` | Reused stable sample/probe measurement seeding and multinomial probability sampling. |
+
+### Frozen shot protocol
+
+- Development-only fold 5, lead 5, using 24 train and 24 validation rows; no test rows.
+- Generate exact six-atom A/4→B/2→A/4 probabilities once.
+- Fit StandardScaler and Ridge(alpha=100, `fit_intercept=False`) once on exact features and freeze both for every shot count and seed.
+- Sample each sample/probe probability vector independently and deterministically from sample ID, fold, probe step, and measurement seed.
+- Primary endpoint: preservation of the transition-minus-control correction gap, including path-mean and horizon-specific diagnostics.
+- Secondary endpoints: feature distortion, correction correlation/sign agreement, QLIKE, and RMSE.
+- Primary grid: 100, 250, 500, 1,000, 2,000, 5,000, 10,000, and 20,000 shots per sample and probe, across ten seeds.
+
+### Verified primary result
+
+Run ID:
+
+```text
+palindrome_shots_primary_001
+```
+
+Acceptance facts:
+
+- Exact QLIKE and RMSE reproduce the frozen six-atom reference exactly.
+- The exact path-mean transition-minus-control correction gap is -0.00234516.
+- 100 shots is inadequate: path-gap direction is preserved in only 40% of seeds and mean correction correlation is about 0.30.
+- 1,000 shots preserves path-gap direction in 90% of seeds, but gap magnitude remains unstable and overstated on average.
+- 10,000 shots is the lowest tested count preserving path-gap direction in all ten seeds; mean correction correlation is 0.965 and minimum correlation is 0.958.
+- 20,000 shots also preserves path-gap direction in all seeds; mean correction correlation is 0.982, mean gap/exact ratio is 1.103, and relative feature MAE is about 0.0053.
+- Horizon-specific stability follows signal magnitude rather than a uniform threshold: at 20,000 shots, h4, h5, h7, h8, h9, and h10 preserve direction in all seeds; h1 and h2 preserve it in 90%, h3 in 80%, and h6 in 60% because its exact gap is near zero.
+- Operational interpretation: 10,000 shots is the aggregate path-direction threshold in this assay; 20,000 shots is preferred when the horizon profile matters.
+
+Expected result directory:
+
+```text
+results/transition_forecasting/qrc/palindrome_shot_assay/palindrome_shots_primary_001/
+    params.json
+    summary.json
+    shot_metrics.csv
+    shot_summary.csv
+    direction_metrics.csv
+    predictions.csv.gz
+    retained_samples.csv
+    exact_reference.npz
+    plots/
+```
+
 ## Submission-agent integration still required
 
 The clean integration task must:
 
-1. add explicit `mnist-palindrome` and `palindrome-noise` workflows to `scripts/runs/run_submission.py`;
-2. add required-output validation and SHA-256 inventories for both result families;
+1. add explicit `mnist-palindrome`, `palindrome-noise`, `palindrome-scaling`, and `palindrome-shots` workflows to `scripts/runs/run_submission.py`;
+2. add required-output validation and SHA-256 inventories for all four result families;
 3. update the qBraid Skill repository map, run contract, preflight, and focused tests;
 4. acquire or verify MNIST through the same deterministic data-source policy;
 5. ensure the agent invokes literal run IDs and never selects the newest directory;
 6. keep the optional position-encoded benchmark outside the required primary workflow;
-7. preserve the noise assay's development-only and frozen-readout boundaries.
-
-## Not yet included
-
-Qubit scaling and finite-shot studies will be added to this manifest only after their palindrome-specific implementations are complete.
+7. preserve the development-only, no-test-row, frozen-readout boundaries of the noise and shot assays;
+8. keep exact performance and extrapolated resource rows explicitly separated in the scaling outputs;
+9. present transition/control and horizon-specific diagnostics ahead of pooled QLIKE/RMSE for the financial warning task.
