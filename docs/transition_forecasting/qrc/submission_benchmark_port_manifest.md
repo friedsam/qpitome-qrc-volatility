@@ -142,17 +142,75 @@ Potential selective-port files, only after the primary run is secured:
 - `scripts/transition_forecasting/qrc/run_mnist_position_benchmark.py`
 - `tests/transition_forecasting/qrc/test_mnist_position_benchmark.py`
 
+## Frozen palindrome noise benchmark
+
+### New files produced by this work
+
+| Status | Path | Role |
+|---|---|---|
+| port | `src/transition_forecasting/qrc/palindrome_rydberg_noise.py` | Tensorized six-atom density-matrix propagation for the exact A/4→B/2→A/4 palindrome with local T1, T2, and depolarizing channels applied after every numerical substep. |
+| port | `src/transition_forecasting/qrc/palindrome_noise_assay.py` | Bounded fold-5/lead-5 robustness assay with frozen clean six-mode no-intercept Ridge readout and scenario-relative feature/forecast diagnostics. |
+| port | `scripts/transition_forecasting/qrc/run_palindrome_noise_assay.py` | Thin runner with the frozen final architecture and optional exact scenario filtering for smoke runs. |
+| port | `tests/transition_forecasting/qrc/test_palindrome_rydberg_noise.py` | Rotation-channel invariants, ideal statevector/density parity, noisy probability normalization, scenario selection, and architecture-drift tests. |
+| port | `src/transition_forecasting/qrc/temporal_rydberg_noise.py` | Reused validated local Kraus channels, physical-time conversion, and density stabilization. |
+| port | `tests/transition_forecasting/qrc/test_temporal_rydberg_noise.py` | Existing trace-preservation and channel-level tests retained as dependency coverage. |
+
+### Frozen noise protocol
+
+- Development-only fold 5, lead 5; no test rows.
+- Balanced panel: 12 rows per class in train and validation when available.
+- `level_instability` input representation with train-only robust scaling.
+- Six-atom staggered ladder, interaction scale 1.25, A/4→B/2→A/4 schedule, 0.02 μs per observation, and probes at 0.25, 0.5, and 1.0.
+- `six_mode_density_curvature` feature bank.
+- Ridge alpha 100, `fit_intercept=False`, correction lambda 1.0.
+- Fit feature scaler and readout once on ideal statevector training features; freeze both for every density/noise scenario.
+- Require ideal density features to match the statevector reference before accepting noisy outputs.
+- Scenarios: ideal; T1 = 200, 100, 50 μs; T2 = 100, 50 μs; total depolarizing probability = 0.005, 0.01, 0.03; and combined T1=100 μs, T2=50 μs, p=0.01.
+- Interpret deltas relative to the frozen ideal QRC only. Do not infer calibrated Aquila performance or beneficial noise from this small panel.
+
+### Verified primary result
+
+Run ID:
+
+```text
+palindrome_noise_primary_001
+```
+
+Acceptance facts:
+
+- 48 total development rows: 24 train and 24 validation; 14 causal residual-training rows.
+- No test rows used.
+- Statevector/density maximum feature mismatch: approximately 2.7e-15.
+- Maximum tested relative feature MAE: approximately 0.00525 at depolarizing p=0.03.
+- Minimum tested feature correlation: approximately 0.999978.
+- No positive QLIKE delta versus the ideal density reference was observed; all changes were small and must be described as robustness, not noise benefit.
+
+Expected result directory:
+
+```text
+results/transition_forecasting/qrc/palindrome_noise_assay/palindrome_noise_primary_001/
+    params.json
+    summary.json
+    noise_metrics.csv
+    predictions.csv.gz
+    retained_samples.csv
+    frozen_readout.npz
+    features/
+    plots/
+```
+
 ## Submission-agent integration still required
 
-After the primary MNIST smoke and full runs pass, the clean integration task must:
+The clean integration task must:
 
-1. add a `mnist-palindrome` workflow to `scripts/runs/run_submission.py`;
-2. add required-output validation and SHA-256 inventory for the merged result;
+1. add explicit `mnist-palindrome` and `palindrome-noise` workflows to `scripts/runs/run_submission.py`;
+2. add required-output validation and SHA-256 inventories for both result families;
 3. update the qBraid Skill repository map, run contract, preflight, and focused tests;
 4. acquire or verify MNIST through the same deterministic data-source policy;
-5. ensure the agent invokes one literal run ID and never selects the newest directory;
-6. keep the optional position-encoded benchmark outside the required primary workflow.
+5. ensure the agent invokes literal run IDs and never selects the newest directory;
+6. keep the optional position-encoded benchmark outside the required primary workflow;
+7. preserve the noise assay's development-only and frozen-readout boundaries.
 
 ## Not yet included
 
-Noise, qubit scaling, and finite-shot studies will be added to this manifest only after their palindrome-specific implementations are complete.
+Qubit scaling and finite-shot studies will be added to this manifest only after their palindrome-specific implementations are complete.
