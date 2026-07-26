@@ -1,0 +1,7 @@
+{
+  "manifest": "purged_walk_forward_folds/rematched_rolling_manifest.csv",
+  "manifest_sha256": "83c9523e2d3f84eb4ac9bbb9c73d48e5613b928995915902d3134f0a11396b1a",
+  "tensors": "purged_walk_forward_folds/rematched_rolling_tensors.npz",
+  "tensors_sha256": "1e0e5de10eb95d8a242766deb4e6ee02d02b14a03ea3227d3851fdc4a6c8ca08",
+  "test_evaluated": false
+}
