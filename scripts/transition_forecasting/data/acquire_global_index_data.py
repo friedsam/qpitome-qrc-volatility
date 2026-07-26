@@ -10,6 +10,7 @@ from transition_forecasting.data.acquisition import (
     acquire_source,
 )
 from transition_forecasting.data.submission_provenance import (
+    destination_filesystem_tempdir,
     expose_active_environment_executable,
     preserve_source_manifest,
     verify_submission_fallback,
@@ -62,12 +63,13 @@ def main() -> int:
             DEFAULT_FROZEN_INVENTORY,
         )
 
-    report = acquire_source(
-        args.destination,
-        args.fallback,
-        source_mode=args.source_mode,
-        force=args.force,
-    )
+    with destination_filesystem_tempdir(args.destination):
+        report = acquire_source(
+            args.destination,
+            args.fallback,
+            source_mode=args.source_mode,
+            force=args.force,
+        )
     report["submission_fallback_verification"] = fallback_verification
     report["source_manifest_preserved_from_fallback"] = preserve_source_manifest(
         args.fallback,
