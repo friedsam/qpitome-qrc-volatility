@@ -1,0 +1,23 @@
+{
+  "status": "complete",
+  "test_evaluated": false,
+  "selected_config": {
+    "config_id": "short_leak095",
+    "n": 300,
+    "connectivity": 0.02,
+    "sr": 0.55,
+    "inp": 0.2,
+    "leak": 0.95
+  },
+  "selected_alpha": 120000.0,
+  "seeds": [1, 2, 3, 4, 5],
+  "protocol_note": "Specification selected only from folds 4-6. During iterative development, folds 7-8 had already been viewed for earlier bounded grids; the reported folds 7-8 evaluation is therefore a confirmation recheck, not a pristine one-shot holdout.",
+  "confirmation_recheck": [
+    {"model":"esn_direct_tuned","group":"Transition","horizon":"path","n_samples":213,"n_forecasts":2130,"rmse":0.6437745949952222,"qlike":2.0840277212893588,"mz_alpha":0.3255543447438427,"mz_beta":1.0102006894349556,"mz_r2":0.1318436655856729,"stage":"confirmation_recheck"},
+    {"model":"esn_direct_tuned","group":"L1","horizon":"path","n_samples":71,"n_forecasts":710,"rmse":0.7942829205109151,"qlike":3.600257636923943,"mz_alpha":0.3059566829932316,"mz_beta":0.9427601873819546,"mz_r2":0.1253002154668222,"stage":"confirmation_recheck"},
+    {"model":"esn_direct_tuned","group":"L5","horizon":"path","n_samples":71,"n_forecasts":710,"rmse":0.6392916550074548,"qlike":2.090127314353703,"mz_alpha":0.5684630142535783,"mz_beta":1.0571404612328932,"mz_r2":0.1546423992886065,"stage":"confirmation_recheck"},
+    {"model":"esn_direct_tuned","group":"L10","horizon":"path","n_samples":71,"n_forecasts":710,"rmse":0.4513956241549844,"qlike":0.5616982125904304,"mz_alpha":0.523042506168961,"mz_beta":1.1171249382413508,"mz_r2":0.2423931652738185,"stage":"confirmation_recheck"},
+    {"model":"esn_direct_tuned","group":"Controls","horizon":"path","n_samples":639,"n_forecasts":6390,"rmse":0.4866853730005763,"qlike":0.5326847905858393,"mz_alpha":0.2062959944505662,"mz_beta":1.0663135736311504,"mz_r2":0.1874539256865411,"stage":"confirmation_recheck"},
+    {"model":"esn_direct_tuned","group":"Pooled","horizon":"path","n_samples":852,"n_forecasts":8520,"rmse":0.530338025706104,"qlike":0.9205205232617192,"mz_alpha":0.3792126099905892,"mz_beta":1.0815404613731596,"mz_r2":0.1624664236372932,"stage":"confirmation_recheck"}
+  ]
+}
