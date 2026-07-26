@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -98,4 +99,10 @@ def test_packages_successful_transition_run_and_updates_index(tmp_path: Path) ->
     assert summary["dataset_counts"] == {"samples": 4596}
     assert summary["data_pipeline_audit_passed"] is True
     assert summary["checksum_report_passed"] is True
-    assert index_path.read_text(encoding="utf-8").count(run_id) == 1
+
+    with index_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    matching_rows = [row for row in rows if row["run_id"] == run_id]
+    assert len(matching_rows) == 1
+    assert matching_rows[0]["status"] == "verified"
+    assert matching_rows[0]["evidence_path"].endswith(run_id)
