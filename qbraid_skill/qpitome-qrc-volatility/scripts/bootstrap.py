@@ -38,6 +38,7 @@ REQUIRED_REPOSITORY_PATHS = (
     "pyproject.toml",
     "qbraid_skill/qpitome-qrc-volatility/SKILL.md",
     "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
+    "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
     "scripts/runs/run_submission.py",
     "config/transition_forecasting/classical_benchmarks/frozen_submission.json",
     "scripts/transition_forecasting/modeling/classical_benchmarks/run_linear.py",
@@ -107,6 +108,11 @@ def build_command_plan(venv_dir: Path, *, skip_tests: bool) -> list[list[str]]:
             [
                 str(python_path),
                 "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
+                "--json",
+            ],
+            [
+                str(python_path),
+                "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
                 "--json",
             ],
         ]
