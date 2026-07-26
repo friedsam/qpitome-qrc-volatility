@@ -1,8 +1,8 @@
 """Deterministic NumPy echo-state reservoir used by the Phase 2/3 benchmarks.
 
-This module owns only the reservoir mechanics and log-target ridge readout.
-Evaluation geometry, preprocessing, model selection, and reporting belong to
-the experiment runners.
+This module owns only the reservoir mechanics and ridge readouts. Evaluation
+geometry, preprocessing, model selection, and reporting belong to experiment
+runners.
 """
 
 from __future__ import annotations
@@ -27,23 +27,23 @@ def make_esn_weights(
     spectral_radius: float,
     input_scale: float,
     seed: int,
+    connectivity: float = 0.10,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Create the historical deterministic NumPy ESN input/recurrent weights."""
+    """Create deterministic ESN input/recurrent weights.
+
+    ``connectivity`` is the Bernoulli probability that a recurrent edge is
+    retained. The historical default remains 0.10.
+    """
+    if not 0.0 < connectivity <= 1.0:
+        raise ValueError("connectivity must lie in (0, 1]")
+
     rng = np.random.default_rng(seed)
+    W_in = rng.normal(0.0, input_scale, size=(n_reservoir, n_inputs))
+    W = rng.normal(0.0, 1.0, size=(n_reservoir, n_reservoir))
+    W *= rng.random(W.shape) < connectivity
 
-    W_in = rng.normal(
-        0.0,
-        input_scale,
-        size=(n_reservoir, n_inputs),
-    )
-
-    W = rng.normal(
-        0.0,
-        1.0,
-        size=(n_reservoir, n_reservoir),
-    )
-
-    W *= rng.random(W.shape) < 0.10
+    if not np.any(W):
+        W[rng.integers(0, n_reservoir), rng.integers(0, n_reservoir)] = 1.0
 
     return W_in, spectral_scale(W, spectral_radius)
 
@@ -54,23 +54,34 @@ def esn_states(
     W: np.ndarray,
     leak: float,
 ) -> np.ndarray:
-    """Convert local input windows into final-state-plus-final-input features.
-
-    The reservoir state is reset to zero for every input window. This preserves
-    the exact historical NumPy ESN behavior.
-    """
+    """Convert local input windows into final-state-plus-final-input features."""
     rows = []
-
     for window in X:
         h = np.zeros(W.shape[0])
-
         for u_t in window:
             h_new = np.tanh(W_in @ u_t + W @ h)
             h = (1.0 - leak) * h + leak * h_new
-
         rows.append(np.concatenate([h, window[-1]]))
-
     return np.asarray(rows)
+
+
+def fit_continuous_ridge_scores(
+    train_features: np.ndarray,
+    train_targets: np.ndarray,
+    score_features: dict[str, np.ndarray],
+    alpha: float,
+) -> dict[str, np.ndarray]:
+    """Fit a train-only standardized multi-output ridge readout."""
+    scaler = StandardScaler()
+    model = Ridge(alpha=alpha)
+    model.fit(
+        scaler.fit_transform(train_features),
+        np.asarray(train_targets, dtype=float),
+    )
+    return {
+        name: model.predict(scaler.transform(values))
+        for name, values in score_features.items()
+    }
 
 
 def fit_log_ridge_scores(
@@ -78,34 +89,23 @@ def fit_log_ridge_scores(
     targets: dict[str, np.ndarray],
     alpha: float,
 ) -> dict[str, np.ndarray]:
-    """Fit the historical standardized ridge readout on log volatility."""
-    scaler = StandardScaler()
-    model = Ridge(alpha=alpha)
-
-    model.fit(
-        scaler.fit_transform(features["train"]),
+    """Preserve the historical readout for positive volatility targets."""
+    return fit_continuous_ridge_scores(
+        features["train"],
         np.log(np.maximum(targets["train"], 1e-8)),
+        {split: features[split] for split in SPLIT_NAMES},
+        alpha,
     )
-
-    return {
-        split: model.predict(scaler.transform(features[split]))
-        for split in SPLIT_NAMES
-    }
 
 
 def historical_numpy_esn_grid(seeds: list[int]) -> list[dict]:
-    """Return the four frozen NumPy ESN configurations used in Phase 2/3.
-
-    This is a historical reference grid, not the search space for future
-    Phase 3 tuning.
-    """
+    """Return the four frozen NumPy ESN configurations used in Phase 2/3."""
     base = [
         {"n": 300, "sr": 0.70, "inp": 0.30, "leak": 0.30, "alpha": 300.0},
         {"n": 300, "sr": 0.90, "inp": 0.30, "leak": 0.30, "alpha": 1000.0},
         {"n": 500, "sr": 0.70, "inp": 0.20, "leak": 0.50, "alpha": 1000.0},
         {"n": 500, "sr": 0.90, "inp": 0.20, "leak": 0.50, "alpha": 3000.0},
     ]
-
     grid = []
     for config in base:
         for seed in seeds:
@@ -115,5 +115,4 @@ def historical_numpy_esn_grid(seeds: list[int]) -> list[dict]:
                 f"leak{row['leak']}_alpha{row['alpha']}_seed{seed}"
             )
             grid.append(row)
-
     return grid
