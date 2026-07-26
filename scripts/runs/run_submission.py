@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Submission workflow entry point.
+"""Reproducible submission workflow entry point.
 
-The runner provides one stable interface for human, CI, and judge reruns. Existing
-SPY/VIX workflows are preserved. Transition-forecasting workflows write all
-run-specific raw data, one-channel processed data, folds, validation reports,
-checksums, and logs under ``results/runs/<run-id>``.
+The runner provides one stable interface for human, CI, and qBraid Agent reruns.
+Each workflow writes a single aggregate package under ``results/runs/<run-id>``.
+Scientific outputs are grouped by topic below ``files/`` and source code is never
+copied into a result directory.
 """
 from __future__ import annotations
 
@@ -24,8 +24,13 @@ from typing import Sequence
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RESULTS_ROOT = REPO_ROOT / "results" / "runs"
 TRANSITION_N_FOLDS = 8
+FROZEN_CLASSICAL_SPEC = REPO_ROOT / "config" / "transition_forecasting" / "classical_benchmarks" / "frozen_submission.json"
+CLASSICAL_MODELS = (
+    "persistence", "har", "sequence_ridge", "garch_1_1_t",
+    "esn_direct_tuned", "esn_shuffled_tuned",
+)
 
-DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
+DATA_COMMANDS = (
     (sys.executable, "scripts/data/download_market_data.py"),
     (sys.executable, "scripts/data/download_external_datasets.py"),
     (sys.executable, "scripts/data/inventory_raw_datasets.py"),
@@ -33,15 +38,12 @@ DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
     (sys.executable, "scripts/data/validate_volatility_dataset.py"),
     (sys.executable, "scripts/data/build_monthly_market_features.py"),
 )
-
-VALIDATE_DATA_COMMANDS: tuple[tuple[str, ...], ...] = (
+VALIDATE_DATA_COMMANDS = (
     (sys.executable, "scripts/data/inventory_raw_datasets.py"),
     (sys.executable, "scripts/data/validate_volatility_dataset.py"),
 )
-
-REQUIRED_DATA_OUTPUTS: tuple[Path, ...] = tuple(
-    REPO_ROOT / relative
-    for relative in (
+REQUIRED_DATA_OUTPUTS = tuple(
+    REPO_ROOT / relative for relative in (
         "data/raw/yahoo_daily_history/historical_market_data.csv",
         "data/raw/yahoo_daily_history/historical_volatility_data.csv",
         "data/raw/external_dataset_manifest.json",
@@ -130,15 +132,22 @@ def transition_paths(run_dir: Path) -> dict[str, Path]:
     root = run_dir / "files" / "transition_forecasting"
     raw = root / "raw" / "global_stock_indices_historical_data"
     processed = root / "processed"
-    dataset_1d = processed / "global_transition_dataset_1d"
-    validation_root = root / "validation"
+    dataset = processed / "global_transition_dataset_1d"
+    validation = root / "validation"
+    classical = root / "modeling" / "classical_baselines"
     return {
         "root": root,
         "raw": raw,
-        "dataset_1d": dataset_1d,
-        "folds_1d": dataset_1d / "purged_walk_forward_folds",
-        "validation": validation_root / "data_pipeline_audit.json",
-        "checksums": validation_root / "data_pipeline_checksums.json",
+        "dataset_1d": dataset,
+        "folds_1d": dataset / "purged_walk_forward_folds",
+        "validation": validation / "data_pipeline_audit.json",
+        "checksums": validation / "data_pipeline_checksums.json",
+        "classical_root": classical,
+        "linear_results_root": classical / "linear" / "run",
+        "garch_results_root": classical / "garch" / "run",
+        "esn_results_root": classical / "esn" / "run",
+        "canonical_results_root": classical / "canonical" / "run",
+        "classical_validation": validation / "classical_baseline_audit.json",
     }
 
 
@@ -197,6 +206,77 @@ def transition_commands(
     )
 
 
+def classical_commands(run_dir: Path) -> tuple[tuple[str, ...], ...]:
+    paths = transition_paths(run_dir)
+    run_id = run_dir.name
+    spec = str(FROZEN_CLASSICAL_SPEC)
+    linear_run = paths["linear_results_root"] / run_id
+    garch_run = paths["garch_results_root"] / run_id
+    esn_run = paths["esn_results_root"] / run_id
+    return (
+        (
+            sys.executable,
+            "scripts/transition_forecasting/modeling/classical_benchmarks/run_linear.py",
+            "--dataset-root",
+            str(paths["dataset_1d"]),
+            "--results-root",
+            str(paths["linear_results_root"]),
+            "--run-id",
+            run_id,
+            "--spec",
+            spec,
+        ),
+        (
+            sys.executable,
+            "scripts/transition_forecasting/modeling/classical_benchmarks/run_garch.py",
+            "--dataset-root",
+            str(paths["dataset_1d"]),
+            "--results-root",
+            str(paths["garch_results_root"]),
+            "--run-id",
+            run_id,
+            "--spec",
+            spec,
+        ),
+        (
+            sys.executable,
+            "scripts/transition_forecasting/modeling/classical_benchmarks/run_esn.py",
+            "--dataset-root",
+            str(paths["dataset_1d"]),
+            "--results-root",
+            str(paths["esn_results_root"]),
+            "--run-id",
+            run_id,
+            "--spec",
+            spec,
+        ),
+        (
+            sys.executable,
+            "scripts/transition_forecasting/modeling/classical_benchmarks/run_canonical.py",
+            "--linear-run",
+            str(linear_run),
+            "--garch-run",
+            str(garch_run),
+            "--esn-run",
+            str(esn_run),
+            "--results-root",
+            str(paths["canonical_results_root"]),
+            "--run-id",
+            run_id,
+        ),
+        (
+            sys.executable,
+            "scripts/transition_forecasting/modeling/classical_benchmarks/validate_classical_run.py",
+            "--classical-root",
+            str(paths["classical_root"]),
+            "--run-id",
+            run_id,
+            "--report",
+            str(paths["classical_validation"]),
+        ),
+    )
+
+
 def command_plan(
     workflow: str,
     run_dir: Path,
@@ -214,6 +294,12 @@ def command_plan(
             source_mode=transition_source_mode,
             force=force,
         )
+    if workflow == "financial-classical":
+        return transition_commands(
+            run_dir,
+            source_mode=transition_source_mode,
+            force=force,
+        ) + classical_commands(run_dir)
     raise ValueError(f"Unsupported workflow: {workflow}")
 
 
@@ -248,22 +334,103 @@ def transition_required_outputs(run_dir: Path) -> tuple[Path, ...]:
     return tuple(outputs)
 
 
-def required_outputs_for_workflow(workflow: str, run_dir: Path) -> tuple[Path, ...]:
+def classical_required_outputs(run_dir: Path) -> tuple[Path, ...]:
+    paths = transition_paths(run_dir)
+    run_id = run_dir.name
+
+    def files(root: Path, *names: str) -> list[Path]:
+        return [root / run_id / name for name in names]
+
+    outputs: list[Path] = []
+    outputs.extend(
+        files(
+            paths["linear_results_root"],
+            "params.json",
+            "config.json",
+            "dataset_manifest.json",
+            "predictions.csv.gz",
+            "submission_metrics.csv",
+            "metrics_by_fold.csv",
+            "metrics_by_horizon.csv",
+            "runtime.json",
+            "summary.json",
+        )
+    )
+    outputs.extend(
+        files(
+            paths["garch_results_root"],
+            "params.json",
+            "config.json",
+            "dataset_manifest.json",
+            "predictions.csv.gz",
+            "submission_metrics.csv",
+            "metrics_by_fold.csv",
+            "metrics_by_horizon.csv",
+            "fit_diagnostics.csv.gz",
+            "runtime.json",
+            "summary.json",
+        )
+    )
+    outputs.extend(
+        files(
+            paths["esn_results_root"],
+            "params.json",
+            "config.json",
+            "dataset_manifest.json",
+            "selected_spec.json",
+            "predictions.csv.gz",
+            "submission_metrics.csv",
+            "metrics_by_fold.csv",
+            "metrics_by_horizon.csv",
+            "runtime.json",
+            "summary.json",
+        )
+    )
+    outputs.extend(
+        files(
+            paths["canonical_results_root"],
+            "params.json",
+            "common_predictions.csv.gz",
+            "submission_metrics.csv",
+            "metrics_by_fold.csv",
+            "metrics_by_horizon.csv",
+            "coverage.csv",
+            "paired_deltas_vs_sequence_ridge.csv",
+            "submission_table_selection.csv",
+            "submission_table_confirmation.csv",
+            "submission_table_development_all.csv",
+            "runtime.json",
+            "summary.json",
+        )
+    )
+    outputs.append(paths["classical_validation"])
+    return tuple(outputs)
+
+
+def required_outputs_for_workflow(
+    workflow: str,
+    run_dir: Path,
+) -> tuple[Path, ...]:
     if workflow in {"data", "validate-data"}:
         return REQUIRED_DATA_OUTPUTS
     if workflow == "transition-data":
         return transition_required_outputs(run_dir)
+    if workflow == "financial-classical":
+        return transition_required_outputs(run_dir) + classical_required_outputs(run_dir)
     raise ValueError(f"Unsupported workflow: {workflow}")
 
 
-def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord:
+def run_command(
+    argv: Sequence[str],
+    run_dir: Path,
+    index: int,
+) -> CommandRecord:
     command_name = Path(argv[1]).stem if len(argv) > 1 else Path(argv[0]).stem
     logs_dir = run_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     log_path = logs_dir / f"{index:02d}_{command_name}.log"
     started = utc_now()
     start_clock = time.monotonic()
-
     with log_path.open("w", encoding="utf-8") as log:
         log.write(f"$ {' '.join(argv)}\n\n")
         log.flush()
@@ -275,7 +442,6 @@ def run_command(argv: Sequence[str], run_dir: Path, index: int) -> CommandRecord
             text=True,
             check=False,
         )
-
     return CommandRecord(
         argv=list(argv),
         started_at_utc=started,
@@ -297,7 +463,6 @@ def execute(
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = results_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
-
     manifest_path = run_dir / "run_manifest.json"
     records: list[CommandRecord] = []
     status = "running"
@@ -308,9 +473,9 @@ def execute(
         transition_source_mode=transition_source_mode,
         force=force,
     )
-
+    transition_workflow = workflow in {"transition-data", "financial-classical"}
     manifest: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "run_id": run_id,
         "workflow": workflow,
         "status": status,
@@ -325,12 +490,11 @@ def execute(
         "environment": environment_snapshot(),
         "parameters": {
             "transition_source_mode": transition_source_mode,
-            "transition_n_folds": (
-                TRANSITION_N_FOLDS if workflow == "transition-data" else None
-            ),
-            "transition_channels": (
-                ["log_volatility_level"] if workflow == "transition-data" else None
-            ),
+            "transition_n_folds": TRANSITION_N_FOLDS if transition_workflow else None,
+            "transition_channels": ["log_volatility_level"] if transition_workflow else None,
+            "classical_models": list(CLASSICAL_MODELS) if workflow == "financial-classical" else None,
+            "frozen_classical_spec": display_path(FROZEN_CLASSICAL_SPEC) if workflow == "financial-classical" else None,
+            "test_evaluated": False if transition_workflow else None,
             "force": force,
         },
         "commands": [],
@@ -338,7 +502,6 @@ def execute(
         "failure": None,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-
     for index, argv in enumerate(commands, start=1):
         record = run_command(argv, run_dir, index)
         records.append(record)
@@ -351,7 +514,6 @@ def execute(
                 "log_path": record.log_path,
             }
             break
-
     required_outputs = output_inventory(
         required_outputs_for_workflow(workflow, run_dir)
     )
@@ -363,7 +525,6 @@ def execute(
         failure = {"reason": "missing_required_outputs", "paths": missing_outputs}
     elif status != "failed":
         status = "succeeded"
-
     manifest.update(
         {
             "status": status,
@@ -374,14 +535,12 @@ def execute(
         }
     )
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-
     print(f"Workflow: {workflow}")
     print(f"Status: {status}")
     print(f"Run directory: {display_path(run_dir)}")
     print(f"Manifest: {display_path(manifest_path)}")
     if failure:
         print(json.dumps(failure, indent=2))
-
     return (0 if status == "succeeded" else 1), run_dir
 
 
@@ -389,36 +548,32 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run reproducible submission workflows and record provenance"
     )
-    parser.add_argument("workflow", choices=("data", "validate-data", "transition-data"))
+    parser.add_argument(
+        "workflow",
+        choices=("data", "validate-data", "transition-data", "financial-classical"),
+    )
     parser.add_argument(
         "--results-root",
         type=Path,
         default=DEFAULT_RESULTS_ROOT,
-        help="Directory under which a unique run directory is created",
     )
-    parser.add_argument(
-        "--run-id",
-        default=None,
-        help="Explicit unique run identifier; defaults to a UTC timestamp",
-    )
+    parser.add_argument("--run-id")
     parser.add_argument(
         "--transition-source-mode",
         choices=("auto", "live", "fallback"),
         default="auto",
     )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Allow workflow stages to replace existing stage outputs inside a new run",
-    )
+    parser.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    results_root = args.results_root
-    if not results_root.is_absolute():
-        results_root = REPO_ROOT / results_root
+    results_root = (
+        args.results_root
+        if args.results_root.is_absolute()
+        else REPO_ROOT / args.results_root
+    )
     return execute(
         args.workflow,
         results_root,
