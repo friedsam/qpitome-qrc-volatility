@@ -1,20 +1,20 @@
-# qBraid Stage-1 Run Contract
+# qBraid Financial-Classical Run Contract
 
 ## Purpose
 
-This contract defines the currently testable qBraid execution path on `stage1-dev`.
+This contract defines the executable qBraid workflow for the verified transition-data pipeline and the complete frozen classical comparison.
 
 ## Agent-owned environment setup
 
-The judge should not create or activate an environment manually. The qBraid agent runs:
+The judge does not create or activate an environment manually. The qBraid agent executes:
 
 ```bash
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 ```
 
-The bootstrap creates `.venv` if absent, installs dependencies, runs preflight, runs the focused Stage-1 and skill tests, and stops on the first failure. Subsequent commands use `.venv/bin/python` or `.venv/bin/kaggle` explicitly.
+Bootstrap creates or reuses `.venv`, installs `.[test]`, runs the existing data preflight, runs the classical preflight, and executes the focused contract suite. Subsequent commands use `.venv/bin/python` explicitly.
 
-## Data dependency and authority
+## Data authority
 
 The transition workflow uses the public Kaggle dataset:
 
@@ -22,103 +22,183 @@ The transition workflow uses the public Kaggle dataset:
 guillemservera/global-stock-indices-historical-data
 ```
 
-Current Kaggle CLI releases permit anonymous `datasets files` and `datasets download` for public datasets. Preflight therefore tests the endpoint directly rather than treating credentials as mandatory.
+The accepted source policy remains:
 
-The authoritative data policy is:
+1. the committed fallback is usable only after complete manifest, file-set, hash, and schema verification;
+2. `auto` compares an anonymous live candidate with the fallback and substitutes the fallback before installation when any file differs;
+3. without a fallback, a live candidate must match the frozen raw inventory exactly;
+4. the installed source is verified again;
+5. the acquisition manifest records candidate comparison, installed-source comparison, fallback substitution, and substitution reason.
 
-1. A fallback is usable only after its manifest, complete file set, hashes, and schemas verify.
-2. When anonymous live access and the fallback are both available, `auto` downloads a live candidate and compares its complete data-file inventory to the fallback.
-3. If the candidate differs by any missing, extra, or changed file, it is discarded before installation and the verified fallback is copied instead.
-4. When no fallback exists, a live candidate must match the frozen raw inventory exactly or acquisition fails.
-5. The installed destination is verified again after copying or download.
-
-The acquisition manifest records the candidate comparison, installed-source comparison, fallback substitution flag, and substitution reason.
-
-## Preflight
+Run strict source preflight:
 
 ```bash
-.venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --json
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --strict-data-source
 ```
 
-Exit codes:
+Use only the reported `auto`, `fallback`, or `live` mode. Exit code 2 is a data/provenance blocker.
 
-- `0`: repository contract passes; strict mode found anonymous live access or a verified fallback;
-- `1`: Python, dependency, repository, or fallback-verification failure;
-- `2`: strict mode found no verified data source.
+## Frozen classical authority
 
-Exit code 2 is a data/provenance blocker, not permission to improvise another dataset.
+The submission models and parameters are read only from:
+
+```text
+config/transition_forecasting/classical_benchmarks/frozen_submission.json
+```
+
+The canonical workflow does not tune models or evaluate test rows. The frozen models are:
+
+```text
+persistence
+har
+sequence_ridge
+garch_1_1_t
+esn_direct_tuned
+esn_shuffled_tuned
+```
+
+GARCH must use backend `arch`. The development SciPy fallback is not accepted for the submitted run.
 
 ## Canonical command
 
 Generate a literal run ID:
 
 ```bash
-date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
+date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ
 ```
 
-Use the exact mode reported by preflight. When both sources are ready:
+Execute:
 
 ```bash
-.venv/bin/python scripts/runs/run_submission.py transition-data \
+.venv/bin/python scripts/runs/run_submission.py financial-classical \
   --run-id <RUN_ID> \
-  --transition-source-mode auto
+  --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
 
-Use `fallback` or `live` only when preflight reports that as the sole verified mode. Do not use `--force` for a new run.
+Do not add `--force` for a new run.
 
-## Expected top-level run files
+## Command order
+
+The runner executes exactly these topic stages and stops on the first nonzero return code:
+
+1. acquire or restore verified OHLC inputs;
+2. build the one-channel transition dataset;
+3. build eight rematched purged walk-forward folds;
+4. validate the data pipeline;
+5. freeze data checksums;
+6. run persistence, HAR, and sequence ridge;
+7. run Student-t GARCH(1,1);
+8. run the frozen tuned direct ESN and shuffled control;
+9. build the exact-common-row canonical comparison;
+10. validate the complete classical result family.
+
+## Aggregate output
 
 ```text
-results/runs/<run-id>/run_manifest.json
-results/runs/<run-id>/logs/
-results/runs/<run-id>/files/transition_forecasting/
+results/runs/<RUN_ID>/
+    run_manifest.json
+    logs/
+    files/transition_forecasting/
 ```
 
-The transition subtree must include:
+Data products remain under:
 
 ```text
-raw/global_stock_indices_historical_data/all_indices_data.csv
-raw/global_stock_indices_historical_data/raw_acquisition_manifest.json
-processed/global_transition_dataset_1d/cleaned_ohlc.csv.gz
-processed/global_transition_dataset_1d/daily_volatility.csv.gz
-processed/global_transition_dataset_1d/transition_catalogue.csv
-processed/global_transition_dataset_1d/sample_manifest.csv
-processed/global_transition_dataset_1d/sequence_tensors.npz
-processed/global_transition_dataset_1d/row_corrections.csv
-processed/global_transition_dataset_1d/manifest.json
-processed/global_transition_dataset_1d/control_candidate_manifest.csv
-processed/global_transition_dataset_1d/control_candidate_tensors.npz
-processed/global_transition_dataset_1d/candidate_pool_summary.json
-processed/global_transition_dataset_1d/purged_walk_forward_folds/rematched_rolling_manifest.csv
-processed/global_transition_dataset_1d/purged_walk_forward_folds/rematched_rolling_tensors.npz
-processed/global_transition_dataset_1d/purged_walk_forward_folds/control_match_audit.csv
-processed/global_transition_dataset_1d/purged_walk_forward_folds/summary.json
-validation/data_pipeline_audit.json
-validation/data_pipeline_checksums.json
+files/transition_forecasting/raw/
+files/transition_forecasting/processed/global_transition_dataset_1d/
+files/transition_forecasting/validation/
 ```
+
+Classical products are grouped by topic:
+
+```text
+files/transition_forecasting/modeling/classical_baselines/
+    linear/run/<RUN_ID>/
+    garch/run/<RUN_ID>/
+    esn/run/<RUN_ID>/
+    canonical/run/<RUN_ID>/
+```
+
+Every individual model run contains at least:
+
+```text
+params.json
+config.json
+dataset_manifest.json
+predictions.csv.gz
+submission_metrics.csv
+metrics_by_fold.csv
+metrics_by_horizon.csv
+runtime.json
+summary.json
+```
+
+The ESN run also contains `selected_spec.json`. The GARCH run also contains `fit_diagnostics.csv.gz`. The canonical run contains:
+
+```text
+common_predictions.csv.gz
+coverage.csv
+paired_deltas_vs_sequence_ridge.csv
+submission_table_selection.csv
+submission_table_confirmation.csv
+submission_table_development_all.csv
+```
+
+The validation topic must contain:
+
+```text
+files/transition_forecasting/validation/classical_baseline_audit.json
+```
+
+## Reporting contract
+
+For every model, the canonical tables report:
+
+```text
+Transition
+L1
+L5
+L10
+Controls
+Pooled
+```
+
+Controls are never subdivided by lead. Metrics are:
+
+```text
+RMSE
+log-volatility QLIKE
+Mincer-Zarnowitz alpha
+Mincer-Zarnowitz beta
+Mincer-Zarnowitz R2
+```
+
+The canonical comparison scores only the exact common finite `(fold, sample_id)` intersection across all six models.
 
 ## Acceptance conditions
 
 A run is accepted only when:
 
-1. `run_manifest.json` records `status: succeeded`;
-2. every required output exists and has a recorded SHA-256 hash;
-3. `raw_acquisition_manifest.json` records `authoritative_source_verified: true`;
-4. `installed_source_comparison.matched` is true;
-5. any live mismatch or failure and fallback substitution are explicitly recorded;
-6. the data audit records `passed: true`;
-7. the checksum report records `passed: true`;
-8. the test partition remains unevaluated;
-9. the workflow records eight folds and one `log_volatility_level` channel;
-10. the protocol is `precontrol_binary_matching`;
-11. no `.py` file exists beneath the run directory;
-12. all commands, logs, and artifacts correspond to the same explicit run ID.
+1. `run_manifest.json` records `status: succeeded` and `workflow: financial-classical`;
+2. every required data and classical output exists and has a SHA-256 value;
+3. the raw acquisition manifest verifies the installed source against the authoritative reference;
+4. data audit and checksum reports pass;
+5. `classical_baseline_audit.json` records `passed: true`;
+6. the data identity remains one channel, 40 input sessions, 10 target sessions, and eight folds;
+7. the control protocol remains `precontrol_binary_matching`;
+8. predictions contain validation rows only from folds 4–8;
+9. the fixed test partition remains unevaluated;
+10. the canonical model and group sets exactly match this contract;
+11. no control-by-lead row exists;
+12. GARCH records backend `arch`;
+13. ESN parameters match the frozen specification;
+14. no `.py` file exists beneath the aggregate run directory;
+15. every command, log, and artifact belongs to the same explicit run ID.
 
 ## Hardware boundary
 
-This run must not query, select, or submit to a QPU. Fresh hardware execution is outside this workflow.
+This workflow must not query, select, or submit to a QPU. Financial QRC and other challenge stages will be added separately.
 
-## Current limitations
+## Failure handling
 
-This Stage-1 contract does not yet reproduce the final financial HAR/QRC comparison, final QRC training or inference, MNIST, qubit scaling, noise analysis, final report tables and figures, or final judge-facing artifact collection. Those stages must be added to the single automated runner before submission.
+On any failure, preserve the run directory and logs, report the first failed command and exact log path, classify the blocker, and do not patch scientific behavior during reproduction.
