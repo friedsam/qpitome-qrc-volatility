@@ -37,6 +37,20 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _persist_submission_provenance(
+    destination: Path,
+    report: dict[str, object],
+) -> None:
+    manifest_path = destination / "raw_acquisition_manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f"acquisition completed without required manifest: {manifest_path}"
+        )
+    temporary = manifest_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(manifest_path)
+
+
 def main() -> int:
     args = parse_args()
     expose_active_environment_executable("kaggle")
@@ -59,6 +73,7 @@ def main() -> int:
         args.fallback,
         args.destination,
     )
+    _persist_submission_provenance(args.destination, report)
     print(json.dumps(report, indent=2))
     return 0
 
