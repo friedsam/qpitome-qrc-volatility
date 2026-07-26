@@ -10,6 +10,7 @@ from transition_forecasting.data.dataset import (
     DEFAULT_FROZEN_RANGE_QUALITY,
     build_processed_dataset,
 )
+from transition_forecasting.data.submission_provenance import remove_manifest_self_hash
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,6 +48,10 @@ def main() -> int:
         controls_per_positive=args.controls_per_positive,
         force=args.force,
     )
+    manifest_self_hash_removed = remove_manifest_self_hash(args.output_1d)
+    if isinstance(one_channel.get("files"), dict):
+        one_channel["files"].pop("manifest.json", None)
+    one_channel["manifest_self_hash_removed"] = manifest_self_hash_removed
     print(
         json.dumps(
             {
