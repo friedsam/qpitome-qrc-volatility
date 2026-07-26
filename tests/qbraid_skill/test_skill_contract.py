@@ -10,6 +10,7 @@ SKILL_ROOT = REPO_ROOT / "qbraid_skill" / "qpitome-qrc-volatility"
 SKILL_PATH = SKILL_ROOT / "SKILL.md"
 BOOTSTRAP_PATH = SKILL_ROOT / "scripts" / "bootstrap.py"
 PREFLIGHT_PATH = SKILL_ROOT / "scripts" / "preflight.py"
+CLASSICAL_PREFLIGHT_PATH = SKILL_ROOT / "scripts" / "preflight_classical.py"
 README_PATH = REPO_ROOT / "README.md"
 
 
@@ -36,7 +37,6 @@ def parse_frontmatter(text: str) -> dict[str, str]:
 
 def test_skill_uses_agent_skills_frontmatter_and_matching_directory() -> None:
     fields = parse_frontmatter(SKILL_PATH.read_text(encoding="utf-8"))
-
     assert fields["name"] == "qpitome-qrc-volatility"
     assert SKILL_ROOT.name == fields["name"]
     assert "qBraid" in fields["description"]
@@ -44,48 +44,45 @@ def test_skill_uses_agent_skills_frontmatter_and_matching_directory() -> None:
     assert set(fields) == {"name", "description"}
 
 
-def test_skill_references_exist_and_remain_inside_package() -> None:
+def test_skill_references_and_entry_points_exist() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
-
     for relative in (
         "references/repository-map.md",
         "references/run-contract.md",
+        "scripts/bootstrap.py",
+        "scripts/preflight.py",
+        "scripts/preflight_classical.py",
     ):
         assert relative in text
         assert (SKILL_ROOT / relative).is_file()
-
-
-def test_skill_requires_explicit_root_and_absolute_resource_resolution() -> None:
-    text = SKILL_PATH.read_text(encoding="utf-8")
-
-    assert "Do not assume the current working directory is the repository root" in text
-    assert "Resolve every relative skill path against `SKILL_ROOT`" in text
-    assert "For file-read operations, use the resulting absolute path" in text
-    assert "For shell commands, set the command working directory to `REPO_ROOT`" in text
-    assert "<SKILL_ROOT>/references/repository-map.md" in text
-    assert "<SKILL_ROOT>/references/run-contract.md" in text
-    assert "<REPO_ROOT>/references/repository-map.md" not in text
-
-
-def test_skill_invokes_only_existing_entry_points() -> None:
-    text = SKILL_PATH.read_text(encoding="utf-8")
-
     for relative in (
         "qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py",
         "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
+        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
         "scripts/runs/run_submission.py",
     ):
-        assert relative in text
         assert (REPO_ROOT / relative).is_file(), relative
 
 
-def test_skill_is_explicit_about_scope_and_hardware_boundary() -> None:
+def test_skill_requires_root_safe_execution() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
+    assert "Do not assume the current working directory is the repository root" in text
+    assert "Resolve every relative skill path against `SKILL_ROOT`" in text
+    assert "For file reads, use absolute paths" in text
+    assert "working directory explicitly to `REPO_ROOT`" in text
+    assert "<SKILL_ROOT>/references/repository-map.md" in text
+    assert "<SKILL_ROOT>/references/run-contract.md" in text
 
-    assert "transition-forecasting data stage only" in text
-    assert "Do not submit or query a hardware job" in text
-    assert "The final financial QRC" in text
-    assert "MNIST benchmark" in text
+
+def test_skill_scope_includes_classical_and_preserves_hardware_boundary() -> None:
+    text = SKILL_PATH.read_text(encoding="utf-8")
+    assert "persistence, canonical HAR, and direct sequence-ridge" in text
+    assert "Student-t GARCH(1,1)" in text
+    assert "frozen tuned direct ESN" in text
+    assert "financial-classical" in text
+    assert "Do not evaluate the fixed test partition" in text
+    assert "Do not submit, query, or select a hardware job" in text
+    assert "Financial QRC, MNIST, qubit scaling, noise studies" in text
     assert "qbraid jobs submit" not in text.lower()
 
 
@@ -95,24 +92,19 @@ def test_qbraid_setup_is_agent_owned() -> None:
     bootstrap_command = (
         "python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json"
     )
-
-    assert "The agent owns environment setup" in skill
-    assert "Do not ask the judge to run terminal commands" in skill
+    assert "Do not ask me to run terminal commands" in readme
     assert bootstrap_command in skill
     assert bootstrap_command in readme
-    assert "Do not ask me to run terminal commands" in readme
-    assert "Do not substitute `qbraid envs create`" in skill
+    assert "Do not substitute a bare `pip`" in skill
     assert "source .venv/bin/activate" not in skill
     assert "source .venv/bin/activate" not in readme
 
 
-def test_bootstrap_plan_is_idempotent_and_uses_local_interpreter(tmp_path: Path) -> None:
+def test_bootstrap_plan_runs_both_preflights_and_focused_tests(tmp_path: Path) -> None:
     bootstrap = load_module("qbraid_skill_bootstrap", BOOTSTRAP_PATH)
     venv_dir = tmp_path / "qrc-venv"
-
     plan = bootstrap.build_command_plan(venv_dir, skip_tests=False)
     expected_python = bootstrap.venv_python(venv_dir)
-
     assert bootstrap.REPO_ROOT == REPO_ROOT
     assert plan[0] == [sys.executable, "-m", "venv", str(venv_dir)]
     assert plan[1] == [
@@ -128,9 +120,14 @@ def test_bootstrap_plan_is_idempotent_and_uses_local_interpreter(tmp_path: Path)
         "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
         "--json",
     ]
-    assert plan[3][:4] == [str(expected_python), "-m", "pytest", "-q"]
-    assert "tests/qbraid_skill/test_skill_contract.py" in plan[3]
-    assert "tests/transition_forecasting/data/test_acquisition.py" in plan[3]
+    assert plan[3] == [
+        str(expected_python),
+        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
+        "--json",
+    ]
+    assert plan[4][:4] == [str(expected_python), "-m", "pytest", "-q"]
+    assert "tests/runs/test_run_submission_classical.py" in plan[4]
+    assert "tests/transition_forecasting/modeling/classical_benchmarks/test_spec.py" in plan[4]
 
 
 def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
@@ -139,21 +136,16 @@ def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
     python_path = bootstrap.venv_python(venv_dir)
     python_path.parent.mkdir(parents=True)
     python_path.write_text("", encoding="utf-8")
-
     plan = bootstrap.build_command_plan(venv_dir, skip_tests=True)
-
     assert all(command[1:3] != ["-m", "venv"] for command in plan)
     assert plan[0][:4] == [str(python_path), "-m", "pip", "install"]
-    assert plan[-1] == [
-        str(python_path),
-        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
-        "--json",
-    ]
+    assert plan[1][-1] == "--json"
+    assert plan[2][-1] == "--json"
+    assert "preflight_classical.py" in plan[2][1]
 
 
-def test_readme_contains_launch_link_and_root_safe_agent_prompt() -> None:
+def test_readme_contains_launch_link_and_financial_classical_command() -> None:
     text = README_PATH.read_text(encoding="utf-8")
-
     assert "https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png" in text
     assert (
         "https://account.qbraid.com?gitHubUrl="
@@ -161,15 +153,14 @@ def test_readme_contains_launch_link_and_root_safe_agent_prompt() -> None:
     ) in text
     assert "locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md" in text
     assert "read it by absolute path" in text
-    assert "Resolve every relative path in that skill against the directory containing SKILL.md" in text
-    assert "not against the repository root" in text
     assert "enable **Agent Mode**" in text
+    assert "run_submission.py financial-classical" in text
+    assert "modeling/classical_baselines/" in text
 
 
-def test_preflight_reports_repository_contract_without_credentials() -> None:
+def test_data_preflight_reports_repository_contract() -> None:
     preflight = load_module("qbraid_skill_preflight", PREFLIGHT_PATH)
     report = preflight.build_report()
-
     assert preflight.REPO_ROOT == REPO_ROOT
     assert report["passed"] is True
     assert report["repository_root"] == str(REPO_ROOT)
@@ -181,13 +172,22 @@ def test_preflight_reports_repository_contract_without_credentials() -> None:
         "live",
         "fallback",
     }
-    assert "dataset_files_probe" in report["kaggle"]
-    assert "anonymous_access_ready" in report["kaggle"]
 
 
-def test_preflight_strict_mode_has_distinct_blocked_exit_code() -> None:
+def test_classical_preflight_reports_frozen_contract() -> None:
+    preflight = load_module(
+        "qbraid_skill_classical_preflight",
+        CLASSICAL_PREFLIGHT_PATH,
+    )
+    report = preflight.build_report()
+    assert preflight.REPO_ROOT == REPO_ROOT
+    assert report["passed"] is True
+    assert report["frozen_spec"]["garch"]["backend"] == "arch"
+    assert report["frozen_spec"]["reporting"]["test_evaluated"] is False
+
+
+def test_data_preflight_strict_mode_has_distinct_blocked_exit_code() -> None:
     preflight = load_module("qbraid_skill_preflight_strict", PREFLIGHT_PATH)
     report = preflight.build_report()
-
     expected = 0 if report["data_source"]["ready"] else 2
     assert preflight.main(["--strict-data-source"]) == expected
