@@ -20,29 +20,11 @@ from transition_forecasting.qrc.temporal_rydberg_ladder import (
 )
 from transition_forecasting.qrc.temporal_rydberg_noise import (
     TemporalNoiseSpec,
-    _apply_noise,
+    _amplitude_damping_kraus,
+    _dephasing_kraus,
+    _depolarizing_kraus,
     _stabilize_density,
 )
-
-
-def _global_rxy_matrix(angle: float, phase: float, n_atoms: int) -> np.ndarray:
-    """Return the global product rotation used by the statevector palindrome."""
-
-    cosine = np.cos(float(angle) / 2.0)
-    sine = np.sin(float(angle) / 2.0)
-    phase_plus = np.exp(1.0j * float(phase))
-    phase_minus = np.conjugate(phase_plus)
-    single = np.array(
-        [
-            [cosine, -1.0j * sine * phase_plus],
-            [-1.0j * sine * phase_minus, cosine],
-        ],
-        dtype=complex,
-    )
-    result = np.array([[1.0 + 0.0j]])
-    for _ in range(int(n_atoms)):
-        result = np.kron(result, single)
-    return result
 
 
 def _apply_global_rxy_density(
@@ -51,22 +33,147 @@ def _apply_global_rxy_density(
     phases: np.ndarray,
     n_atoms: int,
 ) -> np.ndarray:
-    """Apply sample-specific global XY rotations to batched density matrices."""
+    """Apply sample-specific product rotations without dense 64x64 unitaries."""
 
-    state = np.asarray(density, dtype=complex)
+    result = np.asarray(density, dtype=complex).copy()
     angle = np.asarray(angles, dtype=float)
     phase = np.asarray(phases, dtype=float)
+    samples = len(result)
     dimension = 2 ** int(n_atoms)
-    if state.ndim != 3 or state.shape[1:] != (dimension, dimension):
+    if result.ndim != 3 or result.shape[1:] != (dimension, dimension):
         raise ValueError("density has an incompatible shape")
-    if angle.shape != (len(state),) or phase.shape != (len(state),):
+    if angle.shape != (samples,) or phase.shape != (samples,):
         raise ValueError("angles and phases must align with density rows")
 
-    output = np.empty_like(state)
-    for sample, (local_angle, local_phase) in enumerate(zip(angle, phase, strict=True)):
-        unitary = _global_rxy_matrix(local_angle, local_phase, int(n_atoms))
-        output[sample] = unitary @ state[sample] @ unitary.conj().T
-    return output
+    cosine = np.cos(angle / 2.0)
+    sine = np.sin(angle / 2.0)
+    phase_plus = np.exp(1.0j * phase)
+    phase_minus = np.conjugate(phase_plus)
+    c = cosine[:, None, None, None]
+    s = sine[:, None, None, None]
+    plus = phase_plus[:, None, None, None]
+    minus = phase_minus[:, None, None, None]
+
+    # Left multiplication by U = tensor_product(R_xy).
+    for site in range(int(n_atoms)):
+        left = 2**site
+        right = 2 ** (int(n_atoms) - 1 - site)
+        view = result.reshape(samples, left, 2, right, dimension)
+        row_zero = view[:, :, 0, :, :].copy()
+        row_one = view[:, :, 1, :, :].copy()
+        view[:, :, 0, :, :] = c * row_zero - 1.0j * s * plus * row_one
+        view[:, :, 1, :, :] = -1.0j * s * minus * row_zero + c * row_one
+        result = view.reshape(samples, dimension, dimension)
+
+    # Right multiplication by U dagger, equivalently U* on the bra indices.
+    for site in range(int(n_atoms)):
+        left = 2**site
+        right = 2 ** (int(n_atoms) - 1 - site)
+        view = result.reshape(samples, dimension, left, 2, right)
+        column_zero = view[:, :, :, 0, :].copy()
+        column_one = view[:, :, :, 1, :].copy()
+        view[:, :, :, 0, :] = c * column_zero + 1.0j * s * minus * column_one
+        view[:, :, :, 1, :] = 1.0j * s * plus * column_zero + c * column_one
+        result = view.reshape(samples, dimension, dimension)
+    return result
+
+
+def _apply_single_site_kraus_term(
+    density: np.ndarray,
+    operator: np.ndarray,
+    *,
+    n_atoms: int,
+    site: int,
+) -> np.ndarray:
+    """Apply K rho K dagger to one site using tensor reshapes."""
+
+    result = np.asarray(density, dtype=complex).copy()
+    matrix = np.asarray(operator, dtype=complex)
+    samples = len(result)
+    dimension = 2 ** int(n_atoms)
+    if result.shape != (samples, dimension, dimension):
+        raise ValueError("density has an incompatible shape")
+    if matrix.shape != (2, 2):
+        raise ValueError("single-site Kraus operator must be 2x2")
+    if not 0 <= int(site) < int(n_atoms):
+        raise ValueError("site is outside the register")
+
+    left = 2 ** int(site)
+    right = 2 ** (int(n_atoms) - 1 - int(site))
+    view = result.reshape(samples, left, 2, right, dimension)
+    row_zero = view[:, :, 0, :, :].copy()
+    row_one = view[:, :, 1, :, :].copy()
+    view[:, :, 0, :, :] = matrix[0, 0] * row_zero + matrix[0, 1] * row_one
+    view[:, :, 1, :, :] = matrix[1, 0] * row_zero + matrix[1, 1] * row_one
+    result = view.reshape(samples, dimension, dimension)
+
+    view = result.reshape(samples, dimension, left, 2, right)
+    column_zero = view[:, :, :, 0, :].copy()
+    column_one = view[:, :, :, 1, :].copy()
+    view[:, :, :, 0, :] = (
+        np.conjugate(matrix[0, 0]) * column_zero
+        + np.conjugate(matrix[0, 1]) * column_one
+    )
+    view[:, :, :, 1, :] = (
+        np.conjugate(matrix[1, 0]) * column_zero
+        + np.conjugate(matrix[1, 1]) * column_one
+    )
+    return view.reshape(samples, dimension, dimension)
+
+
+def _apply_local_kraus_channel_fast(
+    density: np.ndarray,
+    single_qubit_kraus: tuple[np.ndarray, ...],
+    n_atoms: int,
+) -> np.ndarray:
+    """Apply the same local channel independently to every site."""
+
+    result = np.asarray(density, dtype=complex)
+    for site in range(int(n_atoms)):
+        updated = np.zeros_like(result)
+        for operator in single_qubit_kraus:
+            updated += _apply_single_site_kraus_term(
+                result,
+                operator,
+                n_atoms=int(n_atoms),
+                site=site,
+            )
+        result = updated
+    return result
+
+
+def _apply_noise_fast(
+    density: np.ndarray,
+    spec: TemporalNoiseSpec,
+    *,
+    dt_us: float,
+    total_time_us: float,
+    n_atoms: int,
+) -> np.ndarray:
+    result = density
+    if spec.amplitude_damping_t1_us is not None:
+        result = _apply_local_kraus_channel_fast(
+            result,
+            _amplitude_damping_kraus(dt_us, spec.amplitude_damping_t1_us),
+            n_atoms,
+        )
+    if spec.dephasing_t2_us is not None:
+        result = _apply_local_kraus_channel_fast(
+            result,
+            _dephasing_kraus(dt_us, spec.dephasing_t2_us),
+            n_atoms,
+        )
+    if spec.depolarizing_probability > 0.0:
+        result = _apply_local_kraus_channel_fast(
+            result,
+            _depolarizing_kraus(
+                dt_us,
+                total_time_us,
+                spec.depolarizing_probability,
+            ),
+            n_atoms,
+        )
+    return result
 
 
 def build_noisy_palindrome_probabilities(
@@ -168,7 +275,7 @@ def build_noisy_palindrome_probabilities(
                     * diagonal_phase.conj()[:, None, :]
                 )
                 if not noise.is_ideal:
-                    density = _apply_noise(
+                    density = _apply_noise_fast(
                         density,
                         noise,
                         dt_us=dt_us,
@@ -194,6 +301,7 @@ def build_noisy_palindrome_probabilities(
     )
     metadata = {
         "encoding": "symmetric_crossover_density_matrix",
+        "implementation": "tensorized_local_density_updates",
         "schedule": schedule.name,
         "segments": [[branch, float(fraction)] for branch, fraction in schedule.segments],
         "noise": noise.to_dict(),
