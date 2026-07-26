@@ -15,6 +15,7 @@ dependencies = [
 test = ["pytest>=8"]
 baselines = [
     "arch>=7,<9",
+    "scipy>=1.11,<2",
     "torch>=2.2,<3",
     "reservoirpy>=0.3,<1",
 ]
