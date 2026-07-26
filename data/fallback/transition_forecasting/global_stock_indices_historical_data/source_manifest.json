@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "dataset": "guillemservera/global-stock-indices-historical-data",
+  "dataset_url": "https://www.kaggle.com/datasets/guillemservera/global-stock-indices-historical-data",
+  "license": "CC-BY-NC-4.0",
+  "source_description": "Daily global stock-index OHLCV data sourced by the dataset author from Yahoo Finance.",
+  "downloaded_at_utc": "2026-07-17T20:38:26.099148+00:00",
+  "destination": "data/raw/transition_forecasting/global_stock_indices_historical_data",
+  "csv_files": 37,
+  "redistribution_note": "Non-commercial attribution license; preserve this manifest with any retained copy."
+}

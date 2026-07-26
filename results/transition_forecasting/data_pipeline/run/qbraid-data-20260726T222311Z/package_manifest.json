@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "run_id": "qbraid-data-20260726T222311Z",
+  "files": [
+    {
+      "path": "README.md",
+      "size_bytes": 1015,
+      "sha256": "6aeedca4c61960c02a43c8b016d5f84b90c3b481e6e63c4ff326025b48a4b1c8"
+    },
+    {
+      "path": "artifact_inventory.csv",
+      "size_bytes": 3904,
+      "sha256": "3264555f0c05b0921e3333bc9dc61d66cb7e6c5b31d52deb55d0208c514128d5"
+    },
+    {
+      "path": "command_runtimes.csv",
+      "size_bytes": 2915,
+      "sha256": "f63e353513f28ae04d514b63834ee645748cadcc2a0655857de6d27aaa2f8808"
+    },
+    {
+      "path": "data_pipeline_audit.json",
+      "size_bytes": 2287,
+      "sha256": "2fcd3bbd442dd9562da7f2246c409f28387ef2e97ae029a8d2a58227cfbabe6d"
+    },
+    {
+      "path": "data_pipeline_checksums.json",
+      "size_bytes": 2288,
+      "sha256": "5fc2c72daffd36c769250f575487c56fd2604a07e5a535a29807efc19695fbd7"
+    },
+    {
+      "path": "dataset_manifest.json",
+      "size_bytes": 9424,
+      "sha256": "0213dc92fee9d7ec5819d5c3b65407641a038149ad59d002035bd94a83949521"
+    },
+    {
+      "path": "environment.json",
+      "size_bytes": 1030,
+      "sha256": "abad6387482a4c563fe50a71f5aca3df66120769be53a070497a671dc09e1c14"
+    },
+    {
+      "path": "fold_summary.json",
+      "size_bytes": 5112,
+      "sha256": "94b11363c5d861e20417af0aa6a3c0fd991e8683679367f1731766748e4de08c"
+    },
+    {
+      "path": "raw_acquisition_manifest.json",
+      "size_bytes": 17889,
+      "sha256": "af82218be8d2af2765b4d8c98db387992188d132cb14ff83d1a50ff3b7bc7fdd"
+    },
+    {
+      "path": "run_manifest.json",
+      "size_bytes": 10352,
+      "sha256": "f59bbcd13acbc99af8fd42987750f2b75a2ed9c23c8f2349ebc8d23b3e3355d2"
+    },
+    {
+      "path": "run_summary.json",
+      "size_bytes": 11365,
+      "sha256": "b4e181f8c1b11fd494544c19d0345ac65b6d3d557203f86dedceb47333de3805"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "dataset": {
+    "label": "1d",
+    "root": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-data-20260726T222311Z/files/transition_forecasting/processed/global_transition_dataset_1d",
+    "files": {
+      "sample_manifest.csv": {
+        "exists": true,
+        "size_bytes": 2146541,
+        "sha256": "f7634631512a32c65435be78b0bf98bd9d1296f9b28a3a80ea461c490c4c401d"
+      },
+      "sequence_tensors.npz": {
+        "exists": true,
+        "size_bytes": 671839,
+        "sha256": "562c67a6b17b725f5ef55cb27779973be9bbdc947113014798281a9d9cae82e5"
+      },
+      "manifest.json": {
+        "exists": true,
+        "size_bytes": 9424,
+        "sha256": "0213dc92fee9d7ec5819d5c3b65407641a038149ad59d002035bd94a83949521"
+      },
+      "control_candidate_manifest.csv": {
+        "exists": true,
+        "size_bytes": 227341301,
+        "sha256": "9f51608670d1ca55559c8bc718054db24b9a6a57fdda2f63471b8a99cc3f16dd"
+      },
+      "control_candidate_tensors.npz": {
+        "exists": true,
+        "size_bytes": 4774562,
+        "sha256": "b50d0dfc736acbbf967a7d0f796a2d8b381659924ea02aa1c80ae3cf6282d64a"
+      },
+      "candidate_pool_summary.json": {
+        "exists": true,
+        "size_bytes": 1209,
+        "sha256": "2131a25bd64a5468e01c443029955da701d3d6591e30b1a7d4a6edba2116595e"
+      },
+      "purged_walk_forward_folds/rematched_rolling_manifest.csv": {
+        "exists": true,
+        "size_bytes": 13345092,
+        "sha256": "e53e9c589eea54ef93693a894fcf86d40152e77e174f2f287438185fcbcdd0d4"
+      },
+      "purged_walk_forward_folds/rematched_rolling_tensors.npz": {
+        "exists": true,
+        "size_bytes": 2973045,
+        "sha256": "72fdeecadef2242f7845978949a14e925259abf9159c5b8291b1f96633139879"
+      },
+      "purged_walk_forward_folds/control_match_audit.csv": {
+        "exists": true,
+        "size_bytes": 450021,
+        "sha256": "6314539657693c5b5b57f2bb1a35afc36bbdf20c537c4b7cabac603f39fca5dc"
+      },
+      "purged_walk_forward_folds/summary.json": {
+        "exists": true,
+        "size_bytes": 5112,
+        "sha256": "94b11363c5d861e20417af0aa6a3c0fd991e8683679367f1731766748e4de08c"
+      }
+    }
+  },
+  "three_channel_dataset_built": false,
+  "files_checked": 10,
+  "missing_files": [],
+  "passed": true
+}

@@ -1,0 +1,2 @@
+experiment_name,run_id,commit,platform,status,aggregate_path,evidence_path,headline_artifact,notes
+global-transition-data-pipeline-fallback-verified,qbraid-data-20260726T222311Z,19e01623a24634d58b67751453582d8799b66463,qBraid Lab,verified,results/runs/qbraid-data-20260726T222311Z,results/transition_forecasting/data_pipeline/run/qbraid-data-20260726T222311Z,results/transition_forecasting/data_pipeline/run/qbraid-data-20260726T222311Z/run_summary.json,fallback source verified; data audit and checksum report passed

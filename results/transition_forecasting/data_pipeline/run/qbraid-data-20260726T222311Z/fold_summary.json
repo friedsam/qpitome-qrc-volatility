@@ -1,0 +1,186 @@
+{
+  "n_folds": 8,
+  "test_fraction": 0.17,
+  "controls_per_positive": 3,
+  "manifest_rows": 22756,
+  "tensor_shape": [
+    22756,
+    40,
+    1
+  ],
+  "split_audit": {
+    "input_samples": 1149,
+    "deduplicated_samples": 1149,
+    "duplicate_index_origin_removed": 0,
+    "interval_source": "exact_columns",
+    "input_lookback_days": null,
+    "target_horizon_days": null,
+    "embargo_days": 10,
+    "control_groups_use_actual_origin": true,
+    "positive_groups_use_episode_id": true
+  },
+  "fold_summaries": [
+    {
+      "fold": 1,
+      "boundary": "1987-10-01 00:00:00+00:00",
+      "train_groups": 18,
+      "val_groups": 18,
+      "test_groups": 34,
+      "train_samples": 54,
+      "val_samples": 60,
+      "purged_embargo_samples": 12,
+      "purged_overlap_samples": 0
+    },
+    {
+      "fold": 2,
+      "boundary": "1997-07-30 00:00:00+00:00",
+      "train_groups": 37,
+      "val_groups": 17,
+      "test_groups": 34,
+      "train_samples": 120,
+      "val_samples": 128,
+      "purged_embargo_samples": 19,
+      "purged_overlap_samples": 0
+    },
+    {
+      "fold": 3,
+      "boundary": "1999-09-09 00:00:00+00:00",
+      "train_groups": 56,
+      "val_groups": 15,
+      "test_groups": 34,
+      "train_samples": 267,
+      "val_samples": 81,
+      "purged_embargo_samples": 9,
+      "purged_overlap_samples": 0
+    },
+    {
+      "fold": 4,
+      "boundary": "2001-02-15 00:00:00+00:00",
+      "train_groups": 73,
+      "val_groups": 15,
+      "test_groups": 34,
+      "train_samples": 351,
+      "val_samples": 87,
+      "purged_embargo_samples": 39,
+      "purged_overlap_samples": 0
+    },
+    {
+      "fold": 5,
+      "boundary": "2002-07-08 00:00:00+00:00",
+      "train_groups": 91,
+      "val_groups": 17,
+      "test_groups": 34,
+      "train_samples": 465,
+      "val_samples": 85,
+      "purged_embargo_samples": 17,
+      "purged_overlap_samples": 0
+    },
+    {
+      "fold": 6,
+      "boundary": "2007-07-17 00:00:00+00:00",
+      "train_groups": 109,
+      "val_groups": 17,
+      "test_groups": 34,
+      "train_samples": 549,
+      "val_samples": 150,
+      "purged_embargo_samples": 33,
+      "purged_overlap_samples": 0
+    },
+    {
+      "fold": 7,
+      "boundary": "2009-01-30 00:00:00+00:00",
+      "train_groups": 127,
+      "val_groups": 16,
+      "test_groups": 34,
+      "train_samples": 727,
+      "val_samples": 123,
+      "purged_embargo_samples": 11,
+      "purged_overlap_samples": 0
+    },
+    {
+      "fold": 8,
+      "boundary": "2012-04-18 00:00:00+00:00",
+      "train_groups": 146,
+      "val_groups": 17,
+      "test_groups": 34,
+      "train_samples": 859,
+      "val_samples": 90,
+      "purged_embargo_samples": 8,
+      "purged_overlap_samples": 0
+    }
+  ],
+  "fold_match_quality": [
+    {
+      "fold": 1,
+      "positives_requested": 306,
+      "positives_complete": 284,
+      "completion_rate": 0.9281045751633987,
+      "median_max_selected_distance": 1.0369050440295398,
+      "p95_max_selected_distance": 4.884647030840527
+    },
+    {
+      "fold": 2,
+      "positives_requested": 440,
+      "positives_complete": 440,
+      "completion_rate": 1.0,
+      "median_max_selected_distance": 1.1708277976640453,
+      "p95_max_selected_distance": 3.8737944798630375
+    },
+    {
+      "fold": 3,
+      "positives_requested": 540,
+      "positives_complete": 531,
+      "completion_rate": 0.9833333333333333,
+      "median_max_selected_distance": 1.0806348910355992,
+      "p95_max_selected_distance": 3.6533828383563898
+    },
+    {
+      "fold": 4,
+      "positives_requested": 630,
+      "positives_complete": 618,
+      "completion_rate": 0.9809523809523809,
+      "median_max_selected_distance": 1.0176426051970724,
+      "p95_max_selected_distance": 3.0295389879459007
+    },
+    {
+      "fold": 5,
+      "positives_requested": 742,
+      "positives_complete": 742,
+      "completion_rate": 1.0,
+      "median_max_selected_distance": 0.911848451546164,
+      "p95_max_selected_distance": 2.4413940108833603
+    },
+    {
+      "fold": 6,
+      "positives_requested": 891,
+      "positives_complete": 891,
+      "completion_rate": 1.0,
+      "median_max_selected_distance": 0.9177488999201165,
+      "p95_max_selected_distance": 3.0059071288596746
+    },
+    {
+      "fold": 7,
+      "positives_requested": 1042,
+      "positives_complete": 1042,
+      "completion_rate": 1.0,
+      "median_max_selected_distance": 0.8407647614821848,
+      "p95_max_selected_distance": 1.9994214184187062
+    },
+    {
+      "fold": 8,
+      "positives_requested": 1141,
+      "positives_complete": 1141,
+      "completion_rate": 1.0,
+      "median_max_selected_distance": 0.7872310368020522,
+      "p95_max_selected_distance": 1.8201176171538684
+    }
+  ],
+  "positive_intervals": "exact_trading_rows",
+  "candidate_intervals": "exact_trading_rows",
+  "test_evaluated": false,
+  "channels": [
+    "log_volatility_level"
+  ],
+  "output_dir": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-data-20260726T222311Z/files/transition_forecasting/processed/global_transition_dataset_1d/purged_walk_forward_folds",
+  "three_channel_dataset_built": false
+}

@@ -1,0 +1,293 @@
+{
+  "schema_version": 7,
+  "dataset": "global_transition_dataset",
+  "build_mode": "corrected",
+  "temporary_parity_control": false,
+  "built_at_utc": "2026-07-26T22:26:06.361389+00:00",
+  "raw_root": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-data-20260726T222311Z/files/transition_forecasting/raw/global_stock_indices_historical_data",
+  "contracts": {
+    "inventory": "/home/jovyan/qpitome-qrc-volatility/config/transition_forecasting/contracts/global_index_ohlc_inventory.csv",
+    "range_quality": "/home/jovyan/qpitome-qrc-volatility/config/transition_forecasting/contracts/global_range_quality.csv"
+  },
+  "raw_acquisition_manifest_sha256": "af82218be8d2af2765b4d8c98db387992188d132cb14ff83d1a50ff3b7bc7fdd",
+  "test_evaluated": false,
+  "rules": {
+    "interpolation": false,
+    "forward_fill": false,
+    "winsorization": false,
+    "arbitrary_clipping": false,
+    "synthetic_dates": false,
+    "inventory_contract": "frozen_gpt2",
+    "effective_start_contract": "frozen_gpt2",
+    "raw_source_hashes_verified": true,
+    "modeling_inputs_preserve_gpt2_raw_semantics": true,
+    "structural_bad_prints_detected": true,
+    "structural_bad_prints_removed_before_volatility": true,
+    "controls_rematched_after_correction": true
+  },
+  "counts": {
+    "cleaned_ohlc_rows": 286015,
+    "daily_volatility_rows": 232630,
+    "structural_detected_rows": 12,
+    "structural_removed_rows": 12,
+    "affected_indices": 2,
+    "transition_events": 383,
+    "samples": 4596,
+    "positive_samples": 1149,
+    "control_samples": 3447,
+    "controls_per_positive": 3
+  },
+  "inventory_summary": {
+    "contract": "frozen_gpt2",
+    "source": "/home/jovyan/qpitome-qrc-volatility/config/transition_forecasting/contracts/global_index_ohlc_inventory.csv",
+    "source_sha256": "a13338b51094551599d76b36a43f6c2e5d003f8f65ceac9216fa0819bc5bcece",
+    "files": 37,
+    "eligible_files": 32,
+    "raw_hashes_verified": 37,
+    "raw_hash_mismatches": 0
+  },
+  "range_summary": {
+    "contract": "frozen_gpt2",
+    "source": "/home/jovyan/qpitome-qrc-volatility/config/transition_forecasting/contracts/global_range_quality.csv",
+    "source_sha256": "5f2721345dee0eeb520a6918506aaffbcd790ceab3c17e16a0d7d59402c55576",
+    "rows": 31,
+    "effective_starts": 31
+  },
+  "transition_summary": {
+    "eligible_inventory_files": 32,
+    "range_quality_file": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-data-20260726T222311Z/files/transition_forecasting/processed/transition-process-hnznxmc2/contract/gpt2_range_quality_redirected.csv",
+    "effective_starts_applied": {
+      "000001.SS_data": "1997-01-01",
+      "399001.SZ_data": "1997-01-01",
+      "^AORD_data": "1984-01-01",
+      "^AXJO_data": "2001-01-01",
+      "^BFX_data": "1993-01-01",
+      "^BSESN_data": "1997-01-01",
+      "^BVSP_data": "1993-01-01",
+      "^DJI_data": "1992-01-01",
+      "^FCHI_data": "1990-01-01",
+      "^FTSE_data": "1984-01-01",
+      "^GDAXI_data": "1994-01-01",
+      "^GSPC_data": "1962-01-01",
+      "^GSPTSE_data": "1979-01-01",
+      "^HSI_data": "1990-01-01",
+      "^IPSA_data": "2002-01-01",
+      "^IXIC_data": "1985-01-01",
+      "^JKSE_data": "1996-01-01",
+      "^KLSE_data": "1993-01-01",
+      "^KS11_data": "1996-01-01",
+      "^MERV_data": "1996-01-01",
+      "^MXX_data": "1994-01-01",
+      "^N100_data": "2002-01-01",
+      "^N225_data": "1989-01-01",
+      "^NYA_data": "2003-01-01",
+      "^NZ50_data": "2004-01-01",
+      "^RUT_data": "1987-01-01",
+      "^STI_data": "1993-01-01",
+      "^STOXX50E_data": "2007-01-01",
+      "^TA125.TA_data": "1995-01-01",
+      "^TWII_data": "1997-01-01",
+      "^XAX_data": "1995-01-01"
+    },
+    "structural_corrections_applied": false,
+    "excluded_or_skipped_indices": [
+      {
+        "index": "^VIX_data",
+        "reason": "volatility_index_not_equity_index"
+      }
+    ],
+    "raw_index_events": 436,
+    "global_temporal_clusters": 198,
+    "representative_market_events": 383,
+    "representative_global_clusters": 198,
+    "markets_retained": 24,
+    "events_by_index": {
+      "^GSPC_data": 31,
+      "^GSPTSE_data": 23,
+      "^XAX_data": 22,
+      "^JKSE_data": 19,
+      "^N225_data": 18,
+      "^FTSE_data": 18,
+      "^FCHI_data": 18,
+      "^BFX_data": 17,
+      "^MERV_data": 16,
+      "^AORD_data": 16,
+      "^RUT_data": 16,
+      "^DJI_data": 16,
+      "^BSESN_data": 15,
+      "^STI_data": 15,
+      "^IXIC_data": 15,
+      "^MXX_data": 14,
+      "^TWII_data": 13,
+      "^HSI_data": 12,
+      "^KS11_data": 12,
+      "000001.SS_data": 12,
+      "399001.SZ_data": 11,
+      "^NYA_data": 11,
+      "^GDAXI_data": 10,
+      "^N100_data": 10,
+      "^KLSE_data": 10,
+      "^AXJO_data": 9,
+      "^TA125.TA_data": 9,
+      "^IPSA_data": 8,
+      "^BVSP_data": 8,
+      "^NZ50_data": 6,
+      "^STOXX50E_data": 6
+    },
+    "events_by_market": {
+      "united_states": 71,
+      "canada": 23,
+      "indonesia": 19,
+      "australia": 19,
+      "france": 18,
+      "japan": 18,
+      "united_kingdom": 18,
+      "belgium": 17,
+      "argentina": 16,
+      "china_mainland": 16,
+      "india": 15,
+      "singapore": 15,
+      "mexico": 14,
+      "taiwan": 13,
+      "hong_kong": 12,
+      "south_korea": 12,
+      "malaysia": 10,
+      "germany": 10,
+      "europe_regional": 10,
+      "israel": 9,
+      "chile": 8,
+      "brazil": 8,
+      "eurozone_regional": 6,
+      "new_zealand": 6
+    },
+    "events_by_decade": {
+      "1960": 4,
+      "1970": 8,
+      "1980": 10,
+      "1990": 73,
+      "2000": 158,
+      "2010": 71,
+      "2020": 59
+    }
+  },
+  "stage_d_summary": {
+    "positive_samples": 1149,
+    "negative_samples": 3447,
+    "total_samples": 4596,
+    "global_episodes": 198,
+    "train_episodes": 147,
+    "val_episodes": 15,
+    "test_episodes": 36,
+    "episode_split_overlap": 0,
+    "validation_cutoff": "2013-01-01",
+    "test_cutoff": "2016-01-01",
+    "samples_by_split": {
+      "test": 816,
+      "train": 3468,
+      "val": 312
+    },
+    "samples_by_lead": {
+      "1": 1532,
+      "5": 1532,
+      "10": 1532
+    },
+    "sequence_shape": [
+      4596,
+      40,
+      1
+    ],
+    "max_abs_smd": 0.7211067213587412,
+    "max_abs_pooled_smd_overall": 0.039498306856108216,
+    "stratified_balance": {
+      "n_strata_features": 651,
+      "n_stable_strata_features": 609,
+      "min_stable_stratum_positives": 5,
+      "max_abs_smd_all_strata": 0.7211067213587412,
+      "max_abs_smd_stable_strata": 0.7211067213587412,
+      "proportion_abs_smd_gt_0_10_all": 0.29339477726574503,
+      "proportion_abs_smd_gt_0_20_all": 0.055299539170506916,
+      "proportion_abs_smd_gt_0_10_stable": 0.277504105090312,
+      "proportion_abs_smd_gt_0_20_stable": 0.047619047619047616
+    },
+    "controls_per_positive_target": 3,
+    "sequence_window": 40,
+    "target_horizon": 10,
+    "exact_interval_columns": [
+      "input_start_date",
+      "origin_date",
+      "target_end_date"
+    ]
+  },
+  "files": {
+    "cleaned_ohlc.csv.gz": {
+      "size_bytes": 5218034,
+      "sha256": "2ae7d23e07239430e5e476d50ebcac00cc9a8bbea03bf35cd295163342c477ac"
+    },
+    "daily_volatility.csv.gz": {
+      "size_bytes": 2816896,
+      "sha256": "66ea6a5ab929f0150b7b29327cc4feff784e3f226a0280b53049a75e22db1e3c"
+    },
+    "transition_catalogue.csv": {
+      "size_bytes": 76907,
+      "sha256": "43bb75ccc902c7d858aeeecb6de69cba6811e8b709671914f85f7c4a47e41d41"
+    },
+    "sample_manifest.csv": {
+      "size_bytes": 2146541,
+      "sha256": "f7634631512a32c65435be78b0bf98bd9d1296f9b28a3a80ea461c490c4c401d"
+    },
+    "sequence_tensors.npz": {
+      "size_bytes": 671839,
+      "sha256": "562c67a6b17b725f5ef55cb27779973be9bbdc947113014798281a9d9cae82e5"
+    },
+    "row_corrections.csv": {
+      "size_bytes": 1575687,
+      "sha256": "7ff1ca8775003545b926579a680dee9bd6f5dfce31cbbdde74788d26cdfd66fa"
+    }
+  },
+  "validation": {
+    "passed": true,
+    "failures": [],
+    "counts": {
+      "cleaned_ohlc_rows": 286015,
+      "daily_volatility_rows": 232630,
+      "transition_events": 383,
+      "samples": 4596,
+      "positive_samples": 1149,
+      "control_samples": 3447,
+      "indices": 35,
+      "episodes": 198,
+      "controls_per_positive": 3
+    },
+    "files": {
+      "cleaned_ohlc.csv.gz": {
+        "size_bytes": 5218034,
+        "sha256": "2ae7d23e07239430e5e476d50ebcac00cc9a8bbea03bf35cd295163342c477ac"
+      },
+      "daily_volatility.csv.gz": {
+        "size_bytes": 2816896,
+        "sha256": "66ea6a5ab929f0150b7b29327cc4feff784e3f226a0280b53049a75e22db1e3c"
+      },
+      "transition_catalogue.csv": {
+        "size_bytes": 76907,
+        "sha256": "43bb75ccc902c7d858aeeecb6de69cba6811e8b709671914f85f7c4a47e41d41"
+      },
+      "sample_manifest.csv": {
+        "size_bytes": 2146541,
+        "sha256": "f7634631512a32c65435be78b0bf98bd9d1296f9b28a3a80ea461c490c4c401d"
+      },
+      "sequence_tensors.npz": {
+        "size_bytes": 671839,
+        "sha256": "562c67a6b17b725f5ef55cb27779973be9bbdc947113014798281a9d9cae82e5"
+      },
+      "row_corrections.csv": {
+        "size_bytes": 1575687,
+        "sha256": "7ff1ca8775003545b926579a680dee9bd6f5dfce31cbbdde74788d26cdfd66fa"
+      },
+      "manifest.json": {
+        "size_bytes": 6900,
+        "sha256": "66a3acb72a924eadf0d4583ac8ba7c5edfbec6bee18fb2694898c2f3b41ca070"
+      }
+    }
+  },
+  "manifest_hash_scope": "manifest.json is excluded from its own internal inventory; the outer run manifest hashes the final published manifest."
+}

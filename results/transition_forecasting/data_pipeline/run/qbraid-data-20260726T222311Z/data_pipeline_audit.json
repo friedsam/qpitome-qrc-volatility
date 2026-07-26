@@ -1,0 +1,82 @@
+{
+  "passed": true,
+  "failures": [],
+  "dataset_1d": {
+    "passed": true,
+    "failures": [],
+    "counts": {
+      "cleaned_ohlc_rows": 286015,
+      "daily_volatility_rows": 232630,
+      "transition_events": 383,
+      "samples": 4596,
+      "positive_samples": 1149,
+      "control_samples": 3447,
+      "indices": 35,
+      "episodes": 198,
+      "controls_per_positive": 3
+    },
+    "files": {
+      "cleaned_ohlc.csv.gz": {
+        "size_bytes": 5218034,
+        "sha256": "2ae7d23e07239430e5e476d50ebcac00cc9a8bbea03bf35cd295163342c477ac"
+      },
+      "daily_volatility.csv.gz": {
+        "size_bytes": 2816896,
+        "sha256": "66ea6a5ab929f0150b7b29327cc4feff784e3f226a0280b53049a75e22db1e3c"
+      },
+      "transition_catalogue.csv": {
+        "size_bytes": 76907,
+        "sha256": "43bb75ccc902c7d858aeeecb6de69cba6811e8b709671914f85f7c4a47e41d41"
+      },
+      "sample_manifest.csv": {
+        "size_bytes": 2146541,
+        "sha256": "f7634631512a32c65435be78b0bf98bd9d1296f9b28a3a80ea461c490c4c401d"
+      },
+      "sequence_tensors.npz": {
+        "size_bytes": 671839,
+        "sha256": "562c67a6b17b725f5ef55cb27779973be9bbdc947113014798281a9d9cae82e5"
+      },
+      "row_corrections.csv": {
+        "size_bytes": 1575687,
+        "sha256": "7ff1ca8775003545b926579a680dee9bd6f5dfce31cbbdde74788d26cdfd66fa"
+      },
+      "manifest.json": {
+        "size_bytes": 9424,
+        "sha256": "0213dc92fee9d7ec5819d5c3b65407641a038149ad59d002035bd94a83949521"
+      }
+    }
+  },
+  "candidate_checks": {
+    "rows": 566898,
+    "unique_origins": 188966,
+    "leads": [
+      1,
+      5,
+      10
+    ],
+    "tensor_shape": [
+      566898,
+      40,
+      1
+    ],
+    "forbidden_columns_present": []
+  },
+  "fold_checks": {
+    "directory": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-data-20260726T222311Z/files/transition_forecasting/processed/global_transition_dataset_1d/purged_walk_forward_folds",
+    "rows": 22756,
+    "positive_rows": 5689,
+    "control_rows": 17067,
+    "tensor_shape": [
+      22756,
+      40,
+      1
+    ],
+    "channels": [
+      "log_volatility_level"
+    ],
+    "forbidden_columns_present": []
+  },
+  "control_protocol": "precontrol_binary_matching",
+  "three_channel_dataset_built": false,
+  "test_evaluated": false
+}

@@ -1,0 +1,29 @@
+{
+  "repository": {
+    "commit": "19e01623a24634d58b67751453582d8799b66463",
+    "branch": "stage1-dev",
+    "working_tree_status": "?? aquila_case151.zip\n?? aquila_case151_ready.zip\n?? data/fallback/transition_forecasting/\n?? qbraid_audit_report.md\n?? results/transition_forecasting/hardware/\n?? scripts/hardware/"
+  },
+  "environment": {
+    "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+    "python_executable": "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+    "platform": "Linux-6.8.0-1059-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cwd": "/home/jovyan/qpitome-qrc-volatility",
+    "environment": {
+      "VIRTUAL_ENV": "/home/jovyan/qpitome-qrc-volatility/.venv"
+    }
+  },
+  "parameters": {
+    "transition_source_mode": "fallback",
+    "transition_n_folds": 8,
+    "transition_channels": [
+      "log_volatility_level"
+    ],
+    "classical_models": null,
+    "frozen_classical_spec": null,
+    "test_evaluated": false,
+    "force": false
+  }
+}
