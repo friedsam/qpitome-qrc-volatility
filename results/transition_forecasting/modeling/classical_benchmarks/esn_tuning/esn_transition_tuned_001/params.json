@@ -1,0 +1,23 @@
+{
+  "dataset_root": "global_transition_dataset_1d",
+  "selection_folds": [4, 5, 6],
+  "confirmation_folds": [7, 8],
+  "coarse_seeds": [1, 2],
+  "final_seeds": [1, 2, 3, 4, 5],
+  "coarse_alphas": [100, 300, 1000, 3000, 10000],
+  "fine_alphas": [300, 600, 1000, 1500, 3000, 6000, 10000, 20000, 40000, 80000, 120000, 160000, 240000, 320000],
+  "representation": "level_diff_time",
+  "pooling": "final_mean_std",
+  "washout": 10,
+  "selection_rule": "transition mean-fold QLIKE plus 0.25 fold SD; sequence-ridge pooled/control/RMSE and ordered-vs-shuffled guardrails",
+  "test_evaluated": false,
+  "selected_config": {
+    "config_id": "short_leak095",
+    "n": 300,
+    "connectivity": 0.02,
+    "sr": 0.55,
+    "inp": 0.2,
+    "leak": 0.95
+  },
+  "selected_alpha": 120000.0
+}
