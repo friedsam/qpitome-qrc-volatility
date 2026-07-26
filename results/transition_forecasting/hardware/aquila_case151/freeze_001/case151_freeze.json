@@ -1,0 +1,55 @@
+{
+  "sample_id": "P_GE151_^MERV_data_L5",
+  "fold": 8,
+  "origin_date": "2014-01-16 00:00:00+00:00",
+  "source_model": {
+    "source_commit": "40ec805cc2b4efe416c0a57f1c599cca6def92c3",
+    "run_id": "palindrome_real_task_002",
+    "model": "palindrome_ordered_on",
+    "representation": "level_instability",
+    "condition": "ordered",
+    "interactions": "on",
+    "feature_bank": "occupation_pair_raw",
+    "readout": "HAR residual Ridge",
+    "fit_intercept": false,
+    "selected_alpha": 0.1,
+    "selected_lambda": 0.25
+  },
+  "reservoir": {
+    "n_atoms": 6,
+    "schedule": [
+      [
+        "A",
+        0.25
+      ],
+      [
+        "B",
+        0.5
+      ],
+      [
+        "A",
+        0.25
+      ]
+    ],
+    "step_duration_us": 0.02,
+    "probe_steps": [
+      10,
+      20,
+      40
+    ],
+    "omega_base_rad_us": 6.0,
+    "omega_mod_fraction": 0.6,
+    "delta_center_rad_us": 6.0,
+    "delta_span_rad_us": 4.0,
+    "drive_phase_rad": 0.0,
+    "c6_rad_um6_per_us": 5420000.0,
+    "interaction_scale": 1.25,
+    "geometry_scale_for_physical_c6": 0.9634924839989961
+  },
+  "reproduction_check": {
+    "maximum_absolute_prediction_difference_vs_archive": 1.7497114868092467e-13,
+    "maximum_absolute_har_difference_vs_archive": 0.0,
+    "maximum_absolute_correction_difference_vs_archive": 1.7486012637846216e-13
+  },
+  "hardware_claim": "Optimistically selected development example for an isolated hardware-survival study; not representative of aggregate forecasting performance."
+}
