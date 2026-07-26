@@ -13,13 +13,18 @@ from transition_forecasting.qrc.palindrome_real_task_relevance_assay import (
 )
 from transition_forecasting.qrc.palindrome_rydberg_noise import (
     _apply_global_rxy_density,
+    _apply_local_kraus_channel_fast,
     build_noisy_palindrome_probabilities,
 )
 from transition_forecasting.qrc.temporal_rydberg_chain import TemporalRydbergChainConfig
 from transition_forecasting.qrc.temporal_rydberg_ladder import (
     StaggeredLadderGeometryConfig,
 )
-from transition_forecasting.qrc.temporal_rydberg_noise import TemporalNoiseSpec
+from transition_forecasting.qrc.temporal_rydberg_noise import (
+    TemporalNoiseSpec,
+    _amplitude_damping_kraus,
+    _apply_local_kraus_channel,
+)
 
 
 def _reservoir() -> TemporalRydbergChainConfig:
@@ -60,6 +65,17 @@ def test_global_rxy_density_preserves_trace_and_hermiticity() -> None:
         output.conj().transpose(0, 2, 1),
         atol=1e-12,
     )
+
+
+def test_tensorized_kraus_matches_embedded_reference() -> None:
+    rng = np.random.default_rng(12)
+    amplitudes = rng.normal(size=(2, 4)) + 1.0j * rng.normal(size=(2, 4))
+    amplitudes /= np.linalg.norm(amplitudes, axis=1, keepdims=True)
+    density = np.einsum("si,sj->sij", amplitudes, amplitudes.conj())
+    kraus = _amplitude_damping_kraus(dt_us=0.1, t1_us=10.0)
+    reference = _apply_local_kraus_channel(density, kraus, n_atoms=2)
+    tensorized = _apply_local_kraus_channel_fast(density, kraus, n_atoms=2)
+    np.testing.assert_allclose(tensorized, reference, atol=1e-12, rtol=1e-12)
 
 
 def test_ideal_density_palindrome_matches_statevector_probabilities() -> None:
