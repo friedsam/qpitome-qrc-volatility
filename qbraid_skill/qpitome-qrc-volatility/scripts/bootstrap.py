@@ -27,12 +27,24 @@ FOCUSED_TESTS = (
     "tests/transition_forecasting/modeling/test_chronological_splits.py",
     "tests/transition_forecasting/data/test_fold_datasets.py",
     "tests/runs/test_run_submission.py",
+    "tests/runs/test_run_submission_classical.py",
+    "tests/transition_forecasting/modeling/classical_benchmarks/test_common.py",
+    "tests/transition_forecasting/modeling/classical_benchmarks/test_esn.py",
+    "tests/transition_forecasting/modeling/classical_benchmarks/test_garch_mechanics.py",
+    "tests/transition_forecasting/modeling/classical_benchmarks/test_spec.py",
+    "tests/transition_forecasting/modeling/classical_benchmarks/test_validation.py",
 )
 REQUIRED_REPOSITORY_PATHS = (
     "pyproject.toml",
     "qbraid_skill/qpitome-qrc-volatility/SKILL.md",
     "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
     "scripts/runs/run_submission.py",
+    "config/transition_forecasting/classical_benchmarks/frozen_submission.json",
+    "scripts/transition_forecasting/modeling/classical_benchmarks/run_linear.py",
+    "scripts/transition_forecasting/modeling/classical_benchmarks/run_garch.py",
+    "scripts/transition_forecasting/modeling/classical_benchmarks/run_esn.py",
+    "scripts/transition_forecasting/modeling/classical_benchmarks/run_canonical.py",
+    "scripts/transition_forecasting/modeling/classical_benchmarks/validate_classical_run.py",
 )
 
 
@@ -86,7 +98,6 @@ def venv_python(venv_dir: Path) -> Path:
 def build_command_plan(venv_dir: Path, *, skip_tests: bool) -> list[list[str]]:
     resolved_venv = resolve_venv_dir(venv_dir)
     python_path = venv_python(resolved_venv)
-
     commands: list[list[str]] = []
     if not python_path.is_file():
         commands.append([sys.executable, "-m", "venv", str(resolved_venv)])
@@ -138,7 +149,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         for failure in failures:
             print(f"ERROR: {failure}", file=sys.stderr)
         return 2
-
     resolved_venv = resolve_venv_dir(args.venv_dir)
     plan = build_command_plan(resolved_venv, skip_tests=args.skip_tests)
     if args.plan:
@@ -154,7 +164,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             for command in plan:
                 print(printable_command(command))
         return 0
-
     completed_commands: list[list[str]] = []
     try:
         for command in plan:
@@ -167,7 +176,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return int(exc.returncode or 1)
-
     summary = {
         "status": "succeeded",
         "repository_root": str(REPO_ROOT),
