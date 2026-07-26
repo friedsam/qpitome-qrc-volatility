@@ -7,7 +7,13 @@ import sys
 from pathlib import Path
 
 from transition_forecasting.data.acquisition import (
+    DATASET,
+    DATASET_URL,
+    LICENSE,
     compare_source_to_frozen_inventory,
+    file_inventory,
+    sha256_file,
+    utc_now,
     validate_source,
     verify_fallback_manifest,
 )
@@ -22,10 +28,11 @@ def active_environment_executable(
 ) -> str | None:
     """Prefer an executable installed beside the active Python interpreter."""
 
-    executable = Path(python_executable or sys.executable)
-    candidate = executable.with_name(name)
-    if candidate.is_file() and os.access(candidate, os.X_OK):
-        return str(candidate)
+    raw_executable = str(python_executable or sys.executable or "")
+    if raw_executable:
+        candidate = Path(raw_executable).with_name(name)
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
     return shutil.which(name)
 
 
@@ -36,7 +43,9 @@ def expose_active_environment_executable(name: str) -> str | None:
     if executable is None:
         return None
     parent = str(Path(executable).parent)
-    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+    path_entries = [
+        entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry
+    ]
     if parent not in path_entries:
         os.environ["PATH"] = os.pathsep.join([parent, *path_entries])
     return executable
@@ -65,6 +74,59 @@ def verify_submission_fallback(
         "manifest_verification": manifest_verification,
         "source_validation": source_validation,
         "frozen_inventory_comparison": frozen_comparison,
+    }
+
+
+def write_submission_fallback_manifest(
+    fallback_root: Path,
+    frozen_inventory: Path,
+) -> dict[str, object]:
+    """Create a fallback manifest only after exact frozen-contract verification."""
+
+    fallback_root = Path(fallback_root)
+    frozen_inventory = Path(frozen_inventory)
+    source_validation = validate_source(fallback_root)
+    frozen_comparison = compare_source_to_frozen_inventory(
+        fallback_root,
+        frozen_inventory,
+    )
+    if not frozen_comparison.get("matched", False):
+        raise ValueError(
+            "refusing to write fallback manifest for a snapshot that differs from "
+            "the frozen raw inventory: "
+            + json.dumps(frozen_comparison, sort_keys=True)
+        )
+
+    source_manifest = fallback_root / SOURCE_MANIFEST_NAME
+    if not source_manifest.is_file():
+        raise FileNotFoundError(
+            f"fallback source attribution manifest is missing: {source_manifest}"
+        )
+
+    files = file_inventory(fallback_root)
+    manifest_path = fallback_root / "fallback_manifest.json"
+    payload = {
+        "schema_version": 2,
+        "dataset": DATASET,
+        "dataset_url": DATASET_URL,
+        "license": LICENSE,
+        "created_at_utc": utc_now(),
+        "source_manifest": SOURCE_MANIFEST_NAME,
+        "source_manifest_sha256": sha256_file(source_manifest),
+        "frozen_inventory": str(frozen_inventory),
+        "frozen_inventory_sha256": sha256_file(frozen_inventory),
+        "frozen_inventory_comparison": frozen_comparison,
+        "source_validation": source_validation,
+        "files": files,
+    }
+    temporary = manifest_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(manifest_path)
+    verification = verify_submission_fallback(fallback_root, frozen_inventory)
+    return {
+        "manifest": str(manifest_path),
+        "files": len(files),
+        "verification": verification,
     }
 
 
