@@ -10,7 +10,8 @@ from transition_forecasting.data.mnist_acquisition import acquire_mnist
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Acquire MNIST from Kaggle or a hash-verified repository fallback."
+            "Acquire MNIST from the anonymous checksum-pinned Keras mirror or "
+            "a hash-verified repository fallback."
         )
     )
     parser.add_argument(
