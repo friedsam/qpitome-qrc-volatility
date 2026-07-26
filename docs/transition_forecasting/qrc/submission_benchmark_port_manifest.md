@@ -14,16 +14,16 @@ The repository-wide migration ledger remains authoritative for path moves. This 
 |---|---|---|
 | port | `src/transition_forecasting/qrc/mnist_palindrome_benchmark.py` | Deterministic two-channel MNIST adapter, resumable/sharded palindrome feature generation, strict shard merge, and final multinomial readouts. |
 | port | `scripts/transition_forecasting/qrc/run_mnist_palindrome_benchmark.py` | Thin `shard`/`merge` command-line wrapper with the frozen six-atom A/B/A configuration. |
-| port | `tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py` | Pooling, contrast, deterministic sampling, sharding, and frozen-contract tests. |
+| port | `tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py` | Pooling, contrast, deterministic sampling, sharding, frozen-contract, and synthetic end-to-end merge tests. |
 | port/update | `docs/transition_forecasting/qrc/submission_benchmark_port_manifest.md` | This selective-port inventory. |
 
 ### Existing source dependencies
 
 | Status | Path | Role |
 |---|---|---|
-| port/reconcile | `src/transition_forecasting/data/mnist_acquisition.py` | IDX discovery, validation, acquisition, and loading. Replace or verify the unconfirmed Kaggle dataset identifier before final submission. |
-| port | `scripts/transition_forecasting/data/acquire_mnist.py` | Thin acquisition wrapper used by the agent workflow. |
-| port | `tests/transition_forecasting/data/test_mnist_acquisition.py` | IDX parsing and acquisition contract tests. |
+| port | `src/transition_forecasting/data/mnist_acquisition.py` | Anonymous Keras-hosted `mnist.npz` acquisition with the official Keras SHA-256 pin, source validation, backward-compatible IDX loading, and fallback support. |
+| port | `scripts/transition_forecasting/data/acquire_mnist.py` | Thin anonymous-live/fallback acquisition wrapper used by the agent workflow. |
+| port | `tests/transition_forecasting/data/test_mnist_acquisition.py` | IDX discovery plus NPZ mapping and checksum-enforcement tests. |
 | port | `src/transition_forecasting/qrc/palindrome_real_task_relevance_assay.py` | Canonical A/B/A schedule resolution and exact palindrome probability evolution. Consider extracting the reusable simulator from the assay module during clean-port work, without changing numerical semantics. |
 | port | `src/transition_forecasting/qrc/bivariate_crossover_assay.py` | A/B/A schedule, mirrored branch drive, and `occupation_pair_raw` feature bank. |
 | port | `src/transition_forecasting/qrc/bivariate_capacity_dynamics.py` | Segment evolution used by the palindrome simulator. |
@@ -31,6 +31,30 @@ The repository-wide migration ledger remains authoritative for path moves. This 
 | port | `src/transition_forecasting/qrc/temporal_rydberg_ladder.py` | Six-atom staggered asymmetric ladder geometry and precomputation. |
 | port | `src/transition_forecasting/qrc/representation_candidates.py` | Train-only robust two-channel scaler. |
 | port | `src/transition_forecasting/qrc/ladder_finite_shot_sampling.py` | Probability validation used by the palindrome simulator. |
+
+### Frozen data source
+
+Primary live source:
+
+```text
+https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
+```
+
+Required SHA-256:
+
+```text
+731c5ac602752760c8e48fbffcf8c3b850d9dc2a2aedcf2cc48468fc17b673d1
+```
+
+The code downloads this archive anonymously with the Python standard library, checks the digest before installation, validates the canonical 60,000/10,000 arrays, and records the source URL and hash. It does not require TensorFlow, Keras, Kaggle credentials, or a committed fallback. Existing canonical IDX snapshots remain loadable as a fallback format.
+
+Acquisition command:
+
+```bash
+python scripts/transition_forecasting/data/acquire_mnist.py \
+  --destination data/raw/mnist \
+  --source-mode live
+```
 
 ### Frozen primary protocol
 
@@ -45,7 +69,7 @@ The repository-wide migration ledger remains authoritative for path moves. This 
 - Use the full hardware-natural `occupation_pair_raw` bank, not the historical six-mode compression.
 - Train only the multinomial logistic readout; reservoir parameters stay fixed.
 - Required baselines: majority class and logistic regression on the identical flattened two-channel input.
-- Required outputs: merged features, model comparison, predictions, per-class precision/recall/F1, and one confusion matrix per model.
+- Required outputs: merged features, model comparison, predictions, per-class precision/recall/F1, shard runtime manifest, and one confusion matrix per model.
 
 ### Sharded execution contract
 
@@ -68,6 +92,7 @@ results/transition_forecasting/qrc/mnist_palindrome_benchmark/
     mnist_palindrome_primary_001/
         params.json
         mnist_palindrome_features.npz
+        shard_manifest.csv
         model_comparison.csv
         mnist_predictions.csv
         per_class_metrics.csv
@@ -76,6 +101,35 @@ results/transition_forecasting/qrc/mnist_palindrome_benchmark/
 ```
 
 The merge must reject missing shard indices, duplicate/missing global rows, mismatched dataset fingerprints, mismatched model fingerprints, inconsistent fields, non-finite features, or duplicate sample identifiers.
+
+### Recommended first smoke
+
+Run one small shard before launching the full matrix:
+
+```bash
+python scripts/transition_forecasting/qrc/run_mnist_palindrome_benchmark.py shard \
+  --raw-dir data/raw/mnist \
+  --run-id mnist_palindrome_smoke_001_shard_000_of_001 \
+  --shard-index 0 \
+  --shard-count 1 \
+  --train-size 100 \
+  --test-size 20 \
+  --batch-size 20
+```
+
+Then merge it with the same explicit configuration:
+
+```bash
+python scripts/transition_forecasting/qrc/run_mnist_palindrome_benchmark.py merge \
+  --run-id mnist_palindrome_smoke_001 \
+  --shard-dirs \
+    results/transition_forecasting/qrc/mnist_palindrome_benchmark/mnist_palindrome_smoke_001_shard_000_of_001 \
+  --train-size 100 \
+  --test-size 20 \
+  --batch-size 20
+```
+
+Use the measured shard `wall_seconds / rows` to choose the final shard count. Do not enable `--include-interaction-off` in the required primary run unless capacity remains after the interaction-on result is secured.
 
 ## Optional position-encoded MNIST benchmark
 
