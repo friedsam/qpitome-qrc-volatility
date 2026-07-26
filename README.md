@@ -6,7 +6,7 @@ Phase 3 Global Industry Challenge project for qBraid / MITRE / JonesTrading, Tra
 
 ## Scientific objective
 
-Forecast ten-day volatility paths from ordered forty-day market histories, emphasizing abrupt calm-to-crisis transitions at leads 1, 5, and 10. Classical HAR forecasts provide the persistence baseline; Rydberg quantum-reservoir features are evaluated as corrections to the HAR residual path.
+Forecast ten-day log-volatility paths from ordered forty-day market histories, emphasizing abrupt calm-to-crisis transitions at leads 1, 5, and 10. The classical comparison contains persistence, HAR, sequence ridge, Student-t GARCH(1,1), a tuned direct ESN, and an identically specified shuffled-order ESN control. Quantum-reservoir stages are integrated separately.
 
 ## Judge quick start: qBraid Agent Mode
 
@@ -16,18 +16,18 @@ The **Launch on qBraid** button clones the repository when it is public. Open th
 Reproduce and audit this submission. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md, not against the repository root, and use absolute paths for file reads. Establish the repository root before running commands and use it as the working directory. Follow the skill exactly. Create and manage the required environment yourself. Do not ask me to run terminal commands. Do not modify source code, scientific parameters, data contracts, or the reserved test partition, and do not submit hardware jobs. Stop and report the first blocking defect rather than improvising around it.
 ```
 
-The agent should independently:
+The agent independently:
 
-1. locate the skill and repository roots without assuming its initial working directory;
-2. record the repository commit, branch, and working-tree state;
-3. create the repository-local `.venv`;
-4. install dependencies;
-5. run preflight and focused contract tests;
-6. probe anonymous Kaggle access and verify any committed fallback;
-7. use only the source mode reported by preflight;
-8. run the canonical submission runner;
-9. validate data provenance, manifests, checksums, scientific identity, and result contents;
-10. report success, failure, or a precise blocker.
+1. locates the skill and repository roots;
+2. records commit, branch, and working-tree state;
+3. creates or reuses the repository-local `.venv`;
+4. installs declared dependencies;
+5. runs data and classical preflights plus focused contract tests;
+6. probes anonymous Kaggle access and verifies the committed fallback;
+7. uses only the source mode reported by preflight;
+8. runs the canonical `financial-classical` submission workflow;
+9. validates provenance, manifests, checksums, scientific identity, model parameters, and result contents;
+10. reports success, failure, or the first precise blocker.
 
 The standards-compliant Agent Skill entry is:
 
@@ -35,18 +35,40 @@ The standards-compliant Agent Skill entry is:
 qbraid_skill/qpitome-qrc-volatility/SKILL.md
 ```
 
-### Current development boundary
+## Current executable boundary
 
-This branch currently validates only the Stage-1 transition-data workflow. The final submission must also add the financial QRC, classical comparison, MNIST, qubit-scaling, noise, and final artifact-collection stages to the same automated workflow.
+This branch now automates:
 
-The source policy is already deterministic:
+- verified transition-data acquisition and reconstruction;
+- one-channel forty-session input tensors;
+- eight chronologically purged, fold-locally rematched datasets;
+- persistence, canonical HAR, and direct sequence ridge;
+- zero-mean Student-t GARCH(1,1) with the `arch` backend;
+- the frozen tuned direct ESN and shuffled-order control;
+- exact-common-row tables for Transition, L1, L5, L10, Controls, and Pooled;
+- RMSE, log-volatility QLIKE, and Mincer-Zarnowitz diagnostics;
+- aggregate manifests, logs, hashes, coverage, predictions, and validation.
 
-- public Kaggle access is probed anonymously;
-- a committed fallback is accepted only after complete manifest/hash/schema verification;
-- when both are available, the live candidate is compared with the fallback;
-- any missing, extra, or changed live file causes fallback substitution before the pipeline runs;
-- without a fallback, live data must match the frozen raw inventory exactly;
-- the installed source is verified again and the decision is recorded in `raw_acquisition_manifest.json`.
+Financial QRC, MNIST, qubit scaling, noise studies, and final cross-topic artifact collection still need to be added to the same submission framework. The current classical workflow does not query or submit hardware jobs.
+
+## Frozen classical specification
+
+The judge workflow does not retune models. Its single parameter authority is:
+
+```text
+config/transition_forecasting/classical_benchmarks/frozen_submission.json
+```
+
+Submitted models:
+
+```text
+persistence
+har
+sequence_ridge
+garch_1_1_t
+esn_direct_tuned
+esn_shuffled_tuned
+```
 
 ## Manual diagnostic path
 
@@ -57,37 +79,28 @@ python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --json
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --strict-data-source
+.venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py --json
 ```
 
-The bootstrap is idempotent. It creates `.venv` if needed, installs the project and test dependencies, runs preflight, and runs the focused contract suite. It does not execute scientific results. Do not use a bare `pip` command or depend on shell activation persisting between commands.
+Bootstrap is idempotent. It creates `.venv` when needed, installs the project and test dependencies, runs both preflights, and runs the focused contract suite. It does not execute scientific results. Do not use a bare `pip` command or depend on shell activation persisting between commands.
 
-## Current Stage-1 workflow
+## Canonical financial-classical workflow
 
 Generate a literal run ID:
 
 ```bash
-date -u +qbraid-stage1-%Y%m%dT%H%M%SZ
+date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ
 ```
 
-Use the exact source mode reported by preflight. When both anonymous live access and the verified fallback are ready:
+Use the exact source mode reported by strict preflight:
 
 ```bash
-.venv/bin/python scripts/runs/run_submission.py transition-data \
+.venv/bin/python scripts/runs/run_submission.py financial-classical \
   --run-id <RUN_ID_FROM_PREVIOUS_COMMAND> \
-  --transition-source-mode auto
+  --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
 
-Use `fallback` or `live` only when preflight reports that as the sole verified mode. Do not use `--force` for a new run.
-
-The acquisition manifest must record:
-
-```text
-authoritative_source_verified: true
-installed_source_comparison.matched: true
-candidate_comparison
-fallback_substitution
-substitution_reason
-```
+Do not use `--force` for a new run.
 
 The aggregate judge-facing run is written under:
 
@@ -95,7 +108,23 @@ The aggregate judge-facing run is written under:
 results/runs/<run-id>/
 ```
 
-`scripts/runs/run_submission.py` is the sole planned exception to the normal scientific-result mapping because it assembles a structured judge-facing package. Normal scientific outputs follow:
+Scientific artifacts are grouped by topic beneath:
+
+```text
+results/runs/<run-id>/files/transition_forecasting/
+```
+
+The classical topic is:
+
+```text
+modeling/classical_baselines/
+    linear/run/<run-id>/
+    garch/run/<run-id>/
+    esn/run/<run-id>/
+    canonical/run/<run-id>/
+```
+
+`scripts/runs/run_submission.py` is the sole planned exception to the normal scientific-result mapping. Ordinary producers follow:
 
 ```text
 src/<domain>/<experiment>/*.py
@@ -106,17 +135,14 @@ results/<domain>/<experiment>/run/<run-id>/*
 
 Run directories may contain data products, configuration snapshots, manifests, logs, predictions, metrics, figures, and checksums. They must not contain copied source code.
 
-## Current canonical Stage-1 scope
+## Data-source policy
 
-1. Acquire or restore verified global-index OHLC inputs.
-2. Apply the frozen structural-quality policy.
-3. Build one-channel forty-session log-volatility sequences.
-4. Construct the binary pre-control candidate pool.
-5. Create eight chronologically purged walk-forward folds.
-6. Rematch controls within each fold partition.
-7. Validate and checksum generated artifacts.
-
-The former derived three-channel representation is not part of the canonical pipeline. The fixed final test partition must remain unopened during development and model selection.
+- public Kaggle access is probed anonymously;
+- the committed fallback is accepted only after manifest, hash, file-set, and schema verification;
+- when both sources are available, the live candidate is compared with the fallback;
+- any missing, extra, or changed live file causes fallback substitution before installation;
+- without a fallback, live data must match the frozen raw inventory exactly;
+- the installed source is verified again and the decision is recorded in `raw_acquisition_manifest.json`.
 
 ## Local development outside qBraid
 
