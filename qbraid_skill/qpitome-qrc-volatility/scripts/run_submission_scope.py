@@ -19,6 +19,8 @@ from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_RESULTS_ROOT = REPO_ROOT / "results" / "runs"
+RIDGE_ALPHA_GRID = (0.1, 1.0, 10.0, 100.0, 1000.0)
+CORRECTION_LAMBDA_GRID = (0.0, 0.25, 0.5, 1.0)
 
 
 @dataclass
@@ -42,6 +44,10 @@ def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _grid_contains(value: float, grid: tuple[float, ...], tolerance: float = 1e-12) -> bool:
+    return any(abs(value - candidate) <= tolerance for candidate in grid)
+
+
 def _current_case151_audit_is_verified(run_dir: Path, run_id: str) -> bool:
     audit_path = (
         run_dir
@@ -56,12 +62,17 @@ def _current_case151_audit_is_verified(run_dir: Path, run_id: str) -> bool:
         return False
     try:
         audit = read_json(audit_path)
+        selected_alpha = float(audit.get("fold8_selected_alpha"))
+        selected_lambda = float(audit.get("fold8_selected_lambda"))
     except Exception:
         return False
     return (
         audit.get("status") == "verified"
         and audit.get("verification_mode") == "current-pipeline"
         and audit.get("historical_reference_hashes_verified") is True
+        and audit.get("fold8_selection_grid_verified") is True
+        and _grid_contains(selected_alpha, RIDGE_ALPHA_GRID)
+        and _grid_contains(selected_lambda, CORRECTION_LAMBDA_GRID)
     )
 
 
@@ -185,8 +196,9 @@ def validate_case151(run_dir: Path, run_id: str) -> None:
         "verification_mode": "current-pipeline",
         "feature_bank": "occupation_pair_raw",
         "feature_width": 63,
-        "fold8_selected_alpha": 0.1,
-        "fold8_selected_lambda": 0.25,
+        "fold8_selection_grid_verified": True,
+        "historical_fold8_selected_alpha": 0.1,
+        "historical_fold8_selected_lambda": 0.25,
         "test_rows_used": 0,
         "qrc_head_fit_intercept": False,
         "historical_metric_oracle_applied": False,
@@ -198,10 +210,32 @@ def validate_case151(run_dir: Path, run_id: str) -> None:
                 f"Case151 audit mismatch for {key}: "
                 f"observed={audit.get(key)!r}, expected={value!r}"
             )
+
+    try:
+        selected_alpha = float(audit["fold8_selected_alpha"])
+        selected_lambda = float(audit["fold8_selected_lambda"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("Case151 audit lacks numeric fold-8 selections") from exc
+    if not _grid_contains(selected_alpha, RIDGE_ALPHA_GRID):
+        raise RuntimeError(
+            f"Case151 fold-8 alpha {selected_alpha!r} is outside {RIDGE_ALPHA_GRID!r}"
+        )
+    if not _grid_contains(selected_lambda, CORRECTION_LAMBDA_GRID):
+        raise RuntimeError(
+            f"Case151 fold-8 lambda {selected_lambda!r} is outside "
+            f"{CORRECTION_LAMBDA_GRID!r}"
+        )
+    if audit.get("ridge_alpha_grid") != list(RIDGE_ALPHA_GRID):
+        raise RuntimeError("Case151 audit does not preserve the frozen ridge grid")
+    if audit.get("correction_lambda_grid") != list(CORRECTION_LAMBDA_GRID):
+        raise RuntimeError("Case151 audit does not preserve the frozen lambda grid")
+    if not isinstance(audit.get("historical_fold8_selection_match"), bool):
+        raise RuntimeError("Case151 audit lacks historical selection comparison")
     if not isinstance(audit.get("observed_metrics"), dict):
         raise RuntimeError("Case151 audit is missing current-pipeline metrics")
     if not isinstance(audit.get("metric_deltas_vs_historical_reference"), dict):
         raise RuntimeError("Case151 audit is missing historical metric deltas")
+
     for name in (
         "pooled_metrics.csv",
         "readout_selections.csv",
