@@ -1,0 +1,74 @@
+{
+  "canonical_commit": "40ec805cc2b4efe416c0a57f1c599cca6def92c3",
+  "expected": {
+    "case151_h5_h10": {
+      "qlike_delta": -1.1093823247136796,
+      "rmse_delta": -0.17820320249081623
+    },
+    "hardware_pooled": {
+      "attenuation_through_origin": 1.0681823129307009,
+      "n_observables": 63,
+      "pearson_correlation": 0.9430733408531018,
+      "rmse": 0.04393289788373678
+    },
+    "interaction_off_path": {
+      "qlike": 0.7647214379717423,
+      "qlike_delta_vs_har": -0.0198589511282768,
+      "rmse": 0.510224007928809,
+      "rmse_delta_vs_har": -0.0088568762196238
+    },
+    "selected_path": {
+      "har_qlike": 0.7845803891000191,
+      "har_rmse": 0.5190808841484328,
+      "qlike": 0.7766604033494666,
+      "qlike_delta_vs_har": -0.0079199857505525,
+      "rmse": 0.5170441300346618,
+      "rmse_delta_vs_har": -0.002036754113771
+    },
+    "selected_transition": {
+      "har_qlike": 1.1186125654903134,
+      "har_rmse": 0.5126406030827871,
+      "qlike": 1.1057388524991654,
+      "qlike_delta_vs_har": -0.012873712991148,
+      "rmse": 0.5086423387225597,
+      "rmse_delta_vs_har": -0.0039982643602274
+    }
+  },
+  "hardware_job_ids": {
+    "10": "aws:quera:qpu:aquila-6e03-qjob-6a65c5610936bd6f4cecbd76",
+    "20": "aws:quera:qpu:aquila-6e03-qjob-6a65c5620936bd6f4cecbd79",
+    "40": "aws:quera:qpu:aquila-6e03-qjob-6a65c5630936bd6f4cecbd7c"
+  },
+  "mincer_zarnowitz_reference": {
+    "path": {
+      "HAR": {
+        "intercept": 0.6653620787288016,
+        "joint_p": 0.02961041548814956,
+        "r2": 0.19134374190880932,
+        "slope": 1.1456777101247584
+      },
+      "QRC": {
+        "intercept": -0.053577256821026806,
+        "joint_p": 0.3436283319012234,
+        "r2": 0.19485852123259195,
+        "slope": 0.9928660247878449
+      }
+    },
+    "transition": {
+      "HAR": {
+        "intercept": 2.037093022481838,
+        "joint_p": 5.38828750179485e-23,
+        "r2": 0.3075496655209049,
+        "slope": 1.398008873398091
+      },
+      "QRC": {
+        "intercept": 0.8645577520510755,
+        "joint_p": 6.680283923108643e-18,
+        "r2": 0.2950119562113127,
+        "slope": 1.1497602134487508
+      }
+    }
+  },
+  "sample_id": "P_GE151_^MERV_data_L5",
+  "source_run": "palindrome_real_task_002"
+}
