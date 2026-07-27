@@ -2,7 +2,7 @@ name: Stage 1 transition data tests
 
 on:
   push:
-    branches: [stage1-dev]
+    branches: [main, stage1-dev]
     paths:
       - "README.md"
       - "pyproject.toml"
@@ -21,7 +21,7 @@ on:
       - "tests/runs/test_run_submission_benchmarks.py"
       - ".github/workflows/stage1-transition-data-tests.yml"
   pull_request:
-    branches: [stage1-dev]
+    branches: [main, stage1-dev]
     paths:
       - "README.md"
       - "pyproject.toml"
