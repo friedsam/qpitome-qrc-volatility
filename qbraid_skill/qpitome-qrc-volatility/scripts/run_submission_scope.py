@@ -35,13 +35,34 @@ def utc_now() -> str:
 
 
 def default_run_id() -> str:
-    return datetime.now(timezone.utc).strftime(
-        "qbraid-submission-%Y%m%dT%H%M%SZ"
-    )
+    return datetime.now(timezone.utc).strftime("qbraid-submission-%Y%m%dT%H%M%SZ")
 
 
 def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _current_case151_audit_is_verified(run_dir: Path, run_id: str) -> bool:
+    audit_path = (
+        run_dir
+        / "files"
+        / "qrc"
+        / "simulation"
+        / "run"
+        / run_id
+        / "case151_reproduction_audit.json"
+    )
+    if not audit_path.is_file():
+        return False
+    try:
+        audit = read_json(audit_path)
+    except Exception:
+        return False
+    return (
+        audit.get("status") == "verified"
+        and audit.get("verification_mode") == "current-pipeline"
+        and audit.get("historical_reference_hashes_verified") is True
+    )
 
 
 def command_plan(
@@ -68,9 +89,9 @@ def command_plan(
             )
         )
 
-    qrc_dir = run_dir / "files" / "qrc" / "simulation" / "run" / run_id
-    qrc_audit = qrc_dir / "case151_reproduction_audit.json"
-    if not (resume_existing and qrc_audit.is_file()):
+    if not (
+        resume_existing and _current_case151_audit_is_verified(run_dir, run_id)
+    ):
         commands.append(
             (
                 python,
@@ -88,6 +109,9 @@ def command_plan(
                 str(run_dir / "files" / "qrc" / "simulation" / "run"),
                 "--run-id",
                 run_id,
+                "--verification-mode",
+                "current-pipeline",
+                "--archive-existing-failed",
             )
         )
 
@@ -158,11 +182,15 @@ def validate_case151(run_dir: Path, run_id: str) -> None:
     audit = read_json(audit_path)
     expected = {
         "status": "verified",
+        "verification_mode": "current-pipeline",
         "feature_bank": "occupation_pair_raw",
         "feature_width": 63,
         "fold8_selected_alpha": 0.1,
         "fold8_selected_lambda": 0.25,
         "test_rows_used": 0,
+        "qrc_head_fit_intercept": False,
+        "historical_metric_oracle_applied": False,
+        "historical_reference_hashes_verified": True,
     }
     for key, value in expected.items():
         if audit.get(key) != value:
@@ -170,6 +198,10 @@ def validate_case151(run_dir: Path, run_id: str) -> None:
                 f"Case151 audit mismatch for {key}: "
                 f"observed={audit.get(key)!r}, expected={value!r}"
             )
+    if not isinstance(audit.get("observed_metrics"), dict):
+        raise RuntimeError("Case151 audit is missing current-pipeline metrics")
+    if not isinstance(audit.get("metric_deltas_vs_historical_reference"), dict):
+        raise RuntimeError("Case151 audit is missing historical metric deltas")
     for name in (
         "pooled_metrics.csv",
         "readout_selections.csv",
@@ -204,9 +236,7 @@ def validate_smoke(run_dir: Path) -> None:
     }
     required = manifest.get("required_outputs", {})
     if set(required) != expected:
-        raise RuntimeError(
-            f"unexpected benchmark workflow set: {sorted(required)}"
-        )
+        raise RuntimeError(f"unexpected benchmark workflow set: {sorted(required)}")
     for workflow, files in required.items():
         missing = [
             name
@@ -238,7 +268,7 @@ def write_scope_manifest(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": run_id,
         "scope": scope,
         "status": status,
@@ -246,6 +276,8 @@ def write_scope_manifest(
         "finished_at_utc": utc_now(),
         "commands": [asdict(record) for record in records],
         "hardware_actions_performed": False,
+        "case151_verification_mode": "current-pipeline",
+        "historical_case151_metric_oracle_relabelled": False,
         "failure": failure,
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -255,11 +287,7 @@ def run_command(argv: Sequence[str]) -> CommandRecord:
     started = utc_now()
     clock = time.monotonic()
     print("+ " + " ".join(str(value) for value in argv), flush=True)
-    completed = subprocess.run(
-        tuple(argv),
-        cwd=REPO_ROOT,
-        check=False,
-    )
+    completed = subprocess.run(tuple(argv), cwd=REPO_ROOT, check=False)
     return CommandRecord(
         argv=[str(value) for value in argv],
         started_at_utc=started,
