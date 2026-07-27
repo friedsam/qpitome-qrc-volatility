@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 from transition_forecasting.qrc.palindrome_shot_assay import (
@@ -16,6 +17,21 @@ DEFAULT_FOLD_DIR = Path(
 )
 DEFAULT_RESULTS_ROOT = Path(
     "results/transition_forecasting/qrc/palindrome_shot_assay"
+)
+
+SHOT_OUTPUTS_BEFORE_ALIAS = (
+    "params.json",
+    "summary.json",
+    "shot_metrics.csv",
+    "shot_summary.csv",
+    "direction_metrics.csv",
+    "predictions.csv.gz",
+    "retained_samples.csv",
+    "frozen_readout.npz",
+    "features/exact_reference.npz",
+    "plots/warning_gap_preservation_vs_shots.png",
+    "plots/correction_correlation_vs_shots.png",
+    "plots/transition_control_gap_vs_shots.png",
 )
 
 
@@ -84,8 +100,50 @@ def frozen_geometry() -> StaggeredLadderGeometryConfig:
     )
 
 
+def publish_exact_reference_alias(run_dir: Path) -> Path:
+    """Publish the validator-facing exact reference without changing source data."""
+
+    run_dir = Path(run_dir)
+    source = run_dir / "features" / "exact_reference.npz"
+    destination = run_dir / "exact_reference.npz"
+    if not source.is_file():
+        raise FileNotFoundError(f"finite-shot exact reference is missing: {source}")
+    if destination.is_file():
+        if destination.read_bytes() != source.read_bytes():
+            raise RuntimeError(
+                "finite-shot exact-reference alias differs from the canonical feature copy"
+            )
+        return destination
+    shutil.copy2(source, destination)
+    return destination
+
+
+def repair_existing_shot_run(run_dir: Path) -> Path:
+    """Repair only a completed shot run whose publishing alias is absent."""
+
+    run_dir = Path(run_dir)
+    missing = [
+        relative
+        for relative in SHOT_OUTPUTS_BEFORE_ALIAS
+        if not (run_dir / relative).is_file()
+    ]
+    if missing:
+        raise RuntimeError(
+            "existing finite-shot run is incomplete and cannot be repaired in place: "
+            + ", ".join(missing)
+        )
+    publish_exact_reference_alias(run_dir)
+    return run_dir
+
+
 def main() -> None:
     args = parse_args()
+    expected_run_dir = args.out_root / args.run_id
+    if expected_run_dir.exists():
+        run_dir = repair_existing_shot_run(expected_run_dir)
+        print(f"REPAIRED {run_dir}")
+        return
+
     assay = PalindromeShotAssayConfig(
         fold=args.fold,
         lead=args.lead,
@@ -109,6 +167,7 @@ def main() -> None:
         drive_phase_rad=0.0,
         run_id=args.run_id,
     )
+    publish_exact_reference_alias(run_dir)
     print(f"WROTE {run_dir}")
 
 
