@@ -82,6 +82,22 @@ scripts/transition_forecasting/qrc/run_mnist_palindrome_benchmark.py
 tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py
 ```
 
+### Required result contract
+
+```text
+results/runs/<RUN_ID>/files/mnist/run/<RUN_ID>/
+    params.json
+    summary.json
+    mnist_palindrome_features.npz
+    shard_manifest.csv
+    model_comparison.csv
+    mnist_predictions.csv
+    per_class_metrics.csv
+```
+
+Resumable shard outputs live under `files/mnist/shards/` and are not confused
+with the merged judge-facing run.
+
 ### Existing acquisition dependency
 
 ```text
@@ -134,7 +150,7 @@ tests/transition_forecasting/qrc/test_palindrome_rydberg_noise.py
 ### Required result contract
 
 ```text
-results/transition_forecasting/qrc/palindrome_noise_assay/<RUN_ID>/
+results/runs/<RUN_ID>/files/quantum_studies/noise/run/<RUN_ID>/
     params.json
     summary.json
     noise_metrics.csv
@@ -162,7 +178,7 @@ tests/transition_forecasting/qrc/test_palindrome_scaling_assay.py
 ### Required result contract
 
 ```text
-results/transition_forecasting/qrc/palindrome_scaling_assay/<RUN_ID>/
+results/runs/<RUN_ID>/files/quantum_studies/scaling/run/<RUN_ID>/
     params.json
     summary.json
     scaling_metrics.csv
@@ -192,7 +208,7 @@ tests/transition_forecasting/qrc/test_palindrome_shot_assay.py
 ### Required result contract
 
 ```text
-results/transition_forecasting/qrc/palindrome_shot_assay/<RUN_ID>/
+results/runs/<RUN_ID>/files/quantum_studies/shots/run/<RUN_ID>/
     params.json
     summary.json
     shot_metrics.csv
@@ -235,7 +251,8 @@ It records command logs, repository/environment identity, required-output valida
 
 ### Recommended clean integration into `scripts/runs/run_submission.py`
 
-Add a workflow such as `phase3-benchmarks` whose command plan invokes the helper once:
+Add a workflow such as `phase3-benchmarks` whose command plan invokes the helper
+inside the aggregate run already created by the main runner:
 
 ```python
 (
@@ -245,28 +262,28 @@ Add a workflow such as `phase3-benchmarks` whose command plan invokes the helper
     "--profile",
     "primary",
     "--run-id",
-    "phase3_benchmarks_primary_001",
-    "--mnist-run-id",
-    "mnist_palindrome_primary_001",
-    "--noise-run-id",
-    "palindrome_noise_primary_001",
-    "--scaling-run-id",
-    "palindrome_scaling_primary_001",
-    "--shots-run-id",
-    "palindrome_shots_primary_001",
+    run_dir.name,
+    "--run-dir",
+    str(run_dir),
     "--resume",
     "--reuse-existing",
 )
 ```
 
-The main submission runner only needs to require:
+By default, the aggregate run ID is also used for each benchmark family. The helper writes:
 
 ```text
-results/runs/phase3_benchmarks_primary_001/benchmark_manifest.json
-results/runs/phase3_benchmarks_primary_001/benchmark_artifact_inventory.json
+results/runs/<RUN_ID>/files/mnist/run/<RUN_ID>/
+results/runs/<RUN_ID>/files/quantum_studies/noise/run/<RUN_ID>/
+results/runs/<RUN_ID>/files/quantum_studies/scaling/run/<RUN_ID>/
+results/runs/<RUN_ID>/files/quantum_studies/shots/run/<RUN_ID>/
+results/runs/<RUN_ID>/files/quantum_studies/benchmark_manifest.json
+results/runs/<RUN_ID>/files/quantum_studies/benchmark_artifact_inventory.json
+results/runs/<RUN_ID>/logs/benchmarks/
 ```
 
-The helper validates the complete per-benchmark output closure.
+MNIST feature shards are retained separately under `results/runs/<RUN_ID>/files/mnist/shards/` for resumability. The helper does not
+create or replace the aggregate `run_manifest.json`.
 
 ## 8. qBraid Skill files that must be updated on the clean branch
 
@@ -323,17 +340,18 @@ python scripts/runs/run_submission_benchmarks.py all \
   --run-id phase3_benchmarks_smoke_001
 ```
 
-Finally validate the preserved primary result directories without rerunning them:
+Finally validate benchmark results already packaged inside an aggregate run
+without rerunning them:
 
 ```bash
 python scripts/runs/run_submission_benchmarks.py validate-existing \
   --profile primary \
-  --run-id phase3_benchmarks_validation_001 \
-  --mnist-run-id mnist_palindrome_primary_001 \
-  --noise-run-id palindrome_noise_primary_001 \
-  --scaling-run-id palindrome_scaling_primary_001 \
-  --shots-run-id palindrome_shots_primary_001
+  --run-id <RUN_ID> \
+  --run-dir results/runs/<RUN_ID>
 ```
+
+Explicit per-family run IDs remain available only for validating deliberately
+preserved historical packages; no directory is selected by modification time.
 
 ## 10. Files and claims that must not be silently substituted
 
