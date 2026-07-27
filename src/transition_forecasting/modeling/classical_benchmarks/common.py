@@ -52,6 +52,14 @@ def load_rematched_dataset(dataset_root: Path) -> RematchedDataset:
         tensor_ids = tensors["sample_id"].astype(str)
         tensor_folds = tensors["fold"].astype(int)
         tensor_splits = tensors["fold_split"].astype(str)
+
+    # The active chronological rematcher records the exact matched positive and
+    # continuous match distance rather than the legacy categorical
+    # ``control_stratum`` field. Classical metrics never use that field, but the
+    # prediction writers retain it as optional compatibility metadata.
+    if "control_stratum" not in manifest.columns:
+        manifest["control_stratum"] = pd.NA
+
     required = {
         "sample_id", "episode_id", "index", "origin_date", "event_onset",
         "label", "lead", "fold", "fold_split", "control_stratum",
