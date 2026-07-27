@@ -11,6 +11,7 @@ SKILL_PATH = SKILL_ROOT / "SKILL.md"
 BOOTSTRAP_PATH = SKILL_ROOT / "scripts" / "bootstrap.py"
 PREFLIGHT_PATH = SKILL_ROOT / "scripts" / "preflight.py"
 CLASSICAL_PREFLIGHT_PATH = SKILL_ROOT / "scripts" / "preflight_classical.py"
+ORCHESTRATOR_PATH = SKILL_ROOT / "scripts" / "run_submission_scope.py"
 README_PATH = REPO_ROOT / "README.md"
 
 
@@ -53,13 +54,11 @@ def test_skill_references_and_entry_points_exist() -> None:
         "scripts/bootstrap.py",
         "scripts/preflight.py",
         "scripts/preflight_classical.py",
+        "scripts/run_submission_scope.py",
     ):
         assert relative in text
         assert (SKILL_ROOT / relative).is_file()
     repository_paths = (
-        "qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py",
-        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
-        "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
         "scripts/runs/run_submission.py",
         "scripts/runs/run_submission_layout.py",
         "scripts/runs/run_submission_stage_layout.py",
@@ -78,52 +77,57 @@ def test_skill_references_and_entry_points_exist() -> None:
         assert executable_contract in text
 
 
-def test_skill_requires_root_safe_execution() -> None:
+def test_skill_requires_root_safe_state_free_execution() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
     assert "Do not assume the current working directory is the repository root" in text
     assert "Resolve every relative skill path against `SKILL_ROOT`" in text
     assert "For file reads, use absolute paths" in text
     assert "working directory explicitly to `REPO_ROOT`" in text
+    assert "Do not rely on `cd`, shell variables, exported environment variables" in text
+    assert "Do not create `RUN_ID` or `RUN_DIR` shell variables" in text
     assert "<SKILL_ROOT>/references/repository-map.md" in text
     assert "<SKILL_ROOT>/references/run-contract.md" in text
-    assert "do not depend on shell variables persisting" in text
 
 
-def test_skill_core_includes_classical_and_case151() -> None:
+def test_skill_default_full_smoke_includes_all_submission_stages() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
-    assert "Default core scope" in text
+    assert "Default full-smoke scope" in text
     assert "persistence, canonical HAR, and direct sequence-ridge" in text
     assert "Student-t GARCH(1,1)" in text
     assert "frozen tuned direct ESN" in text
     assert "financial-classical" in text
-    assert "canonical Case151 QRC simulation" in text
+    assert "canonical Case151 QRC" in text
     assert "occupation_pair_raw" in text
-    assert "feature_width` is exactly `63" in text
-    assert "fold-8 selected alpha is `0.1`" in text
-    assert "fold-8 selected lambda is `0.25`" in text
-    assert "test_rows_used` is `0" in text
-    assert "scripts/reproduction/run_case151_simulation.py" in text
-    assert "files/qrc/simulation/run/<RUN_ID>/" in text
-
-
-def test_skill_full_smoke_is_explicit_and_bounded() -> None:
-    text = SKILL_PATH.read_text(encoding="utf-8")
-    assert "Optional full-smoke scope" in text
-    assert "scripts/runs/run_submission_benchmarks.py" in text
-    assert "--profile smoke" in text
-    assert "validate-existing" in text
-    assert "--resume" in text
-    assert "--reuse-existing" in text
-    assert "Do not run the primary Phase-3 benchmark profile" in text
+    assert "fold-8 alpha `0.1`" in text
+    assert "lambda `0.25`" in text
+    assert "zero financial test rows" in text
     for family in ("MNIST", "noise", "scaling", "finite-shot"):
         assert family in text
+    assert "validate-existing" in text
+    assert "--profile smoke" in text
+
+
+def test_skill_has_one_state_free_orchestrator_command() -> None:
+    text = SKILL_PATH.read_text(encoding="utf-8")
+    command = (
+        ".venv/bin/python "
+        "qbraid_skill/qpitome-qrc-volatility/scripts/run_submission_scope.py"
+    )
+    assert command in text
+    assert "--scope full-smoke" in text
+    assert "--scope core" in text
+    assert "--resume-existing" in text
+    assert "The orchestrator generates one literal run ID" in text
+    assert "RUN_ID=$(" not in text
+    assert 'RUN_DIR="' not in text
 
 
 def test_skill_preserves_test_and_hardware_boundaries() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
-    assert "Do not evaluate the fixed test partition" in text
-    assert "Do not submit, query, or select a hardware job" in text
-    assert "Hardware is not part of either core or full-smoke" in text
+    assert "Do not evaluate the fixed financial test partition" in text
+    assert "Do not perform any hardware action" in text
+    assert "Hardware is not part of full-smoke or core" in text
+    assert "Do not submit, query, select, retrieve, or package hardware jobs" in text
     assert "qbraid jobs submit" not in text.lower()
 
 
@@ -139,6 +143,61 @@ def test_qbraid_setup_is_agent_owned() -> None:
     assert "Do not substitute a bare `pip`" in skill
     assert "source .venv/bin/activate" not in skill
     assert "source .venv/bin/activate" not in readme
+
+
+def test_agent_orchestrator_builds_literal_argument_vectors(tmp_path: Path) -> None:
+    orchestrator = load_module("qbraid_agent_scope", ORCHESTRATOR_PATH)
+    run_id = "qbraid-submission-test"
+    run_dir = tmp_path / run_id
+
+    core = orchestrator.command_plan(
+        scope="core",
+        run_id=run_id,
+        run_dir=run_dir,
+        transition_source_mode="fallback",
+        resume_existing=False,
+    )
+    assert len(core) == 2
+    assert core[0][:3] == (
+        sys.executable,
+        "scripts/runs/run_submission_stage_layout.py",
+        "financial-classical",
+    )
+    assert core[0][-2:] == ("--transition-source-mode", "fallback")
+    assert core[1][1] == "scripts/reproduction/run_case151_simulation.py"
+    assert str(run_dir) in " ".join(core[1])
+
+    full = orchestrator.command_plan(
+        scope="full-smoke",
+        run_id=run_id,
+        run_dir=run_dir,
+        transition_source_mode="fallback",
+        resume_existing=False,
+    )
+    assert len(full) == 4
+    assert full[2][1:4] == (
+        "scripts/runs/run_submission_benchmarks.py",
+        "all",
+        "--profile",
+    )
+    assert full[3][1:4] == (
+        "scripts/runs/run_submission_benchmarks.py",
+        "validate-existing",
+        "--profile",
+    )
+    for argv in full:
+        joined = " ".join(argv)
+        assert "$RUN_ID" not in joined
+        assert "$RUN_DIR" not in joined
+        assert argv[0] == sys.executable
+
+
+def test_agent_orchestrator_defaults_to_full_smoke_and_requires_source_mode() -> None:
+    orchestrator = load_module("qbraid_agent_scope_args", ORCHESTRATOR_PATH)
+    args = orchestrator.parse_args(["--transition-source-mode", "fallback"])
+    assert args.scope == "full-smoke"
+    assert args.transition_source_mode == "fallback"
+    assert args.run_id is None
 
 
 def test_bootstrap_plan_runs_preflights_and_complete_focused_contracts(
@@ -170,6 +229,7 @@ def test_bootstrap_plan_runs_preflights_and_complete_focused_contracts(
     ]
     assert plan[4][:4] == [str(expected_python), "-m", "pytest", "-q"]
     for required_test in (
+        "tests/qbraid_skill/test_skill_contract.py",
         "tests/runs/test_run_submission_classical.py",
         "tests/runs/test_run_submission_benchmarks.py",
         "tests/transition_forecasting/modeling/classical_benchmarks/test_spec.py",
@@ -186,6 +246,7 @@ def test_bootstrap_requires_complete_agent_entry_points() -> None:
     bootstrap = load_module("qbraid_skill_bootstrap_paths", BOOTSTRAP_PATH)
     required = set(bootstrap.REQUIRED_REPOSITORY_PATHS)
     for relative in (
+        "qbraid_skill/qpitome-qrc-volatility/scripts/run_submission_scope.py",
         "scripts/runs/run_submission_stage_layout.py",
         "scripts/reproduction/run_case151_simulation.py",
         "scripts/runs/run_submission_benchmarks.py",
@@ -210,7 +271,7 @@ def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
     assert "preflight_classical.py" in plan[2][1]
 
 
-def test_readme_contains_launch_link_and_complete_agent_commands() -> None:
+def test_readme_contains_one_complete_agent_prompt_and_command() -> None:
     text = README_PATH.read_text(encoding="utf-8")
     assert "https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png" in text
     assert (
@@ -220,11 +281,18 @@ def test_readme_contains_launch_link_and_complete_agent_commands() -> None:
     assert "locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md" in text
     assert "read it by absolute path" in text
     assert "enable **Agent Mode**" in text
+    assert "this single prompt" in text
+    assert "complete default full-smoke scope" in text
+    assert "run_submission_scope.py" in text
+    assert "--scope full-smoke" in text
     assert "run_submission_stage_layout.py financial-classical" in text
     assert "run_case151_simulation.py" in text
     assert "run_submission_benchmarks.py" in text
     assert "files/classical_baselines/" in text
     assert "files/qrc/simulation/run" in text
+    assert "RUN_ID=$(" not in text
+    assert 'RUN_DIR="' not in text
+    assert "For the bounded Phase-3 integration extension, append" not in text
 
 
 def test_data_preflight_reports_repository_contract() -> None:
