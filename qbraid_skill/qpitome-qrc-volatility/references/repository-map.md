@@ -152,7 +152,7 @@ src/transition_forecasting/qrc/representation_candidates.py
 src/transition_forecasting/qrc/ladder_finite_shot_sampling.py
 ```
 
-Canonical identity:
+Fold-invariant model identity:
 
 ```text
 six atoms
@@ -161,24 +161,34 @@ three probe times
 occupation_pair_raw
 63 features
 fold-specific chronological readout selection
-fold-8 alpha 0.1
-fold-8 lambda 0.25
+ridge alpha grid: 0.1, 1.0, 10.0, 100.0, 1000.0
+correction lambda grid: 0.0, 0.25, 0.5, 1.0
 intercept-free residual head
 zero financial test rows
 ```
+
+Historical fold-8 oracle outcome:
+
+```text
+alpha 0.1
+lambda 0.25
+```
+
+That selected point belongs to canonical commit `40ec805cc2b4efe416c0a57f1c599cca6def92c3`, source run `palindrome_real_task_002`, and its historical fold composition. It is not a fold-invariant model parameter.
 
 Verification modes:
 
 ```text
 historical-oracle
-    exact metric equality on the historical fold lineage from canonical commit
-    40ec805cc2b4efe416c0a57f1c599cca6def92c3 and source run
-    palindrome_real_task_002
+    exact metric equality and exact fold-8 alpha 0.1 / lambda 0.25 on the
+    historical fold lineage
 
 current-pipeline
-    same frozen model identity on newly generated financial-classical folds;
-    immutable historical reference hashes are verified and current metric deltas
-    are reported without claiming exact historical reproduction
+    same frozen model identity, chronological selection procedure, and fixed
+    search grids on newly generated financial-classical folds; immutable
+    historical reference hashes are verified and current metric plus selected-
+    hyperparameter deltas are reported without claiming exact historical
+    reproduction
 ```
 
 A failed or incomplete aggregate Case151 attempt is moved beneath `files/qrc/simulation/run/failed_attempts/` before retry. A verified output is never overwritten.
@@ -241,7 +251,7 @@ tests/transition_forecasting/qrc/test_palindrome_shot_assay.py
 - folds 7–8 are confirmation recheck;
 - fixed financial test chronology remains unopened;
 - classical execution uses frozen parameters and does not retune;
-- canonical Case151 uses the frozen exact 63-feature simulator;
-- historical Case151 metrics remain tied to their historical fold lineage;
-- current-pipeline Case151 metrics are reported separately with explicit deltas;
+- canonical Case151 uses the frozen exact 63-feature simulator and fixed selection grids;
+- historical Case151 metrics and fold-8 selection remain tied to their historical fold lineage;
+- current-pipeline Case151 metrics and selected hyperparameters are reported separately with explicit deltas;
 - full-smoke is bounded integration coverage, not a primary-result replacement.
