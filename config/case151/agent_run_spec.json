@@ -1,29 +1,32 @@
 {
-  "schema_version": 2,
-  "name": "Reproduce and verify Case151 QRC simulation and existing Aquila jobs",
+  "schema_version": 3,
+  "name": "Verify historical Case151 and integrate it with current pipeline folds",
   "working_directory": "repository root",
   "safety": {
     "submit_new_hardware_jobs": false,
     "use_test_rows": false,
     "modify_model_specification": false,
-    "force_git_operations": false
+    "force_git_operations": false,
+    "relabel_current_metrics_as_historical": false
   },
   "inputs": {
-    "processed_fold_directory": "data/processed/global_transition_dataset_1d/purged_walk_forward_folds",
+    "historical_processed_fold_directory": "data/processed/global_transition_dataset_1d/purged_walk_forward_folds",
+    "current_pipeline_fold_directory": "results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds",
     "case151_reference": "reference/case151/freeze_001/case151_freeze.npz",
     "expected_metrics": "config/case151/expected_metrics.json",
-    "canonical_commit": "40ec805cc2b4efe416c0a57f1c599cca6def92c3"
+    "canonical_commit": "40ec805cc2b4efe416c0a57f1c599cca6def92c3",
+    "historical_source_run": "palindrome_real_task_002"
   },
   "steps": [
     {
-      "id": "simulate_and_verify",
-      "command": "python scripts/reproduction/run_case151_simulation.py --run-id case151_reproduction_001",
+      "id": "simulate_historical_oracle",
+      "command": "python scripts/reproduction/run_case151_simulation.py --run-id case151_reproduction_001 --verification-mode historical-oracle",
       "creates": "results/transition_forecasting/qrc/case151_simulation/run/case151_reproduction_001",
       "spends_hardware_credits": false
     },
     {
-      "id": "verify_existing_simulation",
-      "command": "python scripts/reproduction/run_case151_simulation.py --run-id case151_reproduction_001 --verify-existing",
+      "id": "verify_existing_historical_simulation",
+      "command": "python scripts/reproduction/run_case151_simulation.py --run-id case151_reproduction_001 --verification-mode historical-oracle --verify-existing",
       "spends_hardware_credits": false
     },
     {
@@ -45,20 +48,23 @@
     }
   ],
   "aggregate_integration": {
-    "simulation_command": "python scripts/reproduction/run_case151_simulation.py --fold-dir results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds --output-root results/runs/<RUN_ID>/files/qrc/simulation/run --run-id <RUN_ID>",
+    "simulation_command": "python scripts/reproduction/run_case151_simulation.py --fold-dir results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds --output-root results/runs/<RUN_ID>/files/qrc/simulation/run --run-id <RUN_ID> --verification-mode current-pipeline --archive-existing-failed",
     "simulation_output": "results/runs/<RUN_ID>/files/qrc/simulation/run/<RUN_ID>",
+    "failed_attempt_archive": "results/runs/<RUN_ID>/files/qrc/simulation/run/failed_attempts/",
+    "metric_policy": "Verify frozen Case151 identity and immutable historical reference hashes on current generated folds; report metric deltas without claiming exact historical-oracle reproduction.",
     "hardware_command": "python scripts/hardware/aquila_case151_collect.py collect --outdir results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
     "hardware_output": "results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
     "comparisons_output": "results/runs/<RUN_ID>/files/qrc/comparisons",
     "hardware_identity_rule": "Preserve the existing hardware job IDs and record generated_during_this_run=false."
   },
   "success_criteria": [
-    "The simulation audit records status verified",
-    "No expected simulator metric assertion fails",
+    "The aggregate simulation audit records status verified and verification_mode current-pipeline",
+    "The immutable Case151 reference hashes pass",
+    "Historical metric differences are recorded and are not relabelled as exact oracle reproduction",
     "No test row is used",
     "The selected feature bank contains exactly 63 occupation-and-pair features",
     "The fold-8 Case151 readout records alpha 0.1 and lambda 0.25",
-    "The immutable Case151 reference hashes pass",
+    "A standalone historical-oracle run fails if any expected historical metric differs",
     "Hardware collection reports zero newly submitted jobs",
     "The hardware package contains provenance, job manifest, mapping, raw observables, metrics, runtime, predictions status, and artifact hashes",
     "Aquila pooled correlation equals 0.9430733408531018 within numerical tolerance when collection is executed"
