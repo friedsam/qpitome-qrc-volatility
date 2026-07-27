@@ -56,7 +56,7 @@ def test_skill_references_and_entry_points_exist() -> None:
     ):
         assert relative in text
         assert (SKILL_ROOT / relative).is_file()
-    for relative in (
+    repository_paths = (
         "qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py",
         "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
         "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
@@ -66,9 +66,16 @@ def test_skill_references_and_entry_points_exist() -> None:
         "scripts/reproduction/run_case151_simulation.py",
         "scripts/runs/run_submission_benchmarks.py",
         "config/case151/expected_metrics.json",
-    ):
-        assert relative in text
+    )
+    for relative in repository_paths:
         assert (REPO_ROOT / relative).is_file(), relative
+    for executable_contract in (
+        "scripts/runs/run_submission_stage_layout.py",
+        "scripts/reproduction/run_case151_simulation.py",
+        "scripts/runs/run_submission_benchmarks.py",
+        "config/case151/expected_metrics.json",
+    ):
+        assert executable_contract in text
 
 
 def test_skill_requires_root_safe_execution() -> None:
