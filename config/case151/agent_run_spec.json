@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "name": "Verify historical Case151 and integrate it with current pipeline folds",
   "working_directory": "repository root",
   "safety": {
@@ -7,7 +7,8 @@
     "use_test_rows": false,
     "modify_model_specification": false,
     "force_git_operations": false,
-    "relabel_current_metrics_as_historical": false
+    "relabel_current_metrics_as_historical": false,
+    "relabel_current_selection_as_historical": false
   },
   "inputs": {
     "historical_processed_fold_directory": "data/processed/global_transition_dataset_1d/purged_walk_forward_folds",
@@ -15,7 +16,11 @@
     "case151_reference": "reference/case151/freeze_001/case151_freeze.npz",
     "expected_metrics": "config/case151/expected_metrics.json",
     "canonical_commit": "40ec805cc2b4efe416c0a57f1c599cca6def92c3",
-    "historical_source_run": "palindrome_real_task_002"
+    "historical_source_run": "palindrome_real_task_002",
+    "ridge_alpha_grid": [0.1, 1.0, 10.0, 100.0, 1000.0],
+    "correction_lambda_grid": [0.0, 0.25, 0.5, 1.0],
+    "historical_fold8_selected_alpha": 0.1,
+    "historical_fold8_selected_lambda": 0.25
   },
   "steps": [
     {
@@ -51,7 +56,7 @@
     "simulation_command": "python scripts/reproduction/run_case151_simulation.py --fold-dir results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds --output-root results/runs/<RUN_ID>/files/qrc/simulation/run --run-id <RUN_ID> --verification-mode current-pipeline --archive-existing-failed",
     "simulation_output": "results/runs/<RUN_ID>/files/qrc/simulation/run/<RUN_ID>",
     "failed_attempt_archive": "results/runs/<RUN_ID>/files/qrc/simulation/run/failed_attempts/",
-    "metric_policy": "Verify frozen Case151 identity and immutable historical reference hashes on current generated folds; current metrics are not relabelled as exact historical-oracle reproduction and all deltas are reported.",
+    "metric_policy": "Verify frozen Case151 model identity, chronological selection procedure, fixed alpha/lambda grids, and immutable historical reference hashes on current generated folds; report metric and selected-hyperparameter deltas without claiming exact historical-oracle reproduction.",
     "hardware_command": "python scripts/hardware/aquila_case151_collect.py collect --outdir results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
     "hardware_output": "results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
     "comparisons_output": "results/runs/<RUN_ID>/files/qrc/comparisons",
@@ -60,10 +65,11 @@
   "success_criteria": [
     "The aggregate simulation audit records status verified and verification_mode current-pipeline",
     "The immutable Case151 reference hashes pass",
-    "Historical metric differences are recorded and are not relabelled as exact oracle reproduction",
+    "Historical metric and fold-8 selection differences are recorded and are not relabelled as exact oracle reproduction",
+    "The current fold-8 alpha and lambda belong to the frozen selection grids",
     "No test row is used",
     "The selected feature bank contains exactly 63 occupation-and-pair features",
-    "The fold-8 Case151 readout records alpha 0.1 and lambda 0.25",
+    "A standalone historical-oracle run requires fold-8 alpha 0.1 and lambda 0.25 and fails if either differs",
     "A standalone historical-oracle run fails if any expected historical metric differs",
     "Hardware collection reports zero newly submitted jobs",
     "The hardware package contains provenance, job manifest, mapping, raw observables, metrics, runtime, predictions status, and artifact hashes",
