@@ -96,7 +96,7 @@ A verified qBraid execution completed successfully as:
 qbraid-financial-classical-20260727T025306Z
 ```
 
-The complete generated run remains local under `results/runs/` because bulky run artifacts are intentionally ignored by Git.
+The complete generated run remains local under `results/runs/` because bulky run artifacts are intentionally ignored by Git. Classical outputs are written under `files/classical_baselines/` inside the aggregate run.
 
 ## 2. Canonical Case151 QRC simulation
 
