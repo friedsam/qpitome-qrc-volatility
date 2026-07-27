@@ -1,0 +1,41 @@
+name: QRC Case151 port tests
+
+on:
+  push:
+    branches:
+      - qrc-case151-port
+  pull_request:
+    branches:
+      - stage1-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package and test dependencies
+        run: python -m pip install -e ".[test]"
+      - name: Compile submission source
+        run: python -m compileall -q src scripts
+      - name: Run canonical Case151 tests
+        run: >-
+          python -m pytest -q
+          tests/transition_forecasting/qrc/test_palindrome_real_task_relevance_assay.py
+          tests/transition_forecasting/qrc/test_case151_contract.py
+          tests/transition_forecasting/qrc/test_case151_hardware_safety.py
+          tests/transition_forecasting/qrc/test_case151_synthetic_end_to_end.py
+          tests/runs/test_run_case151_submission.py
+      - name: Check canonical CLIs
+        run: |
+          python scripts/transition_forecasting/qrc/run_palindrome_real_task_relevance_assay.py --help >/dev/null
+          python scripts/runs/run_case151_submission.py --help >/dev/null
+          python scripts/hardware/aquila_case151_shrink_run.py --help >/dev/null

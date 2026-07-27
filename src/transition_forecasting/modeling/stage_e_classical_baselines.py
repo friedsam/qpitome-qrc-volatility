@@ -1,11 +1,13 @@
-"""Compatibility exports for legacy Stage-E classical modules.
+"""Compatibility exports for the canonical Case151 QRC reproduction.
 
-The active submission implementation owns shared target-column definitions in
-``transition_forecasting.modeling.classical_benchmarks.common``. Historical
-modules may continue importing the former Stage-E path without duplicating the
-scientific contract.
+The active submission owns the scientific definitions in
+``transition_forecasting.modeling.classical_benchmarks.common``. The historical
+QRC modules keep their original import path without duplicating those definitions.
 """
+from transition_forecasting.modeling.classical_benchmarks.common import (
+    HAR_FEATURES,
+    TARGET_COLUMNS,
+    qlike_loss,
+)
 
-from transition_forecasting.modeling.classical_benchmarks.common import TARGET_COLUMNS
-
-__all__ = ["TARGET_COLUMNS"]
+__all__ = ["HAR_FEATURES", "TARGET_COLUMNS", "qlike_loss"]
