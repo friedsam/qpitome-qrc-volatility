@@ -4,6 +4,13 @@
 
 Phase 3 Global Industry Challenge submission for qBraid / MITRE / JonesTrading, Track A: Financial Volatility Prediction.
 
+## Submission identity
+
+- **Team Name:** Qpitome
+- **Project Title:** QPITOME QRC Volatility
+- **Challenge:** qBraid, MITRE & JonesTrading — Quantum Reservoir Computing for Time-Series Intelligence
+- **Challenge Track:** Track A — Financial Volatility Prediction
+
 ## Objective
 
 Forecast ten-day log-volatility paths from ordered forty-session market histories, with particular attention to calm-to-crisis transitions. The submission combines a leakage-controlled financial benchmark, an exact six-atom Rydberg quantum reservoir, previously completed Aquila hardware evidence, and Phase-3 studies of MNIST transfer, finite-shot behavior, noise, and reservoir scaling.
@@ -49,9 +56,19 @@ Reproduce and audit this submission. First locate */qbraid_skill/qpitome-qrc-vol
 
 The default Skill reproduces and audits the verified data and frozen classical comparison. The additional QRC, benchmark, and hardware-evidence stages are explicit below so judges can run only the desired scope.
 
-## Environment and contract tests
+## Setup and environment
 
-From the repository root:
+Requirements:
+
+- Python `>=3.10`;
+- a qBraid Lab CPU environment;
+- repository-local `.venv` created by the supplied bootstrap;
+- declared runtime packages: `arch`, `kaggle`, `matplotlib`, `numpy`, `pandas`, `scikit-learn`, and `scipy`;
+- `pytest` for validation.
+
+No private data credentials are required for the verified fallback workflow. Anonymous live acquisition is used only when preflight confirms it is available and matches the frozen source contract.
+
+From the repository root, run:
 
 ```bash
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
@@ -71,7 +88,11 @@ python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
   tests/transition_forecasting/qrc/test_palindrome_shot_assay.py
 ```
 
-## 1. Data and frozen classical comparison
+The bootstrap is the preferred setup path. It creates or reuses `.venv`, installs the project with test dependencies, and runs the focused preflight and contract checks.
+
+## Step-by-step qBraid execution
+
+### 1. Data and frozen classical comparison
 
 Resolve the verified source mode:
 
@@ -98,7 +119,7 @@ qbraid-financial-classical-20260727T025306Z
 
 The complete generated run remains local under `results/runs/` because bulky run artifacts are intentionally ignored by Git. Classical outputs are written under `files/classical_baselines/` inside the aggregate run.
 
-## 2. Canonical Case151 QRC simulation
+### 2. Canonical Case151 QRC simulation
 
 Using the fold tensors produced by the aggregate run:
 
@@ -113,7 +134,7 @@ RUN_DIR="results/runs/$RUN_ID"
 
 The runner fails closed unless the frozen metrics, 63-feature width, fold-8 alpha/lambda identity, and zero-test-row contract are reproduced.
 
-## 3. Phase-3 benchmark studies
+### 3. Phase-3 benchmark studies
 
 A bounded integration smoke run uses the same aggregate folder:
 
@@ -129,7 +150,7 @@ A bounded integration smoke run uses the same aggregate folder:
 
 For the full frozen benchmark sizes, replace `--profile smoke` with `--profile primary`. MNIST uses resumable shards; the primary profile uses 2,000 training and 1,000 official test images.
 
-## 4. Existing Aquila hardware evidence
+### 4. Existing Aquila hardware evidence
 
 Hardware collection is optional and retrieval-only. It queries the three fixed completed job IDs and never submits a new task:
 
@@ -140,7 +161,19 @@ Hardware collection is optional and retrieval-only. It queries the three fixed c
 
 The hardware package contains provenance, job identities, device/mapping information, raw observables, metrics, runtime, artifact hashes, and an explicit statement that end-to-end hardware predictions are not applicable.
 
-## Judge-facing result layout
+## Expected inputs and outputs
+
+### Inputs
+
+- Global-index OHLC source files acquired anonymously when available, or restored from the committed checksum-verified fallback.
+- Frozen data, fold, model, and QRC contracts under `config/`.
+- Immutable Case151 reference files under `reference/case151/freeze_001/`.
+- Anonymous MNIST acquisition for the optional MNIST benchmark.
+- Three fixed, previously completed Aquila job IDs for optional retrieval-only hardware packaging.
+
+### Outputs
+
+Every aggregate execution uses one literal run ID and writes:
 
 ```text
 results/runs/<RUN_ID>/
@@ -162,9 +195,9 @@ results/runs/<RUN_ID>/
         └── run/<RUN_ID>/
 ```
 
-No source code is copied into generated result directories.
+Depending on the selected stage, outputs include provenance records, parameters, predictions, metrics, coverage tables, validation reports, plots, command logs, runtime records, and SHA-256 artifact inventories. Only stages explicitly run are created. No source code is copied into generated result directories.
 
-## Scientific boundaries and limitations
+## Known limitations and assumptions
 
 - Model selection and reporting use validation folds only; the reserved test partition remains unopened.
 - Case151 is a frozen development example and hardware narrative, not a representative test-set claim.
@@ -172,6 +205,8 @@ No source code is copied into generated result directories.
 - Exact simulation scaling is reported only through 12 atoms; larger systems receive resource estimates rather than infeasible statevector execution.
 - Hardware evidence uses an adapted Aquila-native schedule and validates observable transfer, not an end-to-end hardware forecast.
 - The default Agent Skill does not submit or require hardware execution.
+- Full primary MNIST, noise, scaling, and shot studies are more computationally expensive than the bounded smoke profile.
+- Generated aggregate runs can be large and are intentionally excluded from ordinary Git history; compact verified evidence packages may be committed separately.
 
 ## Key contracts
 
