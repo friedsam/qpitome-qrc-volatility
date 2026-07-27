@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - qrc-case151-port
+  pull_request:
+    branches:
+      - stage1-dev
   workflow_dispatch:
 
 permissions:
