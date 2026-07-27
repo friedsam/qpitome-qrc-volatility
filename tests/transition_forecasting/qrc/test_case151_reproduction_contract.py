@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
+import pytest
 
 from transition_forecasting.qrc.bivariate_crossover_assay import (
     CROSSOVER_SCHEDULES,
@@ -51,6 +53,68 @@ def _load_module(name: str, path: Path):
     return module
 
 
+def _write_synthetic_case151_run(tmp_path: Path, *, path_har_shift: float) -> Path:
+    expected = json.loads(EXPECTED_PATH.read_text(encoding="utf-8"))
+    run_dir = tmp_path / "case151-test"
+    run_dir.mkdir()
+    identities = {
+        "selected_path": ("palindrome_ordered_on", "on", "path"),
+        "selected_transition": ("palindrome_ordered_on", "on", "transition"),
+        "interaction_off_path": ("palindrome_ordered_off", "off", "path"),
+    }
+    rows: list[dict[str, object]] = []
+    for group, (model, interactions, scope) in identities.items():
+        row: dict[str, object] = {
+            "model": model,
+            "representation": "level_instability",
+            "condition": "ordered",
+            "interactions": interactions,
+            "scope": scope,
+        }
+        row.update(expected["expected"][group])
+        if group == "selected_path":
+            row["har_qlike"] = float(row["har_qlike"]) + path_har_shift
+        rows.append(row)
+    pd.DataFrame(rows).to_csv(run_dir / "pooled_metrics.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "fold": 8,
+                "model": "palindrome_ordered_on",
+                "representation": "level_instability",
+                "condition": "ordered",
+                "interactions": "on",
+                "selected_alpha": 0.1,
+                "selected_lambda": 0.25,
+            }
+        ]
+    ).to_csv(run_dir / "readout_selections.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": "palindrome_ordered_on",
+                "representation": "level_instability",
+                "condition": "ordered",
+                "interactions": "on",
+                "feature_width": 63,
+            }
+        ]
+    ).to_csv(run_dir / "feature_diagnostics.csv", index=False)
+    (run_dir / "summary.json").write_text(
+        json.dumps(
+            {
+                "test_rows_used": 0,
+                "qrc_head_fit_intercept": False,
+                "folds": [4, 5, 6, 7, 8],
+                "lead": 5,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return run_dir
+
+
 def test_case151_expected_metric_contract_is_frozen() -> None:
     payload = json.loads(EXPECTED_PATH.read_text(encoding="utf-8"))
     assert payload["canonical_commit"] == "40ec805cc2b4efe416c0a57f1c599cca6def92c3"
@@ -61,10 +125,11 @@ def test_case151_expected_metric_contract_is_frozen() -> None:
     assert payload["expected"]["selected_transition"]["qlike"] == 1.1057388524991654
 
 
-def test_agent_run_spec_references_only_migrated_commands() -> None:
+def test_agent_run_spec_distinguishes_historical_and_current_folds() -> None:
     payload = json.loads(AGENT_SPEC_PATH.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["safety"]["submit_new_hardware_jobs"] is False
+    assert payload["safety"]["relabel_current_metrics_as_historical"] is False
     commands = [str(step["command"]) for step in payload["steps"]]
     assert commands
     assert all("reproduce_case151_results.py" not in command for command in commands)
@@ -72,6 +137,10 @@ def test_agent_run_spec_references_only_migrated_commands() -> None:
         argv = shlex.split(command)
         assert argv[0] == "python"
         assert (REPO_ROOT / argv[1]).is_file(), command
+    aggregate = payload["aggregate_integration"]
+    assert "--verification-mode current-pipeline" in aggregate["simulation_command"]
+    assert "--archive-existing-failed" in aggregate["simulation_command"]
+    assert "not relabelled" in aggregate["metric_policy"]
     assert all(step.get("spends_hardware_credits") is False for step in payload["steps"])
 
 
@@ -109,6 +178,48 @@ def test_simulation_runner_freezes_exact_archived_configuration() -> None:
     assert reservoir.probe_fractions == (0.25, 0.5, 1.0)
     assert objects["interaction_scale"] == 1.25
     assert runner.DEFAULT_OUTPUT_ROOT.as_posix().endswith("case151_simulation/run")
+
+
+def test_current_pipeline_records_metric_drift_without_relabelling(tmp_path: Path) -> None:
+    runner = _load_module("case151_current_pipeline_runner", SIMULATION_RUNNER_PATH)
+    run_dir = _write_synthetic_case151_run(tmp_path, path_har_shift=-0.04)
+    report = runner.verify_run(
+        run_dir,
+        EXPECTED_PATH,
+        verification_mode="current-pipeline",
+        reference_root=REFERENCE_ROOT,
+    )
+    assert report["status"] == "verified"
+    assert report["verification_mode"] == "current-pipeline"
+    assert report["historical_metric_oracle_applied"] is False
+    assert report["historical_metric_match"] is False
+    assert report["historical_reference_hashes_verified"] is True
+    assert report["metric_deltas_vs_historical_reference"]["selected_path"]["har_qlike"] == pytest.approx(-0.04)
+
+
+def test_historical_oracle_rejects_current_fold_metric_drift(tmp_path: Path) -> None:
+    runner = _load_module("case151_historical_oracle_runner", SIMULATION_RUNNER_PATH)
+    run_dir = _write_synthetic_case151_run(tmp_path, path_har_shift=-0.04)
+    with pytest.raises(RuntimeError, match="selected_path.har_qlike"):
+        runner.verify_run(
+            run_dir,
+            EXPECTED_PATH,
+            verification_mode="historical-oracle",
+            reference_root=REFERENCE_ROOT,
+        )
+
+
+def test_failed_case151_output_is_archived_before_retry(tmp_path: Path) -> None:
+    runner = _load_module("case151_archive_runner", SIMULATION_RUNNER_PATH)
+    output_root = tmp_path / "run"
+    run_dir = output_root / "same-run-id"
+    run_dir.mkdir(parents=True)
+    (run_dir / "partial.txt").write_text("preserve me\n", encoding="utf-8")
+    archived = runner.archive_existing_failed_output(run_dir, output_root)
+    assert archived is not None
+    assert not run_dir.exists()
+    assert (archived / "partial.txt").read_text(encoding="utf-8") == "preserve me\n"
+    assert archived.parent == output_root / "failed_attempts"
 
 
 def test_occupation_pair_raw_has_63_features() -> None:
