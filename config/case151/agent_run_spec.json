@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "name": "Reproduce GE151 QRC and Aquila results",
+  "schema_version": 2,
+  "name": "Reproduce and verify Case151 QRC simulation and existing Aquila jobs",
   "working_directory": "repository root",
   "safety": {
     "submit_new_hardware_jobs": false,
@@ -10,47 +10,49 @@
   },
   "inputs": {
     "processed_fold_directory": "data/processed/global_transition_dataset_1d/purged_walk_forward_folds",
-    "optional_dataset_zip": "global_transition_dataset_1d.zip",
+    "case151_reference": "reference/case151/freeze_001/case151_freeze.npz",
+    "expected_metrics": "config/case151/expected_metrics.json",
     "canonical_commit": "40ec805cc2b4efe416c0a57f1c599cca6def92c3"
   },
   "steps": [
     {
-      "id": "simulate",
-      "command": "python scripts/reproduction/reproduce_case151_results.py simulate --repo-root . --run-id case151_reproduction_001",
-      "creates": "results/transition_forecasting/qrc/reproduction/case151_reproduction_001"
+      "id": "simulate_and_verify",
+      "command": "python scripts/reproduction/run_case151_simulation.py --run-id case151_reproduction_001",
+      "creates": "results/transition_forecasting/qrc/case151_simulation/run/case151_reproduction_001",
+      "spends_hardware_credits": false
     },
     {
-      "id": "freeze",
-      "command": "python scripts/reproduction/reproduce_case151_results.py freeze --repo-root . --assay-run results/transition_forecasting/qrc/reproduction/case151_reproduction_001",
-      "creates": "results/transition_forecasting/hardware/aquila_case151/freeze_001"
+      "id": "verify_existing_simulation",
+      "command": "python scripts/reproduction/run_case151_simulation.py --run-id case151_reproduction_001 --verify-existing",
+      "spends_hardware_credits": false
+    },
+    {
+      "id": "prepare_hardware_reference",
+      "command": "python scripts/hardware/aquila_case151_collect.py prepare",
+      "creates": "results/transition_forecasting/qrc/aquila_case151_hardware/run/aquila_case151_existing_jobs_001",
+      "spends_hardware_credits": false
     },
     {
       "id": "hardware_status",
-      "command": "python scripts/reproduction/reproduce_case151_results.py hardware-status --repo-root .",
-      "spends_credits": false
+      "command": "python scripts/hardware/aquila_case151_collect.py status",
+      "spends_hardware_credits": false
     },
     {
       "id": "hardware_collect",
-      "command": "python scripts/reproduction/reproduce_case151_results.py hardware-collect --repo-root .",
-      "spends_credits": false,
-      "creates": "results/transition_forecasting/hardware/aquila_case151/shrink_001"
-    },
-    {
-      "id": "report",
-      "command": "python scripts/reproduction/reproduce_case151_results.py report --repo-root . --assay-run results/transition_forecasting/qrc/reproduction/case151_reproduction_001 --freeze-source results/transition_forecasting/hardware/aquila_case151/freeze_001 --hardware-source results/transition_forecasting/hardware/aquila_case151/shrink_001 --output-dir results/reproduction/case151_report",
-      "creates": "results/reproduction/case151_report"
-    },
-    {
-      "id": "verify",
-      "command": "python scripts/reproduction/reproduce_case151_results.py verify --assay-run results/transition_forecasting/qrc/reproduction/case151_reproduction_001 --hardware-source results/transition_forecasting/hardware/aquila_case151/shrink_001"
+      "command": "python scripts/hardware/aquila_case151_collect.py collect",
+      "creates": "results/transition_forecasting/qrc/aquila_case151_hardware/run/aquila_case151_existing_jobs_001",
+      "spends_hardware_credits": false
     }
   ],
   "success_criteria": [
-    "No metric assertion fails",
+    "The simulation audit records status verified",
+    "No expected simulator metric assertion fails",
     "No test row is used",
-    "Case P_GE151_^MERV_data_L5 is rank 2 of 17 for fold-8 transition H5-H10 QLIKE delta",
-    "Five figures and the Mincer-Zarnowitz table are created",
-    "Aquila pooled correlation equals 0.9430733408531018 within numerical tolerance",
-    "SHA256SUMS.csv and reproduction_manifest.json are present"
+    "The selected feature bank contains exactly 63 occupation-and-pair features",
+    "The fold-8 Case151 readout records alpha 0.1 and lambda 0.25",
+    "The immutable Case151 reference hashes pass",
+    "Hardware collection reports zero newly submitted jobs",
+    "The hardware package contains provenance, job manifest, mapping, raw observables, metrics, runtime, predictions status, and artifact hashes",
+    "Aquila pooled correlation equals 0.9430733408531018 within numerical tolerance when collection is executed"
   ]
 }
