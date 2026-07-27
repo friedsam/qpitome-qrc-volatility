@@ -70,6 +70,7 @@ def command_for_run(*, fold_dir: Path, simulation_root: Path, run_id: str) -> tu
         sys.executable,
         str(CANONICAL_RUNNER.relative_to(REPO_ROOT)),
         "--fold-dir", str(fold_dir),
+        "--max-per-class", "24",
         "--out-root", str(simulation_root),
         "--run-id", run_id,
     )
@@ -143,6 +144,7 @@ def execute(*, results_root: Path, run_id: str, fold_dir: Path) -> Path:
             "representation": "level_instability",
             "feature_bank": "occupation_pair_raw",
             "feature_width": 63,
+            "max_per_class": 24,
             "fit_intercept": False,
             "fold_specific_readout_selection": True,
             "case151_fold": 8,
