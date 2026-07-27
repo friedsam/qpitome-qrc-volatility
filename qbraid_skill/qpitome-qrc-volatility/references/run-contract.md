@@ -7,12 +7,13 @@ This contract defines one executable qBraid workflow for:
 ```text
 verified transition data
 + frozen classical comparison
-+ canonical Case151 QRC
++ canonical Case151 QRC on current generated folds
++ immutable historical Case151 reference verification
 + bounded MNIST/noise/scaling/shot smoke studies
 + read-only artifact validation
 ```
 
-The default judge-facing scope is `full-smoke`. An explicit `core` scope stops after Case151 verification. Hardware is outside both scopes.
+The default judge-facing scope is `full-smoke`. An explicit `core` scope stops after current-pipeline Case151 verification. Hardware is outside both scopes.
 
 ## Agent-owned setup
 
@@ -22,7 +23,7 @@ The Agent creates or reuses the repository-local environment:
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 ```
 
-Bootstrap installs `.[test]`, runs both preflights, validates the Skill, and executes focused data, classical, QRC, benchmark, orchestration, and hardware-safety tests. Subsequent commands use `.venv/bin/python` explicitly.
+Bootstrap installs `.[test]`, runs both preflights, validates the Skill, and executes focused data, classical, QRC, benchmark, orchestration, fold-lineage, and hardware-safety tests. Subsequent commands use `.venv/bin/python` explicitly.
 
 ## Data authority
 
@@ -48,7 +49,7 @@ Resolve the source mode with:
 
 Use only the reported `auto`, `fallback`, or `live` value. Exit code 2 is a data/provenance blocker.
 
-## Frozen authorities
+## Frozen authorities and fold lineage
 
 Classical parameters:
 
@@ -56,13 +57,20 @@ Classical parameters:
 config/transition_forecasting/classical_benchmarks/frozen_submission.json
 ```
 
-Canonical Case151 identity and metric oracle:
+Canonical Case151 identity, historical metric oracle, and immutable reference:
 
 ```text
 scripts/reproduction/run_case151_simulation.py
 config/case151/expected_metrics.json
 config/case151/agent_run_spec.json
+reference/case151/freeze_001/
 ```
+
+The historical metric oracle is tied to canonical commit `40ec805cc2b4efe416c0a57f1c599cca6def92c3` and source run `palindrome_real_task_002`. The aggregate workflow regenerates current pipeline folds. Therefore:
+
+- `historical-oracle` mode requires exact historical metric equality and is valid only on the historical fold lineage;
+- `current-pipeline` mode verifies the same frozen Case151 model identity on the newly generated folds, verifies the immutable historical reference hashes, and reports metric deltas without claiming exact historical reproduction;
+- the historical oracle is never overwritten or weakened to accept a different fold composition.
 
 The canonical classical set is:
 
@@ -105,8 +113,8 @@ The orchestrator:
 2. computes every path from that ID inside one Python process;
 3. calls `scripts/runs/run_submission_stage_layout.py financial-classical`;
 4. validates the aggregate and classical audit;
-5. calls `scripts/reproduction/run_case151_simulation.py`;
-6. validates the frozen Case151 oracle;
+5. calls `scripts/reproduction/run_case151_simulation.py --verification-mode current-pipeline --archive-existing-failed`;
+6. validates frozen Case151 identity, current metrics, historical metric deltas, and immutable reference hashes;
 7. calls `scripts/runs/run_submission_benchmarks.py all --profile smoke` with resume/reuse enabled;
 8. calls `scripts/runs/run_submission_benchmarks.py validate-existing --profile smoke`;
 9. validates the benchmark manifest and artifact inventory;
@@ -132,7 +140,7 @@ To resume a known accepted `financial-classical` run, supply its exact literal I
   --resume-existing
 ```
 
-The resume path never discovers a run by recency.
+The resume path never discovers a run by recency. If the Case151 output exists without a verified current-pipeline audit, it is moved under `files/qrc/simulation/run/failed_attempts/` before a targeted retry. A verified Case151 result is never overwritten.
 
 ## Aggregate output
 
@@ -146,6 +154,7 @@ results/runs/<RUN_ID>/
         classical_baselines/
         qrc/
             simulation/run/<RUN_ID>/
+            simulation/run/failed_attempts/
             hardware/<HARDWARE_RUN_ID>/
         quantum_studies/
             benchmark_manifest.json
@@ -192,16 +201,18 @@ A default full-smoke run is accepted only when:
 10. no control-by-lead row exists;
 11. GARCH records backend `arch`;
 12. ESN parameters match the frozen specification;
-13. Case151 records `status: verified`;
-14. Case151 records `occupation_pair_raw`, width 63, fold-8 alpha 0.1, lambda 0.25, and zero test rows;
-15. `benchmark_manifest.json` records `status: succeeded`, `profile: smoke`, and `validate_only: true` after the final pass;
-16. MNIST, noise, scaling, and shot required outputs exist;
-17. `benchmark_artifact_inventory.json` exists;
-18. `agent_scope_manifest.json` records `scope: full-smoke`, `status: succeeded`, all command records, and `hardware_actions_performed: false`;
-19. no `.py` file exists beneath the aggregate run;
-20. every command and artifact uses the same literal run ID.
+13. Case151 records `status: verified` and `verification_mode: current-pipeline`;
+14. Case151 records `occupation_pair_raw`, width 63, fold-8 alpha 0.1, lambda 0.25, intercept-free readout, and zero test rows;
+15. Case151 records `historical_reference_hashes_verified: true` and `historical_metric_oracle_applied: false`;
+16. Case151 records current observed metrics and explicit deltas versus the unchanged historical reference;
+17. `benchmark_manifest.json` records `status: succeeded`, `profile: smoke`, and `validate_only: true` after the final pass;
+18. MNIST, noise, scaling, and shot required outputs exist;
+19. `benchmark_artifact_inventory.json` exists;
+20. `agent_scope_manifest.json` records `scope: full-smoke`, `status: succeeded`, all command records, `hardware_actions_performed: false`, and `historical_case151_metric_oracle_relabelled: false`;
+21. no `.py` file exists beneath the aggregate run;
+22. every command and artifact uses the same literal run ID.
 
-A core-only run applies conditions 1–14 and 19–20 and records `scope: core`.
+A core-only run applies conditions 1–16 and 21–22 and records `scope: core`.
 
 ## Hardware boundary
 
@@ -213,6 +224,7 @@ On failure:
 
 1. preserve the run directory and logs;
 2. preserve `agent_scope_manifest.json` when the run directory exists;
-3. report the first failed command and return code;
-4. classify the blocker as path resolution, environment, data/provenance, classical computation, Case151 QRC, benchmark computation, or validation;
-5. do not alter scientific behavior during reproduction.
+3. preserve an incomplete Case151 result under `failed_attempts/` before retry;
+4. report the first failed command and return code;
+5. classify the blocker as path resolution, environment, data/provenance, classical computation, Case151 QRC, benchmark computation, or validation;
+6. do not alter scientific behavior during reproduction.
