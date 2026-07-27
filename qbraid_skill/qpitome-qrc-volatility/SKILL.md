@@ -29,6 +29,8 @@ Verify:
 ```text
 <REPO_ROOT>/pyproject.toml
 <REPO_ROOT>/scripts/runs/run_submission.py
+<REPO_ROOT>/scripts/runs/run_submission_layout.py
+<REPO_ROOT>/scripts/runs/run_submission_stage_layout.py
 <REPO_ROOT>/config/transition_forecasting/classical_benchmarks/frozen_submission.json
 <SKILL_ROOT>/references/repository-map.md
 <SKILL_ROOT>/references/run-contract.md
@@ -59,6 +61,10 @@ config/transition_forecasting/classical_benchmarks/frozen_submission.json
 ```
 
 Financial QRC, MNIST, qubit scaling, noise studies, and fresh hardware execution are not part of this workflow yet. Do not claim otherwise.
+
+Aggregate artifacts are organized by judge-facing pipeline stage beneath `results/runs/<RUN_ID>/files/`: `data`, `classical_baselines`, `qrc`, `quantum_studies`, and `mnist`. Do not recreate internal source-package nesting inside the aggregate output.
+
+Committed hardware results may later be verified, summarized, and compared beneath `files/qrc/hardware/`. Never query a backend or submit a fresh hardware job during the default reproduction workflow.
 
 ## Non-negotiable rules
 
@@ -133,7 +139,7 @@ date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ
 Copy the literal value into:
 
 ```bash
-.venv/bin/python scripts/runs/run_submission.py financial-classical \
+.venv/bin/python scripts/runs/run_submission_stage_layout.py financial-classical \
   --run-id <RUN_ID> \
   --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
