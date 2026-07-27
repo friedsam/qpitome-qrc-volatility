@@ -57,6 +57,8 @@ Reproduce and audit this submission using the complete default full-smoke scope.
 
 The Agent executes one Python orchestration entry point. It generates the run ID internally, computes every path internally, runs all stages under one aggregate folder, and writes `agent_scope_manifest.json`. It does not depend on `RUN_ID`, `RUN_DIR`, `cd`, environment activation, or exported variables persisting between Agent actions.
 
+Classical outputs are stored under `files/classical_baselines/`, and canonical Case151 outputs are stored under `files/qrc/simulation/run/<RUN_ID>/` inside that same aggregate run.
+
 Hardware evidence remains a separate optional retrieval-only task and is never required by the Agent workflow.
 
 ## Setup and environment
