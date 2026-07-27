@@ -1,6 +1,6 @@
 ---
 name: qpitome-qrc-volatility
-description: Reproduce and audit the QPITOME volatility submission on qBraid: verified financial data, frozen classical baselines, canonical Case151 QRC, and optional Phase-3 smoke studies, without opening the reserved test partition or submitting hardware jobs.
+description: "Reproduce and audit the QPITOME volatility submission on qBraid, including verified financial data, frozen classical baselines, canonical Case151 QRC, and optional Phase-3 smoke studies, without opening the reserved test partition or submitting hardware jobs."
 ---
 
 # QPITOME QRC Volatility Reproduction
