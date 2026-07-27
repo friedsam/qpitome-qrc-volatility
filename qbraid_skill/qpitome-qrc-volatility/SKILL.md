@@ -58,12 +58,12 @@ A generic request to reproduce and audit the submission means **full-smoke**. It
 5. the frozen tuned direct ESN and identically specified shuffled-order control;
 6. exact-common-row classical tables for Transition, L1, L5, L10, Controls, and Pooled;
 7. the exact six-atom canonical Case151 QRC using the 63-feature `occupation_pair_raw` readout;
-8. current-pipeline Case151 verification, including fold-8 alpha `0.1`, lambda `0.25`, zero financial test rows, and immutable historical reference hashes;
-9. explicit metric deltas between the current generated folds and the historical Case151 oracle, without relabelling the current run as exact historical reproduction;
+8. current-pipeline Case151 verification of the frozen model, chronological selection procedure, fixed alpha/lambda grids, zero financial test rows, and immutable historical reference hashes;
+9. explicit metric and selected-hyperparameter deltas between the current generated folds and the historical Case151 oracle, without relabelling the current run as exact historical reproduction;
 10. bounded MNIST, noise, scaling, and finite-shot smoke studies;
 11. a read-only `validate-existing` pass and SHA-256 artifact inventory.
 
-The historical metric oracle in `config/case151/expected_metrics.json` remains tied to canonical commit `40ec805cc2b4efe416c0a57f1c599cca6def92c3` and source run `palindrome_real_task_002`. The aggregate Agent run uses newly generated current-pipeline folds, so it verifies model identity and reference integrity and reports metric differences rather than requiring those folds to reproduce a different historical sample composition.
+The historical metric and fold-8 selection oracle in `config/case151/expected_metrics.json` remains tied to canonical commit `40ec805cc2b4efe416c0a57f1c599cca6def92c3` and source run `palindrome_real_task_002`. On that original fold lineage, fold 8 selected alpha `0.1` and lambda `0.25`. The aggregate Agent run uses newly generated current-pipeline folds, so it verifies the same frozen search grids and selection algorithm and records the selected values rather than requiring a different fold composition to choose the same grid point.
 
 The smoke profile is an executable integration test. It does not replace the frozen primary benchmark sizes.
 
@@ -83,7 +83,7 @@ Hardware is not part of full-smoke or core. Do not submit, query, select, retrie
 4. Do not clean, reset, stash, or otherwise alter a dirty working tree automatically. Record it.
 5. Never select the newest result directory.
 6. Never infer a missing historical artifact or represent regenerated evidence as historical.
-7. Never apply the historical Case151 metric oracle to a different fold lineage and describe the mismatch as a model failure.
+7. Never apply historical Case151 metric or selected-hyperparameter assertions to a different fold lineage and describe the mismatch as a model failure.
 8. Do not evaluate the fixed financial test partition.
 9. Do not perform any hardware action.
 10. Do not place source files in result directories.
@@ -167,7 +167,7 @@ scripts/runs/run_submission_benchmarks.py all --profile smoke --resume --reuse-e
 scripts/runs/run_submission_benchmarks.py validate-existing --profile smoke
 ```
 
-The current-pipeline Case151 audit must record `feature_width` is exactly `63`, fold-8 selected alpha is `0.1`, fold-8 selected lambda is `0.25`, and `test_rows_used` is `0`.
+The current-pipeline Case151 audit must record feature width `63`, the observed fold-8 alpha and lambda, confirmation that both belong to the frozen grids, and `test_rows_used: 0`. Exact fold-8 alpha `0.1` and lambda `0.25` are required only by `historical-oracle` mode on the canonical historical fold lineage.
 
 ### 5. Resume an accepted classical run after interruption or QRC failure
 
@@ -191,8 +191,9 @@ The workflow is accepted only when:
 - data audit and checksum reports pass;
 - `classical_baseline_audit.json` records `passed: true` and the frozen six-model contract;
 - GARCH records backend `arch` and ESN records the frozen specification;
-- Case151 records `status: verified`, `verification_mode: current-pipeline`, `feature_bank: occupation_pair_raw`, feature width `63`, fold-8 alpha `0.1`, fold-8 lambda `0.25`, and `test_rows_used: 0`;
-- Case151 records `historical_reference_hashes_verified: true` and `historical_metric_oracle_applied: false`;
+- Case151 records `status: verified`, `verification_mode: current-pipeline`, `feature_bank: occupation_pair_raw`, feature width `63`, `fold8_selection_grid_verified: true`, and `test_rows_used: 0`;
+- the observed fold-8 alpha belongs to `[0.1, 1.0, 10.0, 100.0, 1000.0]` and the observed lambda belongs to `[0.0, 0.25, 0.5, 1.0]`;
+- Case151 records the historical fold-8 reference `0.1/0.25`, whether the current selection matches it, `historical_reference_hashes_verified: true`, and `historical_metric_oracle_applied: false`;
 - Case151 includes current observed metrics and explicit deltas versus the unchanged historical reference metrics;
 - for full-smoke, the final benchmark manifest records `status: succeeded`, `profile: smoke`, and `validate_only: true`;
 - MNIST, noise, scaling, and shot required outputs exist and have artifact inventory entries;
@@ -212,7 +213,7 @@ Return:
 - every command, return code, and runtime from `agent_scope_manifest.json`;
 - data, checksum, classical, Case151, and benchmark audit status;
 - canonical classical metrics;
-- current-pipeline Case151 QLIKE/RMSE metrics and deltas versus the historical Case151 oracle, clearly labelled as different fold lineages;
+- current-pipeline Case151 QLIKE/RMSE metrics, selected alpha/lambda, and deltas versus the historical Case151 oracle, clearly labelled as different fold lineages;
 - immutable historical reference hash status;
 - MNIST, noise, scaling, and shot output paths and smoke-profile limitations;
 - skipped operations, warnings, and unresolved limitations.
