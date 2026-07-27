@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from transition_forecasting.qrc.palindrome_real_task_relevance_assay import (
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_PATH = REPO_ROOT / "config" / "case151" / "expected_metrics.json"
+AGENT_SPEC_PATH = REPO_ROOT / "config" / "case151" / "agent_run_spec.json"
 SUPPORT_PATH = REPO_ROOT / "scripts" / "hardware" / "aquila_case151_support.py"
 COLLECTOR_PATH = REPO_ROOT / "scripts" / "hardware" / "aquila_case151_collect.py"
 SIMULATION_RUNNER_PATH = REPO_ROOT / "scripts" / "reproduction" / "run_case151_simulation.py"
@@ -57,6 +59,20 @@ def test_case151_expected_metric_contract_is_frozen() -> None:
     assert payload["expected"]["hardware_pooled"]["n_observables"] == 63
     assert payload["expected"]["selected_path"]["qlike"] == 0.7766604033494666
     assert payload["expected"]["selected_transition"]["qlike"] == 1.1057388524991654
+
+
+def test_agent_run_spec_references_only_migrated_commands() -> None:
+    payload = json.loads(AGENT_SPEC_PATH.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
+    assert payload["safety"]["submit_new_hardware_jobs"] is False
+    commands = [str(step["command"]) for step in payload["steps"]]
+    assert commands
+    assert all("reproduce_case151_results.py" not in command for command in commands)
+    for command in commands:
+        argv = shlex.split(command)
+        assert argv[0] == "python"
+        assert (REPO_ROOT / argv[1]).is_file(), command
+    assert all(step.get("spends_hardware_credits") is False for step in payload["steps"])
 
 
 def test_case151_model_contract_uses_fold_specific_selection_grid() -> None:
