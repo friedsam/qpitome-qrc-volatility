@@ -16,12 +16,12 @@ It delegates to the established canonical entry points:
 
 ```text
 scripts/runs/run_submission_stage_layout.py financial-classical
-scripts/reproduction/run_case151_simulation.py
+scripts/reproduction/run_case151_simulation.py --verification-mode current-pipeline --archive-existing-failed
 scripts/runs/run_submission_benchmarks.py all --profile smoke
 scripts/runs/run_submission_benchmarks.py validate-existing --profile smoke
 ```
 
-The default Agent scope is `full-smoke`. Explicit `core` stops after Case151 verification.
+The default Agent scope is `full-smoke`. Explicit `core` stops after current-pipeline Case151 verification.
 
 ## Governing layout
 
@@ -45,6 +45,8 @@ results/runs/<RUN_ID>/
         data/
         classical_baselines/
         qrc/
+            simulation/run/<RUN_ID>/
+            simulation/run/failed_attempts/
         quantum_studies/
         mnist/
 ```
@@ -161,8 +163,25 @@ occupation_pair_raw
 fold-specific chronological readout selection
 fold-8 alpha 0.1
 fold-8 lambda 0.25
+intercept-free residual head
 zero financial test rows
 ```
+
+Verification modes:
+
+```text
+historical-oracle
+    exact metric equality on the historical fold lineage from canonical commit
+    40ec805cc2b4efe416c0a57f1c599cca6def92c3 and source run
+    palindrome_real_task_002
+
+current-pipeline
+    same frozen model identity on newly generated financial-classical folds;
+    immutable historical reference hashes are verified and current metric deltas
+    are reported without claiming exact historical reproduction
+```
+
+A failed or incomplete aggregate Case151 attempt is moved beneath `files/qrc/simulation/run/failed_attempts/` before retry. A verified output is never overwritten.
 
 ## Phase-3 smoke families
 
@@ -222,5 +241,7 @@ tests/transition_forecasting/qrc/test_palindrome_shot_assay.py
 - folds 7–8 are confirmation recheck;
 - fixed financial test chronology remains unopened;
 - classical execution uses frozen parameters and does not retune;
-- canonical Case151 uses the frozen exact 63-feature simulator and oracle;
+- canonical Case151 uses the frozen exact 63-feature simulator;
+- historical Case151 metrics remain tied to their historical fold lineage;
+- current-pipeline Case151 metrics are reported separately with explicit deltas;
 - full-smoke is bounded integration coverage, not a primary-result replacement.
