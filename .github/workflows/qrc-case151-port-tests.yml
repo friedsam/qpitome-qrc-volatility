@@ -31,5 +31,10 @@ jobs:
           python -m pytest -q
           tests/transition_forecasting/qrc/test_palindrome_real_task_relevance_assay.py
           tests/transition_forecasting/qrc/test_case151_contract.py
-      - name: Check canonical runner CLI
-        run: python scripts/transition_forecasting/qrc/run_palindrome_real_task_relevance_assay.py --help >/dev/null
+          tests/transition_forecasting/qrc/test_case151_hardware_safety.py
+          tests/runs/test_run_case151_submission.py
+      - name: Check canonical CLIs
+        run: |
+          python scripts/transition_forecasting/qrc/run_palindrome_real_task_relevance_assay.py --help >/dev/null
+          python scripts/runs/run_case151_submission.py --help >/dev/null
+          python scripts/hardware/aquila_case151_shrink_run.py --help >/dev/null
