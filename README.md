@@ -7,6 +7,7 @@ Phase 3 Global Industry Challenge submission for qBraid / MITRE / JonesTrading, 
 ## Submission identity
 
 - **Team Name:** Qpitome
+- **Team Member:** Claudia Friedsam
 - **Project Title:** QPITOME QRC Volatility
 - **Challenge:** qBraid, MITRE & JonesTrading — Quantum Reservoir Computing for Time-Series Intelligence
 - **Challenge Track:** Track A — Financial Volatility Prediction
