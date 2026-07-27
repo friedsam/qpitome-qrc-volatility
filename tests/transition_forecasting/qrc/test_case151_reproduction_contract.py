@@ -53,7 +53,13 @@ def _load_module(name: str, path: Path):
     return module
 
 
-def _write_synthetic_case151_run(tmp_path: Path, *, path_har_shift: float) -> Path:
+def _write_synthetic_case151_run(
+    tmp_path: Path,
+    *,
+    path_har_shift: float,
+    selected_alpha: float = 0.1,
+    selected_lambda: float = 0.25,
+) -> Path:
     expected = json.loads(EXPECTED_PATH.read_text(encoding="utf-8"))
     run_dir = tmp_path / "case151-test"
     run_dir.mkdir()
@@ -84,8 +90,8 @@ def _write_synthetic_case151_run(tmp_path: Path, *, path_har_shift: float) -> Pa
                 "representation": "level_instability",
                 "condition": "ordered",
                 "interactions": "on",
-                "selected_alpha": 0.1,
-                "selected_lambda": 0.25,
+                "selected_alpha": selected_alpha,
+                "selected_lambda": selected_lambda,
             }
         ]
     ).to_csv(run_dir / "readout_selections.csv", index=False)
@@ -180,9 +186,16 @@ def test_simulation_runner_freezes_exact_archived_configuration() -> None:
     assert runner.DEFAULT_OUTPUT_ROOT.as_posix().endswith("case151_simulation/run")
 
 
-def test_current_pipeline_records_metric_drift_without_relabelling(tmp_path: Path) -> None:
+def test_current_pipeline_records_metric_and_selection_drift_without_relabelling(
+    tmp_path: Path,
+) -> None:
     runner = _load_module("case151_current_pipeline_runner", SIMULATION_RUNNER_PATH)
-    run_dir = _write_synthetic_case151_run(tmp_path, path_har_shift=-0.04)
+    run_dir = _write_synthetic_case151_run(
+        tmp_path,
+        path_har_shift=-0.04,
+        selected_alpha=1.0,
+        selected_lambda=0.5,
+    )
     report = runner.verify_run(
         run_dir,
         EXPECTED_PATH,
@@ -194,13 +207,51 @@ def test_current_pipeline_records_metric_drift_without_relabelling(tmp_path: Pat
     assert report["historical_metric_oracle_applied"] is False
     assert report["historical_metric_match"] is False
     assert report["historical_reference_hashes_verified"] is True
+    assert report["fold8_selected_alpha"] == 1.0
+    assert report["fold8_selected_lambda"] == 0.5
+    assert report["fold8_selection_grid_verified"] is True
+    assert report["historical_fold8_selection_match"] is False
     assert report["metric_deltas_vs_historical_reference"]["selected_path"]["har_qlike"] == pytest.approx(-0.04)
+
+
+def test_current_pipeline_rejects_selection_outside_frozen_grid(tmp_path: Path) -> None:
+    runner = _load_module("case151_current_grid_runner", SIMULATION_RUNNER_PATH)
+    run_dir = _write_synthetic_case151_run(
+        tmp_path,
+        path_har_shift=0.0,
+        selected_alpha=3.0,
+        selected_lambda=0.25,
+    )
+    with pytest.raises(RuntimeError, match="outside the frozen grid"):
+        runner.verify_run(
+            run_dir,
+            EXPECTED_PATH,
+            verification_mode="current-pipeline",
+            reference_root=REFERENCE_ROOT,
+        )
 
 
 def test_historical_oracle_rejects_current_fold_metric_drift(tmp_path: Path) -> None:
     runner = _load_module("case151_historical_oracle_runner", SIMULATION_RUNNER_PATH)
     run_dir = _write_synthetic_case151_run(tmp_path, path_har_shift=-0.04)
     with pytest.raises(RuntimeError, match="selected_path.har_qlike"):
+        runner.verify_run(
+            run_dir,
+            EXPECTED_PATH,
+            verification_mode="historical-oracle",
+            reference_root=REFERENCE_ROOT,
+        )
+
+
+def test_historical_oracle_rejects_current_fold_selection_drift(tmp_path: Path) -> None:
+    runner = _load_module("case151_historical_selection_runner", SIMULATION_RUNNER_PATH)
+    run_dir = _write_synthetic_case151_run(
+        tmp_path,
+        path_har_shift=0.0,
+        selected_alpha=1.0,
+        selected_lambda=0.25,
+    )
+    with pytest.raises(RuntimeError, match="fold8.selected_alpha"):
         runner.verify_run(
             run_dir,
             EXPECTED_PATH,
