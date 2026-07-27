@@ -44,6 +44,14 @@
       "spends_hardware_credits": false
     }
   ],
+  "aggregate_integration": {
+    "simulation_command": "python scripts/reproduction/run_case151_simulation.py --fold-dir results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds --output-root results/runs/<RUN_ID>/files/qrc/simulation/run --run-id <RUN_ID>",
+    "simulation_output": "results/runs/<RUN_ID>/files/qrc/simulation/run/<RUN_ID>",
+    "hardware_command": "python scripts/hardware/aquila_case151_collect.py collect --outdir results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
+    "hardware_output": "results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
+    "comparisons_output": "results/runs/<RUN_ID>/files/qrc/comparisons",
+    "hardware_identity_rule": "Preserve the existing hardware job IDs and record generated_during_this_run=false."
+  },
   "success_criteria": [
     "The simulation audit records status verified",
     "No expected simulator metric assertion fails",
