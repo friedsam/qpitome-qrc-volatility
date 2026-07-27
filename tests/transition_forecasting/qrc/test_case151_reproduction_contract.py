@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -17,6 +18,22 @@ from transition_forecasting.qrc.palindrome_real_task_relevance_assay import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_PATH = REPO_ROOT / "config" / "case151" / "expected_metrics.json"
 SUPPORT_PATH = REPO_ROOT / "scripts" / "hardware" / "aquila_case151_support.py"
+REFERENCE_ROOT = REPO_ROOT / "reference" / "case151" / "freeze_001"
+REFERENCE_SHA256 = {
+    "case151_encoded_sequence.csv": "48359a61b773edf7779ab11e626b75ffae163245dcca6f85f4e402423458e21a",
+    "case151_expected_curve.csv": "a12d2eb30f21c869f96caf4699b5d72bbe75310f53932ced2335c7a3185cf161",
+    "case151_freeze.json": "a62e229e5ca141b1ef3df5f3f514f0271c7a1a80e271874e7c30887487fae8ef",
+    "case151_freeze.npz": "33c602d97ad55bc3e7272caa81fe44f21bca4b151384884662027507f3342201",
+    "case151_geometry.csv": "39cd16fb1aebf5e9fdd5e02ca8957398d1c6bc99c7f7cb0f02cf4bf96375358c",
+}
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def test_case151_expected_metric_contract_is_frozen() -> None:
@@ -66,3 +83,11 @@ def test_hardware_support_is_retrieval_only() -> None:
     assert all(token not in text for token in prohibited)
     assert "connect_aquila" in text
     assert "simulate_linear_program" in text
+
+
+def test_case151_reference_freeze_hashes_are_immutable() -> None:
+    assert REFERENCE_ROOT.is_dir()
+    observed = {path.name for path in REFERENCE_ROOT.iterdir() if path.is_file()}
+    assert observed == set(REFERENCE_SHA256)
+    for name, expected in REFERENCE_SHA256.items():
+        assert _sha256(REFERENCE_ROOT / name) == expected
