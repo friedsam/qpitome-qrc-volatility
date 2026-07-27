@@ -6,7 +6,12 @@ from pathlib import Path
 
 
 def load_runner():
-    path = Path(__file__).resolve().parents[2] / "scripts" / "runs" / "run_submission.py"
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "scripts"
+        / "runs"
+        / "run_submission_stage_layout.py"
+    )
     spec = importlib.util.spec_from_file_location("submission_runner_classical", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -15,7 +20,7 @@ def load_runner():
     return module
 
 
-def test_financial_classical_plan_packages_by_topic():
+def test_financial_classical_plan_packages_by_stage():
     runner = load_runner()
     run_dir = Path("results/runs/example")
     commands = runner.command_plan(
@@ -34,12 +39,15 @@ def test_financial_classical_plan_packages_by_topic():
         "scripts/transition_forecasting/modeling/classical_benchmarks/validate_classical_run.py",
     ]
     paths = runner.transition_paths(run_dir)
-    assert paths["classical_root"] == (
+    assert paths["root"] == run_dir / "files"
+    assert paths["data_root"] == run_dir / "files" / "data"
+    assert paths["classical_root"] == run_dir / "files" / "classical_baselines"
+    assert paths["classical_validation"] == (
         run_dir
         / "files"
-        / "transition_forecasting"
-        / "modeling"
         / "classical_baselines"
+        / "validation"
+        / "classical_baseline_audit.json"
     )
     assert all("esn_tuning" not in " ".join(command) for command in commands)
 
