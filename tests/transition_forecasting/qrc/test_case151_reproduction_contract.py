@@ -18,6 +18,7 @@ from transition_forecasting.qrc.palindrome_real_task_relevance_assay import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_PATH = REPO_ROOT / "config" / "case151" / "expected_metrics.json"
 SUPPORT_PATH = REPO_ROOT / "scripts" / "hardware" / "aquila_case151_support.py"
+COLLECTOR_PATH = REPO_ROOT / "scripts" / "hardware" / "aquila_case151_collect.py"
 REFERENCE_ROOT = REPO_ROOT / "reference" / "case151" / "freeze_001"
 REFERENCE_SHA256 = {
     "case151_encoded_sequence.csv": "48359a61b773edf7779ab11e626b75ffae163245dcca6f85f4e402423458e21a",
@@ -72,17 +73,25 @@ def test_occupation_pair_raw_has_63_features() -> None:
     assert matrix.shape == (2, 63)
 
 
-def test_hardware_support_is_retrieval_only() -> None:
-    text = SUPPORT_PATH.read_text(encoding="utf-8")
+def test_hardware_tools_are_retrieval_only() -> None:
     prohibited = (
         "create_quantum_task",
         ".run(",
         "--submit",
         "submit_task",
     )
-    assert all(token not in text for token in prohibited)
-    assert "connect_aquila" in text
-    assert "simulate_linear_program" in text
+    for path in (SUPPORT_PATH, COLLECTOR_PATH):
+        text = path.read_text(encoding="utf-8")
+        assert all(token not in text for token in prohibited), path
+    support = SUPPORT_PATH.read_text(encoding="utf-8")
+    collector = COLLECTOR_PATH.read_text(encoding="utf-8")
+    assert "connect_aquila" in support
+    assert "simulate_linear_program" in support
+    assert "QbraidJob" in collector
+    assert "generated_during_this_run" in collector
+    assert "new_hardware_jobs_submitted" in collector
+    assert "predictions.json" in collector
+    assert "artifact_manifest.json" in collector
 
 
 def test_case151_reference_freeze_hashes_are_immutable() -> None:
