@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Create the local environment and verify the qBraid skill contract.
 
-This helper intentionally performs only repository setup and focused contract
-validation. Scientific execution remains owned by scripts/runs/run_submission.py.
+This helper intentionally performs repository setup and focused contract
+validation. Scientific execution remains owned by the established submission,
+Case151, and Phase-3 benchmark runners.
 """
 
 from __future__ import annotations
@@ -28,24 +29,43 @@ FOCUSED_TESTS = (
     "tests/transition_forecasting/data/test_fold_datasets.py",
     "tests/runs/test_run_submission.py",
     "tests/runs/test_run_submission_classical.py",
+    "tests/runs/test_run_submission_benchmarks.py",
     "tests/transition_forecasting/modeling/classical_benchmarks/test_common.py",
     "tests/transition_forecasting/modeling/classical_benchmarks/test_esn.py",
     "tests/transition_forecasting/modeling/classical_benchmarks/test_garch_mechanics.py",
     "tests/transition_forecasting/modeling/classical_benchmarks/test_spec.py",
     "tests/transition_forecasting/modeling/classical_benchmarks/test_validation.py",
+    "tests/transition_forecasting/qrc/test_case151_reproduction_contract.py",
+    "tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py",
+    "tests/transition_forecasting/qrc/test_palindrome_rydberg_noise.py",
+    "tests/transition_forecasting/qrc/test_palindrome_scaling_assay.py",
+    "tests/transition_forecasting/qrc/test_palindrome_shot_assay.py",
 )
 REQUIRED_REPOSITORY_PATHS = (
     "pyproject.toml",
     "qbraid_skill/qpitome-qrc-volatility/SKILL.md",
+    "qbraid_skill/qpitome-qrc-volatility/references/repository-map.md",
+    "qbraid_skill/qpitome-qrc-volatility/references/run-contract.md",
     "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
     "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
     "scripts/runs/run_submission.py",
+    "scripts/runs/run_submission_layout.py",
+    "scripts/runs/run_submission_stage_layout.py",
+    "scripts/runs/run_submission_benchmarks.py",
+    "scripts/reproduction/run_case151_simulation.py",
     "config/transition_forecasting/classical_benchmarks/frozen_submission.json",
+    "config/case151/expected_metrics.json",
+    "config/case151/agent_run_spec.json",
     "scripts/transition_forecasting/modeling/classical_benchmarks/run_linear.py",
     "scripts/transition_forecasting/modeling/classical_benchmarks/run_garch.py",
     "scripts/transition_forecasting/modeling/classical_benchmarks/run_esn.py",
     "scripts/transition_forecasting/modeling/classical_benchmarks/run_canonical.py",
     "scripts/transition_forecasting/modeling/classical_benchmarks/validate_classical_run.py",
+    "scripts/transition_forecasting/data/acquire_mnist.py",
+    "scripts/transition_forecasting/qrc/run_mnist_palindrome_benchmark.py",
+    "scripts/transition_forecasting/qrc/run_palindrome_noise_assay.py",
+    "scripts/transition_forecasting/qrc/run_palindrome_scaling_assay.py",
+    "scripts/transition_forecasting/qrc/run_palindrome_shot_assay.py",
 )
 
 
@@ -188,6 +208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "venv_python": str(venv_python(resolved_venv)),
         "commands_completed": completed_commands,
         "focused_tests_run": not args.skip_tests,
+        "focused_test_count": len(FOCUSED_TESTS) if not args.skip_tests else 0,
     }
     if args.json:
         print(json.dumps(summary, indent=2))
