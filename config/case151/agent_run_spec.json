@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "name": "Reproduce GE151 QRC and Aquila results",
+  "working_directory": "repository root",
+  "safety": {
+    "submit_new_hardware_jobs": false,
+    "use_test_rows": false,
+    "modify_model_specification": false,
+    "force_git_operations": false
+  },
+  "inputs": {
+    "processed_fold_directory": "data/processed/global_transition_dataset_1d/purged_walk_forward_folds",
+    "optional_dataset_zip": "global_transition_dataset_1d.zip",
+    "canonical_commit": "40ec805cc2b4efe416c0a57f1c599cca6def92c3"
+  },
+  "steps": [
+    {
+      "id": "simulate",
+      "command": "python scripts/reproduction/reproduce_case151_results.py simulate --repo-root . --run-id case151_reproduction_001",
+      "creates": "results/transition_forecasting/qrc/reproduction/case151_reproduction_001"
+    },
+    {
+      "id": "freeze",
+      "command": "python scripts/reproduction/reproduce_case151_results.py freeze --repo-root . --assay-run results/transition_forecasting/qrc/reproduction/case151_reproduction_001",
+      "creates": "results/transition_forecasting/hardware/aquila_case151/freeze_001"
+    },
+    {
+      "id": "hardware_status",
+      "command": "python scripts/reproduction/reproduce_case151_results.py hardware-status --repo-root .",
+      "spends_credits": false
+    },
+    {
+      "id": "hardware_collect",
+      "command": "python scripts/reproduction/reproduce_case151_results.py hardware-collect --repo-root .",
+      "spends_credits": false,
+      "creates": "results/transition_forecasting/hardware/aquila_case151/shrink_001"
+    },
+    {
+      "id": "report",
+      "command": "python scripts/reproduction/reproduce_case151_results.py report --repo-root . --assay-run results/transition_forecasting/qrc/reproduction/case151_reproduction_001 --freeze-source results/transition_forecasting/hardware/aquila_case151/freeze_001 --hardware-source results/transition_forecasting/hardware/aquila_case151/shrink_001 --output-dir results/reproduction/case151_report",
+      "creates": "results/reproduction/case151_report"
+    },
+    {
+      "id": "verify",
+      "command": "python scripts/reproduction/reproduce_case151_results.py verify --assay-run results/transition_forecasting/qrc/reproduction/case151_reproduction_001 --hardware-source results/transition_forecasting/hardware/aquila_case151/shrink_001"
+    }
+  ],
+  "success_criteria": [
+    "No metric assertion fails",
+    "No test row is used",
+    "Case P_GE151_^MERV_data_L5 is rank 2 of 17 for fold-8 transition H5-H10 QLIKE delta",
+    "Five figures and the Mincer-Zarnowitz table are created",
+    "Aquila pooled correlation equals 0.9430733408531018 within numerical tolerance",
+    "SHA256SUMS.csv and reproduction_manifest.json are present"
+  ]
+}
