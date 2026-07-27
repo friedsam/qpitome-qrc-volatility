@@ -70,7 +70,7 @@ date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ
 Execute:
 
 ```bash
-.venv/bin/python scripts/runs/run_submission.py financial-classical \
+.venv/bin/python scripts/runs/run_submission_stage_layout.py financial-classical \
   --run-id <RUN_ID> \
   --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
@@ -98,25 +98,38 @@ The runner executes exactly these topic stages and stops on the first nonzero re
 results/runs/<RUN_ID>/
     run_manifest.json
     logs/
-    files/transition_forecasting/
+    files/
 ```
+
+The judge-facing top-level stage names are:
+
+```text
+data/
+classical_baselines/
+qrc/
+quantum_studies/
+mnist/
+```
+
+Only stages included in the selected workflow are created.
 
 Data products remain under:
 
 ```text
-files/transition_forecasting/raw/
-files/transition_forecasting/processed/global_transition_dataset_1d/
-files/transition_forecasting/validation/
+files/data/raw/
+files/data/processed/global_transition_dataset_1d/
+files/data/validation/
 ```
 
 Classical products are grouped by topic:
 
 ```text
-files/transition_forecasting/modeling/classical_baselines/
+files/classical_baselines/
     linear/run/<RUN_ID>/
     garch/run/<RUN_ID>/
     esn/run/<RUN_ID>/
     canonical/run/<RUN_ID>/
+    validation/classical_baseline_audit.json
 ```
 
 Every individual model run contains at least:
@@ -142,12 +155,6 @@ paired_deltas_vs_sequence_ridge.csv
 submission_table_selection.csv
 submission_table_confirmation.csv
 submission_table_development_all.csv
-```
-
-The validation topic must contain:
-
-```text
-files/transition_forecasting/validation/classical_baseline_audit.json
 ```
 
 ## Reporting contract
@@ -197,7 +204,7 @@ A run is accepted only when:
 
 ## Hardware boundary
 
-This workflow must not query, select, or submit to a QPU. Financial QRC and other challenge stages will be added separately.
+Completed hardware evidence may be stored beneath `files/qrc/hardware/<HARDWARE_RUN_ID>/` and validated, summarized, and compared by the agent. The default workflow must not query a backend, select a device, or submit a fresh hardware job.
 
 ## Failure handling
 
