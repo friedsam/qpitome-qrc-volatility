@@ -85,8 +85,7 @@ Then run:
 ```bash
 RUN_ID=$(date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ)
 
-.venv/bin/python scripts/runs/run_submission_stage_layout.py \
-  financial-classical \
+.venv/bin/python scripts/runs/run_submission_stage_layout.py financial-classical \
   --run-id "$RUN_ID" \
   --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
