@@ -60,6 +60,8 @@ def test_skill_references_and_entry_points_exist() -> None:
         "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
         "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
         "scripts/runs/run_submission.py",
+        "scripts/runs/run_submission_layout.py",
+        "scripts/runs/run_submission_stage_layout.py",
     ):
         assert (REPO_ROOT / relative).is_file(), relative
 
@@ -83,6 +85,7 @@ def test_skill_scope_includes_classical_and_preserves_hardware_boundary() -> Non
     assert "Do not evaluate the fixed test partition" in text
     assert "Do not submit, query, or select a hardware job" in text
     assert "Financial QRC, MNIST, qubit scaling, noise studies" in text
+    assert "files/qrc/hardware/" in text
     assert "qbraid jobs submit" not in text.lower()
 
 
@@ -154,8 +157,8 @@ def test_readme_contains_launch_link_and_financial_classical_command() -> None:
     assert "locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md" in text
     assert "read it by absolute path" in text
     assert "enable **Agent Mode**" in text
-    assert "run_submission.py financial-classical" in text
-    assert "modeling/classical_baselines/" in text
+    assert "run_submission_stage_layout.py financial-classical" in text
+    assert "files/classical_baselines/" in text
 
 
 def test_data_preflight_reports_repository_contract() -> None:
