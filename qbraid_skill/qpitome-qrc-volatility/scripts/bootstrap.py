@@ -48,6 +48,7 @@ REQUIRED_REPOSITORY_PATHS = (
     "qbraid_skill/qpitome-qrc-volatility/references/run-contract.md",
     "qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py",
     "qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py",
+    "qbraid_skill/qpitome-qrc-volatility/scripts/run_submission_scope.py",
     "scripts/runs/run_submission.py",
     "scripts/runs/run_submission_layout.py",
     "scripts/runs/run_submission_stage_layout.py",
