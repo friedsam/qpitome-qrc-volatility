@@ -13,7 +13,7 @@ tests/<domain>/<experiment>/test_*.py
 results/<domain>/<experiment>/run/<run_id>/*
 ```
 
-`scripts/runs/run_submission.py` is the sole judge-facing aggregation exception. It collects topic packages under:
+`scripts/runs/run_submission_stage_layout.py` is the sole judge-facing aggregation exception. It delegates scientific execution to the established runner and collects topic packages under:
 
 ```text
 results/runs/<run-id>/files/
@@ -24,7 +24,19 @@ Run directories may contain data products, parameters, manifests, logs, predicti
 ## Canonical entry point
 
 ```text
+scripts/runs/run_submission_stage_layout.py
+```
+
+The established execution engine remains:
+
+```text
 scripts/runs/run_submission.py
+```
+
+The stage-layout helper is:
+
+```text
+scripts/runs/run_submission_layout.py
 ```
 
 Active workflows:
@@ -44,19 +56,26 @@ financial-classical
 results/runs/<run-id>/
     run_manifest.json
     logs/
-    files/transition_forecasting/
-        raw/
-        processed/global_transition_dataset_1d/
-        validation/
-            data_pipeline_audit.json
-            data_pipeline_checksums.json
-            classical_baseline_audit.json
-        modeling/classical_baselines/
+    files/
+        data/
+            raw/
+            processed/global_transition_dataset_1d/
+            validation/
+                data_pipeline_audit.json
+                data_pipeline_checksums.json
+        classical_baselines/
             linear/run/<run-id>/
             garch/run/<run-id>/
             esn/run/<run-id>/
             canonical/run/<run-id>/
+            validation/
+                classical_baseline_audit.json
+        qrc/
+        quantum_studies/
+        mnist/
 ```
+
+Only stages included in the selected workflow are created. Completed hardware evidence belongs under `qrc/hardware/` and is not rerun by the default agent workflow.
 
 ## Transition-data source
 
@@ -180,4 +199,4 @@ tests/transition_forecasting/modeling/classical_benchmarks/test_validation.py
 - fixed test chronology remains unopened;
 - classical submission execution uses frozen parameters and does not retune.
 
-Historical and exploratory modules may remain importable. Their presence does not make them canonical. Determine the active path from `scripts/runs/run_submission.py` and its direct imports.
+Historical and exploratory modules may remain importable. Their presence does not make them canonical. Determine the active path from `scripts/runs/run_submission_stage_layout.py` and its direct imports.
