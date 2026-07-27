@@ -1,8 +1,22 @@
-# qBraid Financial-Classical Run Contract
+# qBraid Core and Full-Smoke Reproduction Contract
 
 ## Purpose
 
-This contract defines the executable qBraid workflow for the verified transition-data pipeline and the complete frozen classical comparison.
+This contract defines the executable qBraid workflow for the verified transition-data pipeline, complete frozen classical comparison, canonical Case151 QRC simulation, and optional bounded Phase-3 smoke studies.
+
+The default **core** scope is:
+
+```text
+data + classical baselines + canonical Case151 QRC
+```
+
+The optional **full-smoke** scope is:
+
+```text
+core + MNIST smoke + noise smoke + scaling smoke + finite-shot smoke
+```
+
+Hardware is never required by either scope.
 
 ## Agent-owned environment setup
 
@@ -12,7 +26,7 @@ The judge does not create or activate an environment manually. The qBraid agent 
 python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
 ```
 
-Bootstrap creates or reuses `.venv`, installs `.[test]`, runs the existing data preflight, runs the classical preflight, and executes the focused contract suite. Subsequent commands use `.venv/bin/python` explicitly.
+Bootstrap creates or reuses `.venv`, installs `.[test]`, runs the data and classical preflights, and executes focused data, classical, Case151, benchmark, and hardware-safety contract tests. Subsequent commands use `.venv/bin/python` explicitly.
 
 ## Data authority
 
@@ -59,15 +73,39 @@ esn_shuffled_tuned
 
 GARCH must use backend `arch`. The development SciPy fallback is not accepted for the submitted run.
 
-## Canonical command
+## Frozen Case151 authority
 
-Generate a literal run ID:
+The canonical financial QRC configuration and metric oracle are fixed by:
+
+```text
+scripts/reproduction/run_case151_simulation.py
+config/case151/expected_metrics.json
+config/case151/agent_run_spec.json
+```
+
+The accepted identity is:
+
+- exact six-atom simulator;
+- A/4 → B/2 → A/4 palindrome;
+- three probe times;
+- `occupation_pair_raw` feature bank;
+- 63 occupation/pair features;
+- fold-specific chronological alpha/lambda selection;
+- fold-8 alpha `0.1` and lambda `0.25`;
+- intercept-free residual head;
+- zero fixed-test rows.
+
+Do not substitute another QRC readout or later research candidate.
+
+## Core commands
+
+Generate one literal run ID:
 
 ```bash
 date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ
 ```
 
-Execute:
+Run data and classical stages:
 
 ```bash
 .venv/bin/python scripts/runs/run_submission_stage_layout.py financial-classical \
@@ -77,9 +115,16 @@ Execute:
 
 Do not add `--force` for a new run.
 
-## Command order
+After accepting the data/classical stage, run Case151 against the folds in the same aggregate directory:
 
-The runner executes exactly these topic stages and stops on the first nonzero return code:
+```bash
+.venv/bin/python scripts/reproduction/run_case151_simulation.py \
+  --fold-dir results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds \
+  --output-root results/runs/<RUN_ID>/files/qrc/simulation/run \
+  --run-id <RUN_ID>
+```
+
+## Core command order
 
 1. acquire or restore verified OHLC inputs;
 2. build the one-channel transition dataset;
@@ -90,7 +135,37 @@ The runner executes exactly these topic stages and stops on the first nonzero re
 7. run Student-t GARCH(1,1);
 8. run the frozen tuned direct ESN and shuffled control;
 9. build the exact-common-row canonical comparison;
-10. validate the complete classical result family.
+10. validate the complete classical result family;
+11. run exact canonical Case151 QRC;
+12. verify the Case151 frozen metric and identity oracle.
+
+The Agent stops at the first nonzero return code.
+
+## Optional full-smoke commands
+
+Only after core succeeds, and only when explicitly requested:
+
+```bash
+.venv/bin/python scripts/runs/run_submission_benchmarks.py \
+  all \
+  --profile smoke \
+  --run-id <RUN_ID> \
+  --run-dir results/runs/<RUN_ID> \
+  --resume \
+  --reuse-existing
+```
+
+Then validate without recomputation:
+
+```bash
+.venv/bin/python scripts/runs/run_submission_benchmarks.py \
+  validate-existing \
+  --profile smoke \
+  --run-id <RUN_ID> \
+  --run-dir results/runs/<RUN_ID>
+```
+
+The primary benchmark profile is outside the default Agent workflow.
 
 ## Aggregate output
 
@@ -99,19 +174,24 @@ results/runs/<RUN_ID>/
     run_manifest.json
     logs/
     files/
+        data/
+        classical_baselines/
+        qrc/
+            simulation/run/<RUN_ID>/
+            hardware/<HARDWARE_RUN_ID>/
+        quantum_studies/
+            benchmark_manifest.json
+            benchmark_artifact_inventory.json
+            noise/run/<RUN_ID>/
+            scaling/run/<RUN_ID>/
+            shots/run/<RUN_ID>/
+        mnist/
+            raw/
+            shards/
+            run/<RUN_ID>/
 ```
 
-The judge-facing top-level stage names are:
-
-```text
-data/
-classical_baselines/
-qrc/
-quantum_studies/
-mnist/
-```
-
-Only stages included in the selected workflow are created.
+Only stages included in the requested scope are created.
 
 Data products remain under:
 
@@ -121,7 +201,7 @@ files/data/processed/global_transition_dataset_1d/
 files/data/validation/
 ```
 
-Classical products are grouped by topic:
+Classical products remain under:
 
 ```text
 files/classical_baselines/
@@ -132,32 +212,15 @@ files/classical_baselines/
     validation/classical_baseline_audit.json
 ```
 
-Every individual model run contains at least:
+Case151 products remain under:
 
 ```text
-params.json
-config.json
-dataset_manifest.json
-predictions.csv.gz
-submission_metrics.csv
-metrics_by_fold.csv
-metrics_by_horizon.csv
-runtime.json
-summary.json
+files/qrc/simulation/run/<RUN_ID>/
 ```
 
-The ESN run also contains `selected_spec.json`. The GARCH run also contains `fit_diagnostics.csv.gz`. The canonical run contains:
+No source code is copied into aggregate result directories.
 
-```text
-common_predictions.csv.gz
-coverage.csv
-paired_deltas_vs_sequence_ridge.csv
-submission_table_selection.csv
-submission_table_confirmation.csv
-submission_table_development_all.csv
-```
-
-## Reporting contract
+## Classical reporting contract
 
 For every model, the canonical tables report:
 
@@ -182,9 +245,9 @@ Mincer-Zarnowitz R2
 
 The canonical comparison scores only the exact common finite `(fold, sample_id)` intersection across all six models.
 
-## Acceptance conditions
+## Core acceptance conditions
 
-A run is accepted only when:
+A core run is accepted only when:
 
 1. `run_manifest.json` records `status: succeeded` and `workflow: financial-classical`;
 2. every required data and classical output exists and has a SHA-256 value;
@@ -199,12 +262,27 @@ A run is accepted only when:
 11. no control-by-lead row exists;
 12. GARCH records backend `arch`;
 13. ESN parameters match the frozen specification;
-14. no `.py` file exists beneath the aggregate run directory;
-15. every command, log, and artifact belongs to the same explicit run ID.
+14. `files/qrc/simulation/run/<RUN_ID>/case151_reproduction_audit.json` records `status: verified`;
+15. the Case151 feature bank is `occupation_pair_raw` with width 63;
+16. fold-8 Case151 selection is alpha `0.1`, lambda `0.25`;
+17. Case151 records `test_rows_used: 0`;
+18. no `.py` file exists beneath the aggregate run directory;
+19. every command, log, and artifact belongs to the same explicit run ID.
+
+## Full-smoke acceptance conditions
+
+In addition to all core conditions:
+
+1. `files/quantum_studies/benchmark_manifest.json` records `status: succeeded`, `profile: smoke`, and `validate_only: true` after the validation pass;
+2. `files/quantum_studies/benchmark_artifact_inventory.json` exists;
+3. every required MNIST, noise, scaling, and shot artifact exists and has a SHA-256 value;
+4. every benchmark uses the same explicit run ID;
+5. no hardware action occurred;
+6. the primary profile was not run.
 
 ## Hardware boundary
 
-Completed hardware evidence may be stored beneath `files/qrc/hardware/<HARDWARE_RUN_ID>/` and validated, summarized, and compared by the agent. The default workflow must not query a backend, select a device, or submit a fresh hardware job.
+Completed hardware evidence may be stored beneath `files/qrc/hardware/<HARDWARE_RUN_ID>/` and validated in a separate retrieval-only task. The core and full-smoke workflows must not query a backend, select a device, retrieve a job, or submit a fresh hardware job.
 
 ## Failure handling
 
