@@ -41,6 +41,7 @@ def test_skill_uses_agent_skills_frontmatter_and_matching_directory() -> None:
     assert SKILL_ROOT.name == fields["name"]
     assert "qBraid" in fields["description"]
     assert "reproduce" in fields["description"].lower()
+    assert "Case151" in fields["description"]
     assert set(fields) == {"name", "description"}
 
 
@@ -62,7 +63,11 @@ def test_skill_references_and_entry_points_exist() -> None:
         "scripts/runs/run_submission.py",
         "scripts/runs/run_submission_layout.py",
         "scripts/runs/run_submission_stage_layout.py",
+        "scripts/reproduction/run_case151_simulation.py",
+        "scripts/runs/run_submission_benchmarks.py",
+        "config/case151/expected_metrics.json",
     ):
+        assert relative in text
         assert (REPO_ROOT / relative).is_file(), relative
 
 
@@ -74,18 +79,44 @@ def test_skill_requires_root_safe_execution() -> None:
     assert "working directory explicitly to `REPO_ROOT`" in text
     assert "<SKILL_ROOT>/references/repository-map.md" in text
     assert "<SKILL_ROOT>/references/run-contract.md" in text
+    assert "do not depend on shell variables persisting" in text
 
 
-def test_skill_scope_includes_classical_and_preserves_hardware_boundary() -> None:
+def test_skill_core_includes_classical_and_case151() -> None:
     text = SKILL_PATH.read_text(encoding="utf-8")
+    assert "Default core scope" in text
     assert "persistence, canonical HAR, and direct sequence-ridge" in text
     assert "Student-t GARCH(1,1)" in text
     assert "frozen tuned direct ESN" in text
     assert "financial-classical" in text
+    assert "canonical Case151 QRC simulation" in text
+    assert "occupation_pair_raw" in text
+    assert "feature_width` is exactly `63" in text
+    assert "fold-8 selected alpha is `0.1`" in text
+    assert "fold-8 selected lambda is `0.25`" in text
+    assert "test_rows_used` is `0" in text
+    assert "scripts/reproduction/run_case151_simulation.py" in text
+    assert "files/qrc/simulation/run/<RUN_ID>/" in text
+
+
+def test_skill_full_smoke_is_explicit_and_bounded() -> None:
+    text = SKILL_PATH.read_text(encoding="utf-8")
+    assert "Optional full-smoke scope" in text
+    assert "scripts/runs/run_submission_benchmarks.py" in text
+    assert "--profile smoke" in text
+    assert "validate-existing" in text
+    assert "--resume" in text
+    assert "--reuse-existing" in text
+    assert "Do not run the primary Phase-3 benchmark profile" in text
+    for family in ("MNIST", "noise", "scaling", "finite-shot"):
+        assert family in text
+
+
+def test_skill_preserves_test_and_hardware_boundaries() -> None:
+    text = SKILL_PATH.read_text(encoding="utf-8")
     assert "Do not evaluate the fixed test partition" in text
     assert "Do not submit, query, or select a hardware job" in text
-    assert "Financial QRC, MNIST, qubit scaling, noise studies" in text
-    assert "files/qrc/hardware/" in text
+    assert "Hardware is not part of either core or full-smoke" in text
     assert "qbraid jobs submit" not in text.lower()
 
 
@@ -103,7 +134,9 @@ def test_qbraid_setup_is_agent_owned() -> None:
     assert "source .venv/bin/activate" not in readme
 
 
-def test_bootstrap_plan_runs_both_preflights_and_focused_tests(tmp_path: Path) -> None:
+def test_bootstrap_plan_runs_preflights_and_complete_focused_contracts(
+    tmp_path: Path,
+) -> None:
     bootstrap = load_module("qbraid_skill_bootstrap", BOOTSTRAP_PATH)
     venv_dir = tmp_path / "qrc-venv"
     plan = bootstrap.build_command_plan(venv_dir, skip_tests=False)
@@ -129,8 +162,31 @@ def test_bootstrap_plan_runs_both_preflights_and_focused_tests(tmp_path: Path) -
         "--json",
     ]
     assert plan[4][:4] == [str(expected_python), "-m", "pytest", "-q"]
-    assert "tests/runs/test_run_submission_classical.py" in plan[4]
-    assert "tests/transition_forecasting/modeling/classical_benchmarks/test_spec.py" in plan[4]
+    for required_test in (
+        "tests/runs/test_run_submission_classical.py",
+        "tests/runs/test_run_submission_benchmarks.py",
+        "tests/transition_forecasting/modeling/classical_benchmarks/test_spec.py",
+        "tests/transition_forecasting/qrc/test_case151_reproduction_contract.py",
+        "tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py",
+        "tests/transition_forecasting/qrc/test_palindrome_rydberg_noise.py",
+        "tests/transition_forecasting/qrc/test_palindrome_scaling_assay.py",
+        "tests/transition_forecasting/qrc/test_palindrome_shot_assay.py",
+    ):
+        assert required_test in plan[4]
+
+
+def test_bootstrap_requires_complete_agent_entry_points() -> None:
+    bootstrap = load_module("qbraid_skill_bootstrap_paths", BOOTSTRAP_PATH)
+    required = set(bootstrap.REQUIRED_REPOSITORY_PATHS)
+    for relative in (
+        "scripts/runs/run_submission_stage_layout.py",
+        "scripts/reproduction/run_case151_simulation.py",
+        "scripts/runs/run_submission_benchmarks.py",
+        "config/case151/expected_metrics.json",
+        "config/case151/agent_run_spec.json",
+    ):
+        assert relative in required
+        assert (REPO_ROOT / relative).is_file()
 
 
 def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
@@ -147,7 +203,7 @@ def test_bootstrap_reuses_existing_environment(tmp_path: Path) -> None:
     assert "preflight_classical.py" in plan[2][1]
 
 
-def test_readme_contains_launch_link_and_financial_classical_command() -> None:
+def test_readme_contains_launch_link_and_complete_agent_commands() -> None:
     text = README_PATH.read_text(encoding="utf-8")
     assert "https://qbraid-static.s3.amazonaws.com/logos/Launch_on_qBraid_white.png" in text
     assert (
@@ -158,7 +214,10 @@ def test_readme_contains_launch_link_and_financial_classical_command() -> None:
     assert "read it by absolute path" in text
     assert "enable **Agent Mode**" in text
     assert "run_submission_stage_layout.py financial-classical" in text
+    assert "run_case151_simulation.py" in text
+    assert "run_submission_benchmarks.py" in text
     assert "files/classical_baselines/" in text
+    assert "files/qrc/simulation/run" in text
 
 
 def test_data_preflight_reports_repository_contract() -> None:
