@@ -1,0 +1,18 @@
+{
+  "selected_config": {
+    "config_id": "short_leak095",
+    "n": 300,
+    "connectivity": 0.02,
+    "sr": 0.55,
+    "inp": 0.2,
+    "leak": 0.95
+  },
+  "selected_alpha": 120000.0,
+  "final_seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ]
+}

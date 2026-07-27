@@ -1,0 +1,158 @@
+{
+  "schema_version": 2,
+  "passed": true,
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "classical_root": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines",
+  "inventory": {
+    "linear": {
+      "predictions.csv.gz": true,
+      "submission_metrics.csv": true,
+      "config.json": true,
+      "dataset_manifest.json": true,
+      "summary.json": true
+    },
+    "garch": {
+      "predictions.csv.gz": true,
+      "submission_metrics.csv": true,
+      "fit_diagnostics.csv.gz": true,
+      "config.json": true,
+      "dataset_manifest.json": true,
+      "summary.json": true
+    },
+    "esn": {
+      "predictions.csv.gz": true,
+      "submission_metrics.csv": true,
+      "selected_spec.json": true,
+      "config.json": true,
+      "dataset_manifest.json": true,
+      "summary.json": true
+    },
+    "canonical": {
+      "common_predictions.csv.gz": true,
+      "submission_metrics.csv": true,
+      "submission_table_confirmation.csv": true,
+      "coverage.csv": true,
+      "paired_deltas_vs_sequence_ridge.csv": true,
+      "summary.json": true
+    }
+  },
+  "failures": [],
+  "models": [
+    "persistence",
+    "har",
+    "sequence_ridge",
+    "garch_1_1_t",
+    "esn_direct_tuned",
+    "esn_shuffled_tuned"
+  ],
+  "reporting_groups": [
+    "Transition",
+    "L1",
+    "L5",
+    "L10",
+    "Controls",
+    "Pooled"
+  ],
+  "resolved_parameters": {
+    "linear": {
+      "har_alpha": 100.0,
+      "sequence_ridge_alpha": 3000.0
+    },
+    "garch": {
+      "p": 1,
+      "q": 1,
+      "mean": "Zero",
+      "distribution": "StudentsT",
+      "return_scale": 100.0,
+      "backend": "arch",
+      "history": 2500,
+      "minimum_history": 250
+    },
+    "esn": {
+      "config_id": "short_leak095",
+      "n": 300,
+      "connectivity": 0.02,
+      "sr": 0.55,
+      "inp": 0.2,
+      "leak": 0.95,
+      "alpha": 120000.0,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  },
+  "frozen_specification": {
+    "schema_version": 1,
+    "scientific_identity": "current rematched one-channel transition path forecasting",
+    "selection_folds": [
+      4,
+      5,
+      6
+    ],
+    "confirmation_folds": [
+      7,
+      8
+    ],
+    "linear": {
+      "har_alpha": 100.0,
+      "sequence_ridge_alpha": 3000.0
+    },
+    "garch": {
+      "p": 1,
+      "q": 1,
+      "mean": "Zero",
+      "distribution": "StudentsT",
+      "history": 2500,
+      "minimum_history": 250,
+      "backend": "arch"
+    },
+    "esn": {
+      "config_id": "short_leak095",
+      "n": 300,
+      "connectivity": 0.02,
+      "spectral_radius": 0.55,
+      "input_scale": 0.2,
+      "leak": 0.95,
+      "alpha": 120000.0,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "representation": "level_diff_time",
+      "pooling": "final_mean_std",
+      "washout": 10
+    },
+    "reporting": {
+      "groups": [
+        "Transition",
+        "L1",
+        "L5",
+        "L10",
+        "Controls",
+        "Pooled"
+      ],
+      "metrics": [
+        "RMSE",
+        "QLIKE",
+        "MZ alpha",
+        "MZ beta",
+        "MZ R2"
+      ],
+      "test_evaluated": false,
+      "common_row_policy": "intersection across all reported models"
+    },
+    "provenance": {
+      "benchmark_branch": "classical-transition-benchmarks-work",
+      "tuning_run": "esn_transition_tuned_001",
+      "protocol_note": "Folds 7-8 are a confirmation recheck because earlier bounded development results were viewed before final tuning."
+    }
+  },
+  "test_evaluated": false
+}

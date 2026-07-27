@@ -1,0 +1,35 @@
+{
+  "benchmark": "garch_1_1_t",
+  "dataset_root": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+  "ohlc_path": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/cleaned_ohlc.csv.gz",
+  "selection_folds": [
+    4,
+    5,
+    6
+  ],
+  "confirmation_folds": [
+    7,
+    8
+  ],
+  "history": 2500,
+  "minimum_history": 250,
+  "garch_config": {
+    "p": 1,
+    "q": 1,
+    "mean": "Zero",
+    "distribution": "StudentsT",
+    "return_scale": 100.0,
+    "backend": "arch"
+  },
+  "max_workers": null,
+  "limit_rows": null,
+  "test_evaluated": false,
+  "reporting_groups": [
+    "Transition",
+    "L1",
+    "L5",
+    "L10",
+    "Controls",
+    "Pooled"
+  ]
+}

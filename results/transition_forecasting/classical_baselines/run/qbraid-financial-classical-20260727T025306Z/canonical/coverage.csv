@@ -1,0 +1,7 @@
+model,available_rows,common_rows,union_rows,available_fraction_of_union,common_fraction_of_available
+persistence,2092,2062,2092,1.0,0.98565965583174
+har,2092,2062,2092,1.0,0.98565965583174
+sequence_ridge,2092,2062,2092,1.0,0.98565965583174
+garch_1_1_t,2062,2062,2092,0.98565965583174,1.0
+esn_direct_tuned,2092,2062,2092,1.0,0.98565965583174
+esn_shuffled_tuned,2092,2062,2092,1.0,0.98565965583174

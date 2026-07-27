@@ -1,0 +1,518 @@
+{
+  "schema_version": 3,
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "workflow": "financial-classical",
+  "status": "succeeded",
+  "started_at_utc": "2026-07-27T02:53:06.567535+00:00",
+  "finished_at_utc": "2026-07-27T03:01:58.354817+00:00",
+  "run_directory": "results/runs/qbraid-financial-classical-20260727T025306Z",
+  "repository": {
+    "commit": "c310c34a598934ac614ccbcfb10e1c7447f61d19",
+    "branch": "stage1-dev",
+    "working_tree_status": "?? aquila_case151.zip\n?? aquila_case151_ready.zip\n?? logs/qbraid-financial-classical-20260727T025306Z.pid\n?? qbraid_audit_report.md\n?? results/transition_forecasting/hardware/\n?? scripts/hardware/"
+  },
+  "environment": {
+    "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+    "python_executable": "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+    "platform": "Linux-6.8.0-1059-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cwd": "/home/jovyan/qpitome-qrc-volatility",
+    "environment": {
+      "VIRTUAL_ENV": "/home/jovyan/qpitome-qrc-volatility/.venv"
+    }
+  },
+  "parameters": {
+    "transition_source_mode": "fallback",
+    "transition_n_folds": 8,
+    "transition_channels": [
+      "log_volatility_level"
+    ],
+    "classical_models": [
+      "persistence",
+      "har",
+      "sequence_ridge",
+      "garch_1_1_t",
+      "esn_direct_tuned",
+      "esn_shuffled_tuned"
+    ],
+    "frozen_classical_spec": "config/transition_forecasting/classical_benchmarks/frozen_submission.json",
+    "test_evaluated": false,
+    "force": false
+  },
+  "commands": [
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/data/acquire_global_index_data.py",
+        "--destination",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/raw/global_stock_indices_historical_data",
+        "--source-mode",
+        "fallback"
+      ],
+      "started_at_utc": "2026-07-27T02:53:06.577913+00:00",
+      "finished_at_utc": "2026-07-27T02:53:07.850228+00:00",
+      "duration_seconds": 1.272323,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/01_acquire_global_index_data.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/data/build_transition_datasets.py",
+        "--raw-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/raw/global_stock_indices_historical_data",
+        "--output-1d",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d"
+      ],
+      "started_at_utc": "2026-07-27T02:53:07.850554+00:00",
+      "finished_at_utc": "2026-07-27T02:56:03.316296+00:00",
+      "duration_seconds": 175.465753,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/02_build_transition_datasets.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/data/build_transition_folds.py",
+        "--dataset-1d",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+        "--n-folds",
+        "8"
+      ],
+      "started_at_utc": "2026-07-27T02:56:03.316612+00:00",
+      "finished_at_utc": "2026-07-27T02:58:16.823448+00:00",
+      "duration_seconds": 133.506845,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/03_build_transition_folds.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/data/validate_transition_run.py",
+        "--dataset-1d",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+        "--report",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/validation/data_pipeline_audit.json"
+      ],
+      "started_at_utc": "2026-07-27T02:58:16.823760+00:00",
+      "finished_at_utc": "2026-07-27T02:58:20.367467+00:00",
+      "duration_seconds": 3.543718,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/04_validate_transition_run.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/data/freeze_transition_checksums.py",
+        "--dataset-1d",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+        "--report",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/validation/data_pipeline_checksums.json"
+      ],
+      "started_at_utc": "2026-07-27T02:58:20.367789+00:00",
+      "finished_at_utc": "2026-07-27T02:58:20.598873+00:00",
+      "duration_seconds": 0.231092,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/05_freeze_transition_checksums.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/modeling/classical_benchmarks/run_linear.py",
+        "--dataset-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+        "--results-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run",
+        "--run-id",
+        "qbraid-financial-classical-20260727T025306Z",
+        "--spec",
+        "/home/jovyan/qpitome-qrc-volatility/config/transition_forecasting/classical_benchmarks/frozen_submission.json"
+      ],
+      "started_at_utc": "2026-07-27T02:58:20.599262+00:00",
+      "finished_at_utc": "2026-07-27T02:58:23.534063+00:00",
+      "duration_seconds": 2.934811,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/06_run_linear.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/modeling/classical_benchmarks/run_garch.py",
+        "--dataset-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+        "--results-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run",
+        "--run-id",
+        "qbraid-financial-classical-20260727T025306Z",
+        "--spec",
+        "/home/jovyan/qpitome-qrc-volatility/config/transition_forecasting/classical_benchmarks/frozen_submission.json"
+      ],
+      "started_at_utc": "2026-07-27T02:58:23.534378+00:00",
+      "finished_at_utc": "2026-07-27T03:00:10.114198+00:00",
+      "duration_seconds": 106.579826,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/07_run_garch.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/modeling/classical_benchmarks/run_esn.py",
+        "--dataset-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+        "--results-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run",
+        "--run-id",
+        "qbraid-financial-classical-20260727T025306Z",
+        "--spec",
+        "/home/jovyan/qpitome-qrc-volatility/config/transition_forecasting/classical_benchmarks/frozen_submission.json"
+      ],
+      "started_at_utc": "2026-07-27T03:00:10.114516+00:00",
+      "finished_at_utc": "2026-07-27T03:01:53.173089+00:00",
+      "duration_seconds": 103.058583,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/08_run_esn.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/modeling/classical_benchmarks/run_canonical.py",
+        "--linear-run",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z",
+        "--garch-run",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z",
+        "--esn-run",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z",
+        "--results-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run",
+        "--run-id",
+        "qbraid-financial-classical-20260727T025306Z"
+      ],
+      "started_at_utc": "2026-07-27T03:01:53.173400+00:00",
+      "finished_at_utc": "2026-07-27T03:01:56.695522+00:00",
+      "duration_seconds": 3.522133,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/09_run_canonical.log"
+    },
+    {
+      "argv": [
+        "/home/jovyan/qpitome-qrc-volatility/.venv/bin/python",
+        "scripts/transition_forecasting/modeling/classical_benchmarks/validate_classical_run.py",
+        "--classical-root",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines",
+        "--run-id",
+        "qbraid-financial-classical-20260727T025306Z",
+        "--report",
+        "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/validation/classical_baseline_audit.json"
+      ],
+      "started_at_utc": "2026-07-27T03:01:56.695839+00:00",
+      "finished_at_utc": "2026-07-27T03:01:58.115539+00:00",
+      "duration_seconds": 1.419711,
+      "returncode": 0,
+      "log_path": "results/runs/qbraid-financial-classical-20260727T025306Z/logs/10_validate_classical_run.log"
+    }
+  ],
+  "required_outputs": {
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/raw/global_stock_indices_historical_data/all_indices_data.csv": {
+      "exists": true,
+      "size_bytes": 26195895,
+      "sha256": "000a8ff4ebcad59439f1a24b4166cf8a21b5c682e535ddb2b95987ce12967bf5"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/raw/global_stock_indices_historical_data/raw_acquisition_manifest.json": {
+      "exists": true,
+      "size_bytes": 17886,
+      "sha256": "e0ea3fa9bf32d33ad1d7773d9fa3da970347bdc6075fea91c227885b81b3f735"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/validation/data_pipeline_audit.json": {
+      "exists": true,
+      "size_bytes": 2284,
+      "sha256": "010a5688447f47d77a2a629c18c65a35d4bd8ab9cbf584b2f52f5334e7ddcb44"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/validation/data_pipeline_checksums.json": {
+      "exists": true,
+      "size_bytes": 2285,
+      "sha256": "c0282591f98eafca8dcd6fdf8552c80c8ddfb4d43da4af62d7e71adfe99a21f4"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/cleaned_ohlc.csv.gz": {
+      "exists": true,
+      "size_bytes": 5218034,
+      "sha256": "8d19ced83d55657195ee8c49fe67e610ef9c07c31ac80c039e9f065d7effde40"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/daily_volatility.csv.gz": {
+      "exists": true,
+      "size_bytes": 2816896,
+      "sha256": "6ec6539096acdc2ec67443f1225f95fd823d6c16e9c8bb19558f1ca55d8d413e"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/transition_catalogue.csv": {
+      "exists": true,
+      "size_bytes": 76907,
+      "sha256": "43bb75ccc902c7d858aeeecb6de69cba6811e8b709671914f85f7c4a47e41d41"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/sample_manifest.csv": {
+      "exists": true,
+      "size_bytes": 2146541,
+      "sha256": "f7634631512a32c65435be78b0bf98bd9d1296f9b28a3a80ea461c490c4c401d"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/sequence_tensors.npz": {
+      "exists": true,
+      "size_bytes": 671839,
+      "sha256": "562c67a6b17b725f5ef55cb27779973be9bbdc947113014798281a9d9cae82e5"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/row_corrections.csv": {
+      "exists": true,
+      "size_bytes": 1560426,
+      "sha256": "2610e12f8a865e61a69ddc2858aa64126328e5a6490af018f6b174f2109b6ddc"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/manifest.json": {
+      "exists": true,
+      "size_bytes": 9418,
+      "sha256": "5024a19a41f897a02ba54fe98274c5ca23eba8742934f9a57d5d005df4b736d4"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/control_candidate_manifest.csv": {
+      "exists": true,
+      "size_bytes": 227341301,
+      "sha256": "9f51608670d1ca55559c8bc718054db24b9a6a57fdda2f63471b8a99cc3f16dd"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/control_candidate_tensors.npz": {
+      "exists": true,
+      "size_bytes": 4774562,
+      "sha256": "b50d0dfc736acbbf967a7d0f796a2d8b381659924ea02aa1c80ae3cf6282d64a"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/candidate_pool_summary.json": {
+      "exists": true,
+      "size_bytes": 1206,
+      "sha256": "14d25b5836937d765072bda019eaf351f996352e63699c72e625f7c71dacc991"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds/rematched_rolling_manifest.csv": {
+      "exists": true,
+      "size_bytes": 13345092,
+      "sha256": "e53e9c589eea54ef93693a894fcf86d40152e77e174f2f287438185fcbcdd0d4"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds/rematched_rolling_tensors.npz": {
+      "exists": true,
+      "size_bytes": 2973045,
+      "sha256": "72fdeecadef2242f7845978949a14e925259abf9159c5b8291b1f96633139879"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds/control_match_audit.csv": {
+      "exists": true,
+      "size_bytes": 450021,
+      "sha256": "6314539657693c5b5b57f2bb1a35afc36bbdf20c537c4b7cabac603f39fca5dc"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds/summary.json": {
+      "exists": true,
+      "size_bytes": 5109,
+      "sha256": "0c1c9ebc02aa229f244b22080456ddbd7523f6ab2b6bb834fec004e5e3084edd"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/params.json": {
+      "exists": true,
+      "size_bytes": 895,
+      "sha256": "417e2dd1984406f5aafb788791bbf9c803b3ab3ef868b28b0e1cb4f942c3785e"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/config.json": {
+      "exists": true,
+      "size_bytes": 626,
+      "sha256": "138b39c7895c59db0f64881eef7f0791dd852e4bfe23d4d665ef9aa800213c7f"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/dataset_manifest.json": {
+      "exists": true,
+      "size_bytes": 696,
+      "sha256": "933ff8b03aee4a0a16e7a5daa166fb27663b3a85c6e872f7838aaaf5ded46562"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/predictions.csv.gz": {
+      "exists": true,
+      "size_bytes": 867697,
+      "sha256": "a1a561854c96f39e41523f7bea02864ed45758756d1f003f0ca28f2bd690b654"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/submission_metrics.csv": {
+      "exists": true,
+      "size_bytes": 7613,
+      "sha256": "3d0f48c33a6cecd6651fafc46f04ddd8361659f67ba87dca1f901a95955b655e"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/metrics_by_fold.csv": {
+      "exists": true,
+      "size_bytes": 11564,
+      "sha256": "d3ca207a19ce8d3840524fd652a3426fa1e2018eac36b49c4c1b11260eddcd7e"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/metrics_by_horizon.csv": {
+      "exists": true,
+      "size_bytes": 73409,
+      "sha256": "4dfc9be1363b751d42fd1bd2b68dcf2469b579ef9e3166ab543691373244ab3f"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/runtime.json": {
+      "exists": true,
+      "size_bytes": 41,
+      "sha256": "da30bac348e544adb390069683fdf1ed7f3c9e80f630c034f5491661a2cebb7b"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z/summary.json": {
+      "exists": true,
+      "size_bytes": 280,
+      "sha256": "8dccbd9d268d3016f019849cc2eb2d0339d96842b92231b4994958662d5b3390"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/params.json": {
+      "exists": true,
+      "size_bytes": 1292,
+      "sha256": "d0e22e2014a654229f0d332a7cd8c04c7b8d40291967fec8375dc2d9ef6edfc6"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/config.json": {
+      "exists": true,
+      "size_bytes": 845,
+      "sha256": "41b93d9c79af4428a25d5322f39601c5f1b990fe3b189b59f5ed904eb34c7d2a"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/dataset_manifest.json": {
+      "exists": true,
+      "size_bytes": 1006,
+      "sha256": "22ee047ae53916fd8f7e0dc3540bc0c0dc8ba62a0f96da9492efa1b02b58ff54"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/predictions.csv.gz": {
+      "exists": true,
+      "size_bytes": 419170,
+      "sha256": "2ddd036af1d4f713182e093a17f85f3a209af399f5d5893245c4ae4d2745fcd7"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/submission_metrics.csv": {
+      "exists": true,
+      "size_bytes": 2623,
+      "sha256": "c4adf534b58ccb40aaa6082caa3eecccb4b8ad711cc0e466b87c2b7613fffec1"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/metrics_by_fold.csv": {
+      "exists": true,
+      "size_bytes": 3945,
+      "sha256": "ed3c7c18c14641cca71d07bc51b9229976eebf4f1c49b4dc88ef13ab3f2b69cd"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/metrics_by_horizon.csv": {
+      "exists": true,
+      "size_bytes": 24805,
+      "sha256": "909c3b9b256599ed0eb104763ec9e7ef3302c31e2a7b09aab3e1445f6c76773b"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/fit_diagnostics.csv.gz": {
+      "exists": true,
+      "size_bytes": 102257,
+      "sha256": "403f7eef6c12225c0bb2e34ad806aca3632f2bfcfe6ad4c8e6489c6cbdbe634f"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/runtime.json": {
+      "exists": true,
+      "size_bytes": 61,
+      "sha256": "d42bc9d6f3bf083bbb3f1f445e645f9f482011bb0fd62f72ad7cffc9896cb155"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z/summary.json": {
+      "exists": true,
+      "size_bytes": 316,
+      "sha256": "72afdf7497a31d460b4a8c3ba03776c1adfa822aec88ea54102bbd7de7a16da6"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/params.json": {
+      "exists": true,
+      "size_bytes": 1186,
+      "sha256": "ec3a0029c6b2af1aca035254da9e6c73a752acbdfd3e15527378bff998fe7b64"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/config.json": {
+      "exists": true,
+      "size_bytes": 799,
+      "sha256": "5688e834860f088f903765731f1f404740f927efc7223057a6cd1aee74883b49"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/dataset_manifest.json": {
+      "exists": true,
+      "size_bytes": 696,
+      "sha256": "905e4a1ce3ca14e37345299d8991f712b220d54a6a5201a6739f4a7cf98b1c46"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/selected_spec.json": {
+      "exists": true,
+      "size_bytes": 242,
+      "sha256": "0b66fd0d2549ea3551340e2cc6f9f3c1a4fb56c4b6c67a9a2617ae7146d454f3"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/predictions.csv.gz": {
+      "exists": true,
+      "size_bytes": 671759,
+      "sha256": "aafb39cb66a09222d005e9eaf2de44fe8f072b9b6bbc11f34e27c39aa1f7c908"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/submission_metrics.csv": {
+      "exists": true,
+      "size_bytes": 5385,
+      "sha256": "36cdc0f025b4c27af25b06692961ffc81528d7dc538d06aaaddec355e2b112ba"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/metrics_by_fold.csv": {
+      "exists": true,
+      "size_bytes": 8153,
+      "sha256": "9cb98f913c0dba900fb75eb6a6aff27e81db9026dc9371c719a1a68648a17a66"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/metrics_by_horizon.csv": {
+      "exists": true,
+      "size_bytes": 51638,
+      "sha256": "af5d3563ec8143df700239cd10efdc984a39c4b9a37f743d7f4851726429b4cc"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/runtime.json": {
+      "exists": true,
+      "size_bytes": 41,
+      "sha256": "8423827cb42a520764340c43fb73399ea1908faefe393dfe700e42e487553f27"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z/summary.json": {
+      "exists": true,
+      "size_bytes": 474,
+      "sha256": "84dc6a691af2ec462997330ae91bd02f2a8e324a2da4fc4cc8a2d65c880037d7"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/params.json": {
+      "exists": true,
+      "size_bytes": 1455,
+      "sha256": "043a792e1f3c4eda65996596a370fbc6b956f6122bd677bd469e050d2517ed65"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/common_predictions.csv.gz": {
+      "exists": true,
+      "size_bytes": 1464744,
+      "sha256": "8dbd639e0a99bae820ccb8622b344747fe9d94a09321d98f17ec7ae2f888bcd1"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/submission_metrics.csv": {
+      "exists": true,
+      "size_bytes": 15473,
+      "sha256": "e7786dc7fb83566b9f64ecdc7963fabc19007ae8150e7b1d94d0d019e13bbea5"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/metrics_by_fold.csv": {
+      "exists": true,
+      "size_bytes": 23474,
+      "sha256": "e97575a69647fc47101fc265ffec41096a002babf8177ee40f54820e2fb0b431"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/metrics_by_horizon.csv": {
+      "exists": true,
+      "size_bytes": 149680,
+      "sha256": "5a0c6a3da8bb7187efbf4eddcd74912737d7d8252927b3ae236521073d8a705b"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/coverage.csv": {
+      "exists": true,
+      "size_bytes": 396,
+      "sha256": "2e0bfd85a29dc52c578a206f5231ff5ddfe8bbcc2c3d32937f11623be19d548e"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/paired_deltas_vs_sequence_ridge.csv": {
+      "exists": true,
+      "size_bytes": 28710,
+      "sha256": "920ee4de92b58c6a10d83d7d6341b2b5f906080d78560135491ff9a5bae8bfa6"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/submission_table_selection.csv": {
+      "exists": true,
+      "size_bytes": 5113,
+      "sha256": "29731c5ece44c6bba13378141a5a0e0266b2b5fe79cc1f9e6536df960fa26784"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/submission_table_confirmation.csv": {
+      "exists": true,
+      "size_bytes": 5179,
+      "sha256": "38fb0f9fb4acaddcea0fde9f34e6ab252f57632d295cf2536d6423a92522eacd"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/submission_table_development_all.csv": {
+      "exists": true,
+      "size_bytes": 5345,
+      "sha256": "e63accde1dc5ced416f4ea979de6a78528e2ab56daf3aa637491b17e93ba421e"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/runtime.json": {
+      "exists": true,
+      "size_bytes": 41,
+      "sha256": "fd08c318ad8d2049c13aec10e369c307cf05440155e16131bd7f00a8dae4312e"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z/summary.json": {
+      "exists": true,
+      "size_bytes": 451,
+      "sha256": "c50da0a83c3a7872b3a82b962f3aa96b73c2d88848b6f3f7797bb7ebf8a1e3b7"
+    },
+    "results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/validation/classical_baseline_audit.json": {
+      "exists": true,
+      "size_bytes": 3589,
+      "sha256": "23beb2ba84db683fc30bb5911cc9f13faf8d946d14eee79be6436ae9c454ff54"
+    }
+  },
+  "failure": null
+}

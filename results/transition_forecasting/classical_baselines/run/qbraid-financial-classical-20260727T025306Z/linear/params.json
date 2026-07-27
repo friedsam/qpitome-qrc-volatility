@@ -1,0 +1,23 @@
+{
+  "created_at_utc": "2026-07-27T02:58:22.232403+00:00",
+  "parameters": {
+    "benchmark": "linear",
+    "confirmation_folds": [
+      7,
+      8
+    ],
+    "dataset_root": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d",
+    "har_alpha": 100.0,
+    "selection_folds": [
+      4,
+      5,
+      6
+    ],
+    "sequence_alpha": 3000.0,
+    "test_evaluated": false
+  },
+  "results_root": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run",
+  "run_directory": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z",
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "schema_version": 1
+}

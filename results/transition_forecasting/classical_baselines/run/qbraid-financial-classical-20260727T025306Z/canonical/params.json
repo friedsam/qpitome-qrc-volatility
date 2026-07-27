@@ -1,0 +1,31 @@
+{
+  "created_at_utc": "2026-07-27T03:01:54.424467+00:00",
+  "parameters": {
+    "common_row_policy": "intersection across every reported model",
+    "confirmation_folds": [
+      7,
+      8
+    ],
+    "esn_run": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/esn/run/qbraid-financial-classical-20260727T025306Z",
+    "garch_run": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/garch/run/qbraid-financial-classical-20260727T025306Z",
+    "linear_run": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/linear/run/qbraid-financial-classical-20260727T025306Z",
+    "models": [
+      "persistence",
+      "har",
+      "sequence_ridge",
+      "garch_1_1_t",
+      "esn_direct_tuned",
+      "esn_shuffled_tuned"
+    ],
+    "selection_folds": [
+      4,
+      5,
+      6
+    ],
+    "test_evaluated": false
+  },
+  "results_root": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run",
+  "run_directory": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/classical_baselines/canonical/run/qbraid-financial-classical-20260727T025306Z",
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "schema_version": 1
+}

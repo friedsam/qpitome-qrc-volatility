@@ -1,0 +1,17 @@
+{
+  "status": "complete",
+  "benchmark": "linear",
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "sequence_alpha": 3000.0,
+  "har_alpha": 100.0,
+  "selection_folds": [
+    4,
+    5,
+    6
+  ],
+  "confirmation_folds": [
+    7,
+    8
+  ],
+  "test_evaluated": false
+}

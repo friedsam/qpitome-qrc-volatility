@@ -1,0 +1,31 @@
+{
+  "status": "complete",
+  "benchmark": "direct_esn_frozen",
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "selected_config": {
+    "config_id": "short_leak095",
+    "n": 300,
+    "connectivity": 0.02,
+    "sr": 0.55,
+    "inp": 0.2,
+    "leak": 0.95
+  },
+  "selected_alpha": 120000.0,
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "selection_folds": [
+    4,
+    5,
+    6
+  ],
+  "confirmation_folds": [
+    7,
+    8
+  ],
+  "test_evaluated": false
+}

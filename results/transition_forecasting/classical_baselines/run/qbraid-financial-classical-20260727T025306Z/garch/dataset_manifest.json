@@ -1,0 +1,12 @@
+{
+  "manifest_path": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds/rematched_rolling_manifest.csv",
+  "tensors_path": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds/rematched_rolling_tensors.npz",
+  "ohlc_path": "/home/jovyan/qpitome-qrc-volatility/results/runs/qbraid-financial-classical-20260727T025306Z/files/data/processed/global_transition_dataset_1d/cleaned_ohlc.csv.gz",
+  "manifest_sha256": "e53e9c589eea54ef93693a894fcf86d40152e77e174f2f287438185fcbcdd0d4",
+  "tensors_sha256": "72fdeecadef2242f7845978949a14e925259abf9159c5b8291b1f96633139879",
+  "ohlc_sha256": "8d19ced83d55657195ee8c49fe67e610ef9c07c31ac80c039e9f065d7effde40",
+  "source_rows": 22756,
+  "requested_prediction_rows": 2092,
+  "finite_prediction_rows": 2062,
+  "test_rows_used": 0
+}

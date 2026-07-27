@@ -1,0 +1,18 @@
+{
+  "status": "complete",
+  "benchmark": "garch_1_1_t",
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "selection_folds": [
+    4,
+    5,
+    6
+  ],
+  "confirmation_folds": [
+    7,
+    8
+  ],
+  "test_evaluated": false,
+  "requested_rows": 2092,
+  "finite_rows": 2062,
+  "coverage": 0.98565965583174
+}

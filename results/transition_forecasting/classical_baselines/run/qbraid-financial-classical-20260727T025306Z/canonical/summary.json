@@ -1,0 +1,25 @@
+{
+  "status": "complete",
+  "benchmark": "canonical_classical_comparison",
+  "run_id": "qbraid-financial-classical-20260727T025306Z",
+  "models": [
+    "persistence",
+    "har",
+    "sequence_ridge",
+    "garch_1_1_t",
+    "esn_direct_tuned",
+    "esn_shuffled_tuned"
+  ],
+  "selection_folds": [
+    4,
+    5,
+    6
+  ],
+  "confirmation_folds": [
+    7,
+    8
+  ],
+  "test_evaluated": false,
+  "common_rows": 2062,
+  "common_prediction_rows": 12372
+}
