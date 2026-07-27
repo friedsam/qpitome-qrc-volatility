@@ -2,6 +2,27 @@
 
 This reference describes the active `main` dependency closure. It is a navigation aid, not permission to reinterpret scientific behavior.
 
+## Judge-facing entry point
+
+The Agent executes exactly one orchestration helper:
+
+```text
+qbraid_skill/qpitome-qrc-volatility/scripts/run_submission_scope.py
+```
+
+This helper owns only sequencing, literal run-ID generation, path construction, stage validation, failure propagation, and `agent_scope_manifest.json`. It contains no scientific model implementation and no hardware command.
+
+It delegates to the established canonical entry points:
+
+```text
+scripts/runs/run_submission_stage_layout.py financial-classical
+scripts/reproduction/run_case151_simulation.py
+scripts/runs/run_submission_benchmarks.py all --profile smoke
+scripts/runs/run_submission_benchmarks.py validate-existing --profile smoke
+```
+
+The default Agent scope is `full-smoke`. Explicit `core` stops after Case151 verification.
+
 ## Governing layout
 
 Normal scientific components preserve:
@@ -13,101 +34,47 @@ tests/<domain>/<experiment>/test_*.py
 results/<domain>/<experiment>/run/<run_id>/*
 ```
 
-Judge-facing aggregation is the intentional exception. All reproduced outputs are collected beneath:
+Judge-facing aggregation is the intentional exception:
 
 ```text
-results/runs/<RUN_ID>/files/
+results/runs/<RUN_ID>/
+    run_manifest.json
+    agent_scope_manifest.json
+    logs/
+    files/
+        data/
+        classical_baselines/
+        qrc/
+        quantum_studies/
+        mnist/
 ```
 
 Run directories may contain data products, parameters, manifests, logs, predictions, metrics, figures, checksums, and validation reports. They must not contain copied source code.
 
-## Canonical Agent sequence
+## Data and classical stages
 
-### Data and classical stages
+Stage-layout wrapper:
 
 ```text
 scripts/runs/run_submission_stage_layout.py
 ```
 
-This delegates to:
+Delegates to:
 
 ```text
 scripts/runs/run_submission.py
 scripts/runs/run_submission_layout.py
 ```
 
-The required workflow is:
+Canonical workflow:
 
 ```text
 financial-classical
 ```
 
-It contains the complete transition-data plan followed by the frozen classical producers and validator.
+It includes verified transition-data construction, persistence/HAR/sequence ridge, Student-t GARCH(1,1), frozen direct and shuffled ESNs, exact-common-row tables, and validation.
 
-### Canonical Case151 QRC stage
-
-```text
-scripts/reproduction/run_case151_simulation.py
-```
-
-It consumes the fold tensors created by `financial-classical`, writes beneath `files/qrc/simulation/run/<RUN_ID>/`, and verifies the frozen Case151 metric and identity oracle.
-
-### Optional Phase-3 smoke stages
-
-```text
-scripts/runs/run_submission_benchmarks.py
-```
-
-The `all --profile smoke` workflow runs bounded MNIST, noise, scaling, and finite-shot studies. `validate-existing --profile smoke` verifies their required artifacts without recomputation.
-
-### Hardware
-
-```text
-scripts/hardware/aquila_case151_collect.py
-```
-
-This is retrieval-only and outside the default Agent workflow. The Agent must not query, retrieve, select, or submit hardware during core or full-smoke reproduction.
-
-## Aggregate topic structure
-
-```text
-results/runs/<RUN_ID>/
-    run_manifest.json
-    logs/
-    files/
-        data/
-            raw/
-            processed/global_transition_dataset_1d/
-            validation/
-                data_pipeline_audit.json
-                data_pipeline_checksums.json
-        classical_baselines/
-            linear/run/<RUN_ID>/
-            garch/run/<RUN_ID>/
-            esn/run/<RUN_ID>/
-            canonical/run/<RUN_ID>/
-            validation/
-                classical_baseline_audit.json
-        qrc/
-            simulation/run/<RUN_ID>/
-            hardware/<HARDWARE_RUN_ID>/
-        quantum_studies/
-            benchmark_manifest.json
-            benchmark_artifact_inventory.json
-            noise/run/<RUN_ID>/
-            scaling/run/<RUN_ID>/
-            shots/run/<RUN_ID>/
-        mnist/
-            raw/
-            shards/
-            run/<RUN_ID>/
-```
-
-Only stages included in the requested scope are created.
-
-## Transition-data source
-
-Thin scripts:
+Data scripts:
 
 ```text
 scripts/transition_forecasting/data/acquire_global_index_data.py
@@ -117,45 +84,13 @@ scripts/transition_forecasting/data/validate_transition_run.py
 scripts/transition_forecasting/data/freeze_transition_checksums.py
 ```
 
-Reusable source:
-
-```text
-src/transition_forecasting/catalogue/
-src/transition_forecasting/data/
-src/transition_forecasting/modeling/chronological_control_matching.py
-src/transition_forecasting/modeling/chronological_rematched_dataset.py
-src/transition_forecasting/modeling/chronological_splits.py
-src/transition_forecasting/modeling/stage_d_candidate_pool.py
-src/transition_forecasting/quality/
-```
-
-Frozen data contracts:
-
-```text
-config/transition_forecasting/contracts/global_index_ohlc_inventory.csv
-config/transition_forecasting/contracts/global_range_quality.csv
-```
-
-## Classical comparison
-
-Frozen parameter authority:
+Classical parameter authority:
 
 ```text
 config/transition_forecasting/classical_benchmarks/frozen_submission.json
 ```
 
-Reusable source:
-
-```text
-src/transition_forecasting/modeling/classical_benchmarks/
-src/baselines/garch.py
-src/baselines/numpy_esn.py
-src/baselines/esn_representation.py
-src/evaluation/metrics.py
-src/experiments/runs.py
-```
-
-Thin scripts:
+Classical model scripts:
 
 ```text
 scripts/transition_forecasting/modeling/classical_benchmarks/run_linear.py
@@ -187,9 +122,13 @@ Controls
 Pooled
 ```
 
-The canonical comparison restricts all models to the exact intersection of finite `(fold, sample_id)` predictions before calculating RMSE, log-volatility QLIKE, and Mincer-Zarnowitz diagnostics.
-
 ## Canonical Case151 QRC
+
+Runner:
+
+```text
+scripts/reproduction/run_case151_simulation.py
+```
 
 Frozen authority:
 
@@ -222,10 +161,18 @@ occupation_pair_raw
 fold-specific chronological readout selection
 fold-8 alpha 0.1
 fold-8 lambda 0.25
-zero test rows
+zero financial test rows
 ```
 
-## Optional Phase-3 benchmark families
+## Phase-3 smoke families
+
+Agent-level benchmark runner:
+
+```text
+scripts/runs/run_submission_benchmarks.py
+```
+
+Scientific entry points:
 
 ```text
 scripts/transition_forecasting/data/acquire_mnist.py
@@ -235,7 +182,17 @@ scripts/transition_forecasting/qrc/run_palindrome_scaling_assay.py
 scripts/transition_forecasting/qrc/run_palindrome_shot_assay.py
 ```
 
-The Agent-level benchmark runner owns their shared aggregate paths, logs, manifests, required-output inventory, resume behavior, and read-only validation.
+The `all --profile smoke` pass runs bounded MNIST, noise, scaling, and finite-shot studies. The subsequent `validate-existing --profile smoke` pass verifies required outputs and writes the final artifact inventory without recomputation.
+
+## Hardware boundary
+
+Retrieval-only collector:
+
+```text
+scripts/hardware/aquila_case151_collect.py
+```
+
+It is outside `core` and `full-smoke`. The Agent orchestration helper never imports or invokes it. No hardware query, retrieval, selection, packaging, or submission occurs during reproduction.
 
 ## Focused tests
 
@@ -245,10 +202,6 @@ tests/runs/test_run_submission.py
 tests/runs/test_run_submission_classical.py
 tests/runs/test_run_submission_benchmarks.py
 tests/transition_forecasting/data/test_fold_datasets.py
-tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py
-tests/transition_forecasting/modeling/test_chronological_control_matching.py
-tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py
-tests/transition_forecasting/modeling/test_chronological_splits.py
 tests/transition_forecasting/modeling/classical_benchmarks/
 tests/transition_forecasting/qrc/test_case151_reproduction_contract.py
 tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py
@@ -267,7 +220,7 @@ tests/transition_forecasting/qrc/test_palindrome_shot_assay.py
 - eight purged walk-forward folds;
 - folds 4–6 are model-selection history;
 - folds 7–8 are confirmation recheck;
-- fixed test chronology remains unopened;
-- classical submission execution uses frozen parameters and does not retune;
+- fixed financial test chronology remains unopened;
+- classical execution uses frozen parameters and does not retune;
 - canonical Case151 uses the frozen exact 63-feature simulator and oracle;
 - full-smoke is bounded integration coverage, not a primary-result replacement.
