@@ -57,7 +57,7 @@ Classical parameters:
 config/transition_forecasting/classical_benchmarks/frozen_submission.json
 ```
 
-Canonical Case151 identity, historical metric oracle, and immutable reference:
+Canonical Case151 identity, historical metric and selected-hyperparameter oracle, and immutable reference:
 
 ```text
 scripts/reproduction/run_case151_simulation.py
@@ -66,10 +66,10 @@ config/case151/agent_run_spec.json
 reference/case151/freeze_001/
 ```
 
-The historical metric oracle is tied to canonical commit `40ec805cc2b4efe416c0a57f1c599cca6def92c3` and source run `palindrome_real_task_002`. The aggregate workflow regenerates current pipeline folds. Therefore:
+The historical oracle is tied to canonical commit `40ec805cc2b4efe416c0a57f1c599cca6def92c3` and source run `palindrome_real_task_002`. The aggregate workflow regenerates current pipeline folds. Therefore:
 
-- `historical-oracle` mode requires exact historical metric equality and is valid only on the historical fold lineage;
-- `current-pipeline` mode verifies the same frozen Case151 model identity on the newly generated folds, verifies the immutable historical reference hashes, and reports metric deltas without claiming exact historical reproduction;
+- `historical-oracle` mode requires exact historical metric equality and exact fold-8 selected alpha `0.1` and lambda `0.25` on the historical fold lineage;
+- `current-pipeline` mode verifies the same frozen Case151 model, chronological selection procedure, and fixed alpha/lambda grids on newly generated folds, verifies the immutable historical reference hashes, and reports metric and selected-hyperparameter deltas without claiming exact historical reproduction;
 - the historical oracle is never overwritten or weakened to accept a different fold composition.
 
 The canonical classical set is:
@@ -85,7 +85,7 @@ esn_shuffled_tuned
 
 GARCH must use `arch`. The fixed financial test partition remains unopened.
 
-Case151 identity:
+Case151 model identity:
 
 - exact six-atom simulator;
 - A/4 → B/2 → A/4 palindrome;
@@ -93,9 +93,12 @@ Case151 identity:
 - `occupation_pair_raw` feature bank;
 - 63 occupation/pair features;
 - fold-specific chronological alpha/lambda selection;
-- fold-8 alpha `0.1`, lambda `0.25`;
+- frozen ridge grid `[0.1, 1.0, 10.0, 100.0, 1000.0]`;
+- frozen correction-lambda grid `[0.0, 0.25, 0.5, 1.0]`;
 - intercept-free residual head;
 - zero financial test rows.
+
+The historical fold-8 outcome `alpha=0.1`, `lambda=0.25` is an oracle result, not a fold-invariant model parameter.
 
 ## Single state-free command
 
@@ -114,7 +117,7 @@ The orchestrator:
 3. calls `scripts/runs/run_submission_stage_layout.py financial-classical`;
 4. validates the aggregate and classical audit;
 5. calls `scripts/reproduction/run_case151_simulation.py --verification-mode current-pipeline --archive-existing-failed`;
-6. validates frozen Case151 identity, current metrics, historical metric deltas, and immutable reference hashes;
+6. validates frozen Case151 identity, selection-grid membership, current metrics and selected hyperparameters, historical deltas, and immutable reference hashes;
 7. calls `scripts/runs/run_submission_benchmarks.py all --profile smoke` with resume/reuse enabled;
 8. calls `scripts/runs/run_submission_benchmarks.py validate-existing --profile smoke`;
 9. validates the benchmark manifest and artifact inventory;
@@ -202,17 +205,20 @@ A default full-smoke run is accepted only when:
 11. GARCH records backend `arch`;
 12. ESN parameters match the frozen specification;
 13. Case151 records `status: verified` and `verification_mode: current-pipeline`;
-14. Case151 records `occupation_pair_raw`, width 63, fold-8 alpha 0.1, lambda 0.25, intercept-free readout, and zero test rows;
-15. Case151 records `historical_reference_hashes_verified: true` and `historical_metric_oracle_applied: false`;
-16. Case151 records current observed metrics and explicit deltas versus the unchanged historical reference;
-17. `benchmark_manifest.json` records `status: succeeded`, `profile: smoke`, and `validate_only: true` after the final pass;
-18. MNIST, noise, scaling, and shot required outputs exist;
-19. `benchmark_artifact_inventory.json` exists;
-20. `agent_scope_manifest.json` records `scope: full-smoke`, `status: succeeded`, all command records, `hardware_actions_performed: false`, and `historical_case151_metric_oracle_relabelled: false`;
-21. no `.py` file exists beneath the aggregate run;
-22. every command and artifact uses the same literal run ID.
+14. Case151 records `occupation_pair_raw`, width 63, intercept-free readout, and zero test rows;
+15. Case151 records `fold8_selection_grid_verified: true`, the observed fold-8 alpha/lambda, and the exact frozen alpha/lambda grids;
+16. the observed alpha and lambda belong to those grids; exact `0.1/0.25` is required only in `historical-oracle` mode;
+17. Case151 records the historical fold-8 reference and whether the current selection matches it;
+18. Case151 records `historical_reference_hashes_verified: true` and `historical_metric_oracle_applied: false`;
+19. Case151 records current observed metrics and explicit deltas versus the unchanged historical reference;
+20. `benchmark_manifest.json` records `status: succeeded`, `profile: smoke`, and `validate_only: true` after the final pass;
+21. MNIST, noise, scaling, and shot required outputs exist;
+22. `benchmark_artifact_inventory.json` exists;
+23. `agent_scope_manifest.json` records `scope: full-smoke`, `status: succeeded`, all command records, `hardware_actions_performed: false`, and `historical_case151_metric_oracle_relabelled: false`;
+24. no `.py` file exists beneath the aggregate run;
+25. every command and artifact uses the same literal run ID.
 
-A core-only run applies conditions 1–16 and 21–22 and records `scope: core`.
+A core-only run applies conditions 1–19 and 24–25 and records `scope: core`.
 
 ## Hardware boundary
 
