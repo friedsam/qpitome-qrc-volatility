@@ -9,7 +9,9 @@ on:
       - "environment.yml"
       - "src/transition_forecasting/**"
       - "scripts/transition_forecasting/**"
+      - "scripts/hardware/**"
       - "scripts/runs/run_submission.py"
+      - "config/case151/**"
       - "qbraid_skill/**"
       - "tests/qbraid_skill/**"
       - "tests/transition_forecasting/**"
@@ -23,7 +25,9 @@ on:
       - "environment.yml"
       - "src/transition_forecasting/**"
       - "scripts/transition_forecasting/**"
+      - "scripts/hardware/**"
       - "scripts/runs/run_submission.py"
+      - "config/case151/**"
       - "qbraid_skill/**"
       - "tests/qbraid_skill/**"
       - "tests/transition_forecasting/**"
@@ -73,4 +77,5 @@ jobs:
           tests/transition_forecasting/modeling/test_chronological_splits.py
           tests/transition_forecasting/data/test_fold_datasets.py
           tests/transition_forecasting/qrc/test_palindrome_real_task_relevance_assay.py
+          tests/transition_forecasting/qrc/test_case151_reproduction_contract.py
           tests/runs/test_run_submission.py
