@@ -56,7 +56,7 @@
     "simulation_command": "python scripts/reproduction/run_case151_simulation.py --fold-dir results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds --output-root results/runs/<RUN_ID>/files/qrc/simulation/run --run-id <RUN_ID> --verification-mode current-pipeline --archive-existing-failed",
     "simulation_output": "results/runs/<RUN_ID>/files/qrc/simulation/run/<RUN_ID>",
     "failed_attempt_archive": "results/runs/<RUN_ID>/files/qrc/simulation/run/failed_attempts/",
-    "metric_policy": "Verify frozen Case151 model identity, chronological selection procedure, fixed alpha/lambda grids, and immutable historical reference hashes on current generated folds; report metric and selected-hyperparameter deltas without claiming exact historical-oracle reproduction.",
+    "metric_policy": "Verify frozen Case151 model identity, chronological selection procedure, fixed alpha/lambda grids, and immutable historical reference hashes on current generated folds; current metrics and selected hyperparameters are recorded and are not relabelled as exact historical-oracle reproduction.",
     "hardware_command": "python scripts/hardware/aquila_case151_collect.py collect --outdir results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
     "hardware_output": "results/runs/<RUN_ID>/files/qrc/hardware/<HARDWARE_RUN_ID>",
     "comparisons_output": "results/runs/<RUN_ID>/files/qrc/comparisons",
