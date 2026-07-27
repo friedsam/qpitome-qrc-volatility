@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from scripts.transition_forecasting.qrc.run_palindrome_shot_assay import (
+    SHOT_OUTPUTS_BEFORE_ALIAS,
     frozen_geometry,
     frozen_reservoir,
+    publish_exact_reference_alias,
+    repair_existing_shot_run,
 )
 from transition_forecasting.qrc.ladder_finite_shot_sampling import (
     sample_probe_probabilities,
@@ -148,3 +153,31 @@ def test_shot_config_rejects_duplicate_counts_and_seeds() -> None:
         PalindromeShotAssayConfig(shot_counts=(100, 100)).validate()
     with pytest.raises(ValueError, match="measurement_seeds must be unique"):
         PalindromeShotAssayConfig(measurement_seeds=(1, 1)).validate()
+
+
+def _write_completed_pre_alias_run(run_dir: Path) -> None:
+    for relative in SHOT_OUTPUTS_BEFORE_ALIAS:
+        path = run_dir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"finite-shot-contract")
+
+
+def test_repair_existing_shot_run_publishes_validator_alias(tmp_path: Path) -> None:
+    run_dir = tmp_path / "shots" / "run-001"
+    _write_completed_pre_alias_run(run_dir)
+
+    observed = repair_existing_shot_run(run_dir)
+
+    assert observed == run_dir
+    alias = run_dir / "exact_reference.npz"
+    source = run_dir / "features" / "exact_reference.npz"
+    assert alias.is_file()
+    assert alias.read_bytes() == source.read_bytes()
+    assert publish_exact_reference_alias(run_dir) == alias
+
+
+def test_repair_existing_shot_run_rejects_partial_directory(tmp_path: Path) -> None:
+    run_dir = tmp_path / "shots" / "run-002"
+    run_dir.mkdir(parents=True)
+    with pytest.raises(RuntimeError, match="existing finite-shot run is incomplete"):
+        repair_existing_shot_run(run_dir)
