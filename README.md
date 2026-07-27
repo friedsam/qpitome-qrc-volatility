@@ -37,9 +37,9 @@ The canonical historical Case151 development run at commit `40ec805cc2b4efe416c0
 | Transition | HAR | 1.118613 | 0.512641 |
 | Transition | QRC | 1.105739 | 0.508642 |
 
-The selected fold-8 Case151 readout uses Ridge alpha `0.1` and correction lambda `0.25`. The three previously completed Aquila jobs reproduce 63 hardware observables with pooled simulator–hardware Pearson correlation `0.943073`, RMSE `0.043933`, and through-origin attenuation `1.068182` under the adapted hardware-native schedule.
+The selected fold-8 Case151 readout on that historical fold lineage uses Ridge alpha `0.1` and correction lambda `0.25`. The three previously completed Aquila jobs reproduce 63 hardware observables with pooled simulator–hardware Pearson correlation `0.943073`, RMSE `0.043933`, and through-origin attenuation `1.068182` under the adapted hardware-native schedule.
 
-These are development/frozen-oracle results from the historical source run `palindrome_real_task_002`, not claims from the untouched final test partition. The aggregate Agent workflow regenerates the current financial pipeline folds and runs the same frozen Case151 model on them. It verifies model identity and immutable reference hashes and reports current metrics plus deltas versus the historical oracle; it does not relabel a different fold composition as exact historical reproduction. The Aquila evidence validates observable transfer; it is not an end-to-end hardware volatility forecast.
+These are development/frozen-oracle results from the historical source run `palindrome_real_task_002`, not claims from the untouched final test partition. The aggregate Agent workflow regenerates the current financial pipeline folds and runs the same frozen Case151 model and chronological selection procedure on them. It verifies the unchanged alpha/lambda search grids and immutable reference hashes, then reports current metrics, selected hyperparameters, and deltas versus the historical oracle. It does not require a different fold composition to reproduce the historical selected grid point or relabel the current result as exact historical reproduction. The Aquila evidence validates observable transfer; it is not an end-to-end hardware volatility forecast.
 
 ## Judge quick start: qBraid Agent Mode
 
@@ -52,7 +52,7 @@ qbraid_skill/qpitome-qrc-volatility/SKILL.md
 Open the repository in qBraid Lab, enable **Agent Mode**, and provide this single prompt:
 
 ```text
-Reproduce and audit this submission using the complete default full-smoke scope. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md. Establish the repository root and use it as the working directory. Follow the skill exactly, create and manage the environment yourself, and use its single state-free orchestration command so no shell variables or cross-action terminal state are required. Run verified data, frozen classical baselines, canonical Case151 QRC on the current generated folds, and the bounded MNIST, noise, scaling, and finite-shot smoke studies, followed by the read-only validate-existing pass. Preserve the unchanged historical Case151 oracle separately, verify its immutable reference hashes, and report current-fold metric deltas without claiming exact historical-oracle reproduction. Do not modify scientific contracts or open the reserved financial test partition. Do not ask me to run terminal commands. Do not submit, query, select, retrieve, or package hardware jobs. Stop and report the first blocking defect rather than improvising.
+Reproduce and audit this submission using the complete default full-smoke scope. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md. Establish the repository root and use it as the working directory. Follow the skill exactly, create and manage the environment yourself, and use its single state-free orchestration command so no shell variables or cross-action terminal state are required. Run verified data, frozen classical baselines, canonical Case151 QRC on the current generated folds, and the bounded MNIST, noise, scaling, and finite-shot smoke studies, followed by the read-only validate-existing pass. Preserve the unchanged historical Case151 oracle separately, verify its immutable reference hashes and frozen selection grids, and report current-fold metric and selected-hyperparameter deltas without claiming exact historical-oracle reproduction. Do not modify scientific contracts or open the reserved financial test partition. Do not ask me to run terminal commands. Do not submit, query, select, retrieve, or package hardware jobs. Stop and report the first blocking defect rather than improvising.
 ```
 
 The Agent executes one Python orchestration entry point. It generates the run ID internally, computes every path internally, runs all stages under one aggregate folder, and writes `agent_scope_manifest.json`. It does not depend on `RUN_ID`, `RUN_DIR`, `cd`, environment activation, or exported variables persisting between Agent actions.
@@ -193,13 +193,13 @@ results/runs/<RUN_ID>/
         └── run/<RUN_ID>/
 ```
 
-Outputs include provenance records, parameters, predictions, metrics, coverage tables, validation reports, plots, command logs, runtime records, and SHA-256 artifact inventories. The Case151 audit includes current observed metrics, immutable historical reference hashes, and explicit metric deltas versus the unchanged historical oracle. No source code is copied into generated result directories.
+Outputs include provenance records, parameters, predictions, metrics, coverage tables, validation reports, plots, command logs, runtime records, and SHA-256 artifact inventories. The Case151 audit includes current observed metrics, observed fold-8 alpha/lambda, frozen-grid verification, immutable historical reference hashes, and explicit deltas versus the unchanged historical oracle. No source code is copied into generated result directories.
 
 ## Known limitations and assumptions
 
 - Model selection and reporting use validation folds only; the reserved financial test partition remains unopened.
 - Case151 is a frozen development example and hardware narrative, not a representative test-set claim.
-- The historical Case151 metric oracle and the current regenerated aggregate folds have different sample compositions; exact historical metrics are therefore not asserted for the current-pipeline integration run.
+- The historical Case151 oracle and the current regenerated aggregate folds have different sample compositions; exact historical metrics and the historical fold-8 selected grid point are therefore not asserted for the current-pipeline integration run.
 - The six-mode density/curvature readout used by the Phase-3 studies is distinct from the canonical 63-feature Case151 hardware-story model.
 - Exact simulation scaling is reported only through 12 atoms; larger systems receive resource estimates rather than infeasible statevector execution.
 - Hardware evidence uses an adapted Aquila-native schedule and validates observable transfer, not an end-to-end hardware forecast.
