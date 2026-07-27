@@ -62,7 +62,7 @@ jobs:
 
   stage1-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,11 +73,10 @@ jobs:
         run: python -m pip install -q -e ".[test]"
       - name: Compile source and scripts
         run: python -m compileall -q src scripts
-      - name: Run Stage-1, Case151, and Phase-3 benchmark contracts
+      - name: Run Stage-1 and Case151 contracts
         run: >-
           python -m pytest -q --tb=short
           tests/transition_forecasting/data/test_acquisition.py
-          tests/transition_forecasting/data/test_mnist_acquisition.py
           tests/transition_forecasting/modeling/test_stage_d_candidate_pool.py
           tests/transition_forecasting/modeling/test_chronological_control_matching.py
           tests/transition_forecasting/modeling/test_chronological_rematched_dataset.py
@@ -85,10 +84,47 @@ jobs:
           tests/transition_forecasting/data/test_fold_datasets.py
           tests/transition_forecasting/qrc/test_palindrome_real_task_relevance_assay.py
           tests/transition_forecasting/qrc/test_case151_reproduction_contract.py
-          tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py
-          tests/transition_forecasting/qrc/test_temporal_rydberg_noise.py
-          tests/transition_forecasting/qrc/test_palindrome_rydberg_noise.py
-          tests/transition_forecasting/qrc/test_palindrome_scaling_assay.py
-          tests/transition_forecasting/qrc/test_palindrome_shot_assay.py
           tests/runs/test_run_submission.py
-          tests/runs/test_run_submission_benchmarks.py
+
+  benchmark-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project and tests
+        run: python -m pip install -q -e ".[test]"
+      - name: Compile benchmark source and scripts
+        run: >-
+          python -m compileall -q
+          src/transition_forecasting/data/mnist_acquisition.py
+          src/transition_forecasting/qrc
+          scripts/transition_forecasting/data/acquire_mnist.py
+          scripts/transition_forecasting/qrc
+          scripts/runs/run_submission_benchmarks.py
+      - name: Run Phase-3 benchmark contracts
+        id: benchmark-tests
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q --tb=short \
+            tests/transition_forecasting/data/test_mnist_acquisition.py \
+            tests/transition_forecasting/qrc/test_mnist_palindrome_benchmark.py \
+            tests/transition_forecasting/qrc/test_temporal_rydberg_noise.py \
+            tests/transition_forecasting/qrc/test_palindrome_rydberg_noise.py \
+            tests/transition_forecasting/qrc/test_palindrome_scaling_assay.py \
+            tests/transition_forecasting/qrc/test_palindrome_shot_assay.py \
+            tests/runs/test_run_submission_benchmarks.py \
+            > benchmark-test.log 2>&1
+          status=$?
+          cat benchmark-test.log
+          exit $status
+      - name: Upload benchmark test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-test-log
+          path: benchmark-test.log
