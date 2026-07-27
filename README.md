@@ -41,10 +41,10 @@ The standards-compliant Agent Skill is:
 qbraid_skill/qpitome-qrc-volatility/SKILL.md
 ```
 
-Open the repository in qBraid Lab, enable Agent Mode, and provide:
+Open the repository in qBraid Lab, enable **Agent Mode**, and provide:
 
 ```text
-Reproduce and audit this submission. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md. Establish the repository root and use it as the working directory. Follow the skill exactly, create and manage the environment yourself, do not modify scientific contracts or open the reserved test partition, and do not submit hardware jobs. Stop and report the first blocking defect rather than improvising.
+Reproduce and audit this submission. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md. Establish the repository root and use it as the working directory. Follow the skill exactly, create and manage the environment yourself, and do not modify scientific contracts or open the reserved test partition. Do not ask me to run terminal commands. Do not submit hardware jobs. Stop and report the first blocking defect rather than improvising.
 ```
 
 The default Skill reproduces and audits the verified data and frozen classical comparison. The additional QRC, benchmark, and hardware-evidence stages are explicit below so judges can run only the desired scope.
