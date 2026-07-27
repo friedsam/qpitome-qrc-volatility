@@ -70,9 +70,9 @@ def test_loader_accepts_active_rematched_manifest_without_legacy_stratum(
     np.savez_compressed(
         fold_root / "rematched_rolling_tensors.npz",
         X=np.zeros((len(manifest), 40, 1), dtype=float),
-        sample_id=manifest["sample_id"].astype(str).to_numpy(),
-        fold=manifest["fold"].astype(int).to_numpy(),
-        fold_split=manifest["fold_split"].astype(str).to_numpy(),
+        sample_id=np.asarray(manifest["sample_id"].tolist(), dtype="U"),
+        fold=manifest["fold"].to_numpy(dtype=int),
+        fold_split=np.asarray(manifest["fold_split"].tolist(), dtype="U"),
     )
 
     loaded = load_rematched_dataset(tmp_path)
