@@ -22,38 +22,68 @@ Case `P_GE151_^MERV_data_L5` is the fold-8 hardware-story example. Its selected
 readout is alpha 0.1 and lambda 0.25. It is an intentionally selected development
 example, not a representative aggregate forecast.
 
-## Fixed oracle
+## Historical oracle and current-pipeline integration
 
-`config/case151/expected_metrics.json` records the exact pooled, transition,
+`config/case151/expected_metrics.json` records exact historical pooled, transition,
 interaction-off, Case151, Mincer–Zarnowitz, and Aquila-observable reference values.
-The values are acceptance assertions, not tuning targets.
+Those values are tied to canonical commit `40ec805c...`, source run
+`palindrome_real_task_002`, and that run's historical fold composition. They remain
+acceptance assertions for `historical-oracle` mode and are never tuning targets.
+
+The current aggregate financial pipeline regenerates its own fold tensors. The same
+frozen Case151 model is executed on those tensors in `current-pipeline` mode. That
+mode verifies:
+
+- the exact six-atom/palindrome/readout identity;
+- `occupation_pair_raw` width 63;
+- fold-8 alpha 0.1 and lambda 0.25;
+- intercept-free residual head;
+- zero test rows;
+- all immutable files under `reference/case151/freeze_001/` against fixed SHA-256 values;
+- output completeness.
+
+It records current observed metrics and explicit deltas versus the historical oracle.
+It does not require a different fold composition to reproduce the historical aggregate
+numbers and does not relabel current metrics as historical reproduction.
+
+## Retry and preservation policy
+
+A current-pipeline retry uses:
+
+```bash
+python scripts/reproduction/run_case151_simulation.py \
+  --fold-dir results/runs/<RUN_ID>/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds \
+  --output-root results/runs/<RUN_ID>/files/qrc/simulation/run \
+  --run-id <RUN_ID> \
+  --verification-mode current-pipeline \
+  --archive-existing-failed
+```
+
+If an output directory exists without a verified audit, it is moved under
+`files/qrc/simulation/run/failed_attempts/` before recomputation. A verified output is
+never overwritten.
 
 ## Hardware boundary
 
 The three recorded Aquila jobs already exist. Reproduction may inspect status and
-retrieve their results, but the judge-facing workflow must not create or submit a
-new hardware task. `scripts/hardware/aquila_case151_support.py` contains only
-retrieval and local simulator helpers; it has no submission entry point.
+retrieve their results only in a separate retrieval-only task; the judge-facing Agent
+workflow must not create, query, select, retrieve, package, or submit hardware jobs.
+`scripts/hardware/aquila_case151_support.py` contains no submission entry point.
 
 Aquila evidence supports observable transfer under the accepted hardware-native
 schedule. It is not an end-to-end hardware volatility forecast.
 
-## Submission packaging interface
-
-The submission maintainer may wire this stage into the aggregate runner using:
+## Aggregate packaging interface
 
 ```text
 results/runs/<RUN_ID>/files/qrc/
     simulation/run/<RUN_ID>/
+    simulation/run/failed_attempts/
     hardware/<HARDWARE_RUN_ID>/
     comparisons/
 ```
 
 `<RUN_ID>` identifies the local aggregate reproduction. Existing hardware jobs retain
 their own `<HARDWARE_RUN_ID>` identities and must not be relabeled as newly generated.
-
-## Deliberate exclusions
-
-This selective port does not modify `scripts/runs/run_submission.py`, the qBraid Skill,
-or AGENTS/maintenance infrastructure. It does not substitute the later six-mode
-compressed readout for the 63-feature Case151 model.
+The later six-mode compressed readout remains distinct from the canonical 63-feature
+Case151 model.
