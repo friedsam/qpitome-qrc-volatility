@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_PATH = REPO_ROOT / "config" / "case151" / "expected_metrics.json"
 SUPPORT_PATH = REPO_ROOT / "scripts" / "hardware" / "aquila_case151_support.py"
 COLLECTOR_PATH = REPO_ROOT / "scripts" / "hardware" / "aquila_case151_collect.py"
+SIMULATION_RUNNER_PATH = REPO_ROOT / "scripts" / "reproduction" / "run_case151_simulation.py"
 REFERENCE_ROOT = REPO_ROOT / "reference" / "case151" / "freeze_001"
 REFERENCE_SHA256 = {
     "case151_encoded_sequence.csv": "48359a61b773edf7779ab11e626b75ffae163245dcca6f85f4e402423458e21a",
@@ -35,6 +38,15 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_case151_expected_metric_contract_is_frozen() -> None:
@@ -64,6 +76,23 @@ def test_case151_model_contract_uses_fold_specific_selection_grid() -> None:
     assert config.correction_lambdas == (0.0, 0.25, 0.5, 1.0)
     schedule = next(item for item in CROSSOVER_SCHEDULES if item.name == config.schedule_name)
     assert schedule.segments == (("A", 0.25), ("B", 0.5), ("A", 0.25))
+
+
+def test_simulation_runner_freezes_exact_archived_configuration() -> None:
+    runner = _load_module("case151_simulation_runner", SIMULATION_RUNNER_PATH)
+    objects = runner.canonical_objects()
+    config = objects["config"]
+    reservoir = objects["reservoir"]
+    assert config.folds == (4, 5, 6, 7, 8)
+    assert config.max_per_class == 24
+    assert config.representations == ("level_only", "level_instability")
+    assert config.ridge_alphas == (0.1, 1.0, 10.0, 100.0, 1000.0)
+    assert config.correction_lambdas == (0.0, 0.25, 0.5, 1.0)
+    assert reservoir.n_atoms == 6
+    assert reservoir.step_duration_us == 0.02
+    assert reservoir.probe_fractions == (0.25, 0.5, 1.0)
+    assert objects["interaction_scale"] == 1.25
+    assert runner.DEFAULT_OUTPUT_ROOT.as_posix().endswith("case151_simulation/run")
 
 
 def test_occupation_pair_raw_has_63_features() -> None:
