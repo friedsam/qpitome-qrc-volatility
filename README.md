@@ -49,21 +49,15 @@ The standards-compliant Agent Skill is:
 qbraid_skill/qpitome-qrc-volatility/SKILL.md
 ```
 
-Open the repository in qBraid Lab, enable **Agent Mode**, and provide:
+Open the repository in qBraid Lab, enable **Agent Mode**, and provide this single prompt:
 
 ```text
-Reproduce and audit this submission using the default core scope through canonical Case151 QRC; do not stop after the classical stage. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md. Establish the repository root and use it as the working directory. Follow the skill exactly, create and manage the environment yourself, and do not modify scientific contracts or open the reserved test partition. Do not ask me to run terminal commands. Do not submit, query, or select hardware jobs. Stop and report the first blocking defect rather than improvising.
+Reproduce and audit this submission using the complete default full-smoke scope. First locate */qbraid_skill/qpitome-qrc-volatility/SKILL.md under /home/jovyan and read it by absolute path. Resolve every relative path in that skill against the directory containing SKILL.md. Establish the repository root and use it as the working directory. Follow the skill exactly, create and manage the environment yourself, and use its single state-free orchestration command so no shell variables or cross-action terminal state are required. Run verified data, frozen classical baselines, canonical Case151 QRC, and the bounded MNIST, noise, scaling, and finite-shot smoke studies, followed by the read-only validate-existing pass. Do not modify scientific contracts or open the reserved financial test partition. Do not ask me to run terminal commands. Do not submit, query, select, retrieve, or package hardware jobs. Stop and report the first blocking defect rather than improvising.
 ```
 
-The default **core** Skill reproduces and audits verified data, frozen classical baselines, and canonical Case151 QRC in one aggregate run. It does not stop after classical validation.
+The Agent executes one Python orchestration entry point. It generates the run ID internally, computes every path internally, runs all stages under one aggregate folder, and writes `agent_scope_manifest.json`. It does not depend on `RUN_ID`, `RUN_DIR`, `cd`, environment activation, or exported variables persisting between Agent actions.
 
-For the bounded Phase-3 integration extension, append:
-
-```text
-After core succeeds, continue with the explicit full-smoke scope for MNIST, noise, scaling, and finite-shot studies. Run the read-only validate-existing pass and report every artifact and limitation. Do not run the primary profile and do not perform any hardware action.
-```
-
-Hardware evidence remains a separate optional retrieval-only task and is never required by core or full-smoke.
+Hardware evidence remains a separate optional retrieval-only task and is never required by the Agent workflow.
 
 ## Setup and environment
 
@@ -97,85 +91,63 @@ python3 qbraid_skill/qpitome-qrc-volatility/scripts/bootstrap.py --json
   tests/transition_forecasting/qrc/test_palindrome_shot_assay.py
 ```
 
-The bootstrap is the preferred setup path. It creates or reuses `.venv`, installs the project with test dependencies, runs both preflights, and runs focused data, classical, QRC, benchmark, and hardware-safety contract checks.
+The bootstrap is the preferred setup path. It creates or reuses `.venv`, installs the project with test dependencies, runs both preflights, and runs focused data, classical, QRC, benchmark, orchestration, and hardware-safety contract checks.
 
 ## Step-by-step qBraid execution
 
-### 1. Data and frozen classical comparison
-
-Resolve the verified source mode:
+### 1. Resolve the verified source mode
 
 ```bash
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight.py --strict-data-source
 .venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/preflight_classical.py --json
 ```
 
-Then run:
+Use the exact `auto`, `fallback`, or `live` mode reported by preflight.
+
+### 2. Run the complete submission workflow with one command
 
 ```bash
-RUN_ID=$(date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ)
-
-.venv/bin/python scripts/runs/run_submission_stage_layout.py financial-classical \
-  --run-id "$RUN_ID" \
+.venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/run_submission_scope.py \
+  --scope full-smoke \
   --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
 
-A verified qBraid execution completed successfully as:
+This single command invokes the existing canonical stages:
 
 ```text
-qbraid-financial-classical-20260727T025306Z
+scripts/runs/run_submission_stage_layout.py financial-classical
+scripts/reproduction/run_case151_simulation.py
+scripts/runs/run_submission_benchmarks.py all --profile smoke
+scripts/runs/run_submission_benchmarks.py validate-existing --profile smoke
 ```
 
-The complete generated run remains local under `results/runs/` because bulky run artifacts are intentionally ignored by Git. Classical outputs are written under `files/classical_baselines/` inside the aggregate run.
+It fails closed after the first unsuccessful command or acceptance check. No shell variables are required. On success it prints the exact run ID and aggregate directory.
 
-### 2. Canonical Case151 QRC simulation — required by core
-
-Using the fold tensors produced by the same aggregate run:
+For an explicitly requested core-only run that stops after Case151 verification:
 
 ```bash
-RUN_DIR="results/runs/$RUN_ID"
-
-.venv/bin/python scripts/reproduction/run_case151_simulation.py \
-  --fold-dir "$RUN_DIR/files/data/processed/global_transition_dataset_1d/purged_walk_forward_folds" \
-  --output-root "$RUN_DIR/files/qrc/simulation/run" \
-  --run-id "$RUN_ID"
+.venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/run_submission_scope.py \
+  --scope core \
+  --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
 
-The runner fails closed unless the frozen metrics, 63-feature width, fold-8 alpha/lambda identity, and zero-test-row contract are reproduced. Core is not complete until `files/qrc/simulation/run/<RUN_ID>/case151_reproduction_audit.json` records `status: verified`.
-
-### 3. Optional Phase-3 full-smoke studies
-
-A bounded integration smoke run uses the same aggregate folder:
+A previously accepted `financial-classical` aggregate may be resumed with its exact literal run ID:
 
 ```bash
-.venv/bin/python scripts/runs/run_submission_benchmarks.py \
-  all \
-  --profile smoke \
-  --run-id "$RUN_ID" \
-  --run-dir "$RUN_DIR" \
-  --resume \
-  --reuse-existing
+.venv/bin/python qbraid_skill/qpitome-qrc-volatility/scripts/run_submission_scope.py \
+  --scope full-smoke \
+  --transition-source-mode <MODE_FROM_PREFLIGHT> \
+  --run-id <EXACT_RUN_ID> \
+  --resume-existing
 ```
 
-Then validate existing artifacts without recomputation:
+### 3. Existing Aquila hardware evidence — separate and optional
 
-```bash
-.venv/bin/python scripts/runs/run_submission_benchmarks.py \
-  validate-existing \
-  --profile smoke \
-  --run-id "$RUN_ID" \
-  --run-dir "$RUN_DIR"
-```
-
-Full-smoke covers MNIST, noise, scaling, and finite-shot integration. It does not replace the frozen primary study sizes. The primary profile is not part of the default Agent workflow.
-
-### 4. Existing Aquila hardware evidence — separate and optional
-
-Hardware collection is retrieval-only, outside both core and full-smoke, and never required for Agent acceptance. It queries three fixed completed job IDs and never submits a new task:
+Hardware collection is retrieval-only and outside the Agent workflow. It queries three fixed completed job IDs and never submits a new task:
 
 ```bash
 .venv/bin/python scripts/hardware/aquila_case151_collect.py collect \
-  --outdir "$RUN_DIR/files/qrc/hardware/aquila_case151_existing_jobs_001"
+  --outdir results/runs/<RUN_ID>/files/qrc/hardware/aquila_case151_existing_jobs_001
 ```
 
 The hardware package contains provenance, job identities, device/mapping information, raw observables, metrics, runtime, artifact hashes, and an explicit statement that end-to-end hardware predictions are not applicable.
@@ -187,7 +159,7 @@ The hardware package contains provenance, job identities, device/mapping informa
 - Global-index OHLC source files acquired anonymously when available, or restored from the committed checksum-verified fallback.
 - Frozen data, fold, model, and QRC contracts under `config/`.
 - Immutable Case151 reference files under `reference/case151/freeze_001/`.
-- Anonymous MNIST acquisition for the optional MNIST benchmark.
+- Anonymous MNIST acquisition for the bounded MNIST benchmark.
 - Three fixed, previously completed Aquila job IDs for optional retrieval-only hardware packaging.
 
 ### Outputs
@@ -197,6 +169,7 @@ Every aggregate execution uses one literal run ID and writes:
 ```text
 results/runs/<RUN_ID>/
 ├── run_manifest.json
+├── agent_scope_manifest.json
 ├── logs/
 └── files/
     ├── data/
@@ -216,16 +189,16 @@ results/runs/<RUN_ID>/
         └── run/<RUN_ID>/
 ```
 
-Depending on the selected scope, outputs include provenance records, parameters, predictions, metrics, coverage tables, validation reports, plots, command logs, runtime records, and SHA-256 artifact inventories. Only stages explicitly run are created. No source code is copied into generated result directories.
+Outputs include provenance records, parameters, predictions, metrics, coverage tables, validation reports, plots, command logs, runtime records, and SHA-256 artifact inventories. No source code is copied into generated result directories.
 
 ## Known limitations and assumptions
 
-- Model selection and reporting use validation folds only; the reserved test partition remains unopened.
+- Model selection and reporting use validation folds only; the reserved financial test partition remains unopened.
 - Case151 is a frozen development example and hardware narrative, not a representative test-set claim.
 - The six-mode density/curvature readout used by the Phase-3 studies is distinct from the canonical 63-feature Case151 hardware-story model.
 - Exact simulation scaling is reported only through 12 atoms; larger systems receive resource estimates rather than infeasible statevector execution.
 - Hardware evidence uses an adapted Aquila-native schedule and validates observable transfer, not an end-to-end hardware forecast.
-- The default Agent Skill does not submit, query, retrieve, or require hardware execution.
+- The Agent Skill does not submit, query, select, retrieve, or require hardware execution.
 - Full-smoke is bounded integration coverage; full primary MNIST, noise, scaling, and shot studies are more computationally expensive.
 - Generated aggregate runs can be large and are intentionally excluded from ordinary Git history; compact verified evidence packages may be committed separately.
 
