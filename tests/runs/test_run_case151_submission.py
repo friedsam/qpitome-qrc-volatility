@@ -20,13 +20,14 @@ def test_qrc_paths_follow_submission_contract(tmp_path: Path) -> None:
     )
 
 
-def test_command_uses_literal_shared_run_id(tmp_path: Path) -> None:
+def test_command_uses_literal_shared_run_id_and_exact_panel(tmp_path: Path) -> None:
     command = MODULE.command_for_run(
         fold_dir=tmp_path / "folds",
         simulation_root=tmp_path / "simulation" / "run",
         run_id="literal_run_007",
     )
     assert command[-2:] == ("--run-id", "literal_run_007")
+    assert command[command.index("--max-per-class") + 1] == "24"
     assert "run_palindrome_real_task_relevance_assay.py" in command[1]
     assert "submit" not in " ".join(command).lower()
 
