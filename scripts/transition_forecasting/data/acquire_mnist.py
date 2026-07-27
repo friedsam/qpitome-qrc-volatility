@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 
 from transition_forecasting.data.mnist_acquisition import acquire_mnist
+from transition_forecasting.data.submission_provenance import (
+    destination_filesystem_tempdir,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,12 +36,16 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    report = acquire_mnist(
-        args.destination,
-        args.fallback,
-        source_mode=args.source_mode,
-        force=args.force,
-    )
+    # ``acquire_mnist`` installs its verified candidate with an atomic rename.
+    # qBraid mounts /tmp separately from /home/jovyan, so place tempfile-backed
+    # staging beside the final destination to keep that rename on one filesystem.
+    with destination_filesystem_tempdir(args.destination):
+        report = acquire_mnist(
+            args.destination,
+            args.fallback,
+            source_mode=args.source_mode,
+            force=args.force,
+        )
     print(json.dumps(report, indent=2))
 
 

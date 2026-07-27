@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import json
+import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +25,22 @@ from transition_forecasting.qrc.temporal_rydberg_chain import (
 from transition_forecasting.qrc.temporal_rydberg_ladder import (
     StaggeredLadderGeometryConfig,
 )
+
+
+def _load_acquire_mnist_script():
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "scripts"
+        / "transition_forecasting"
+        / "data"
+        / "acquire_mnist.py"
+    )
+    spec = importlib.util.spec_from_file_location("acquire_mnist_script", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_average_pool_preserves_constant_intensity() -> None:
@@ -75,6 +95,53 @@ def test_config_rejects_architecture_drift() -> None:
         MnistPalindromeBenchmarkConfig(
             feature_bank="six_mode_density_curvature"
         ).validate()
+
+
+def test_mnist_cli_stages_tempfiles_on_destination_filesystem(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    script = _load_acquire_mnist_script()
+    destination = tmp_path / "persistent-workspace" / "raw"
+    fallback = tmp_path / "fallback"
+    previous_tempdir = tempfile.tempdir
+    observed: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        script,
+        "parse_args",
+        lambda: argparse.Namespace(
+            destination=destination,
+            fallback=fallback,
+            source_mode="auto",
+            force=False,
+        ),
+    )
+
+    def fake_acquire_mnist(
+        destination_arg: Path,
+        fallback_arg: Path,
+        *,
+        source_mode: str,
+        force: bool,
+    ) -> dict[str, object]:
+        observed["tempdir"] = tempfile.tempdir
+        assert Path(destination_arg) == destination
+        assert Path(fallback_arg) == fallback
+        assert source_mode == "auto"
+        assert force is False
+        assert tempfile.tempdir is not None
+        assert Path(tempfile.tempdir).resolve() == destination.parent.resolve()
+        return {"status": "succeeded"}
+
+    monkeypatch.setattr(script, "acquire_mnist", fake_acquire_mnist)
+
+    script.main()
+
+    assert observed["tempdir"] == str(destination.parent)
+    assert tempfile.tempdir == previous_tempdir
+    assert json.loads(capsys.readouterr().out) == {"status": "succeeded"}
 
 
 def test_sharded_smoke_merge_writes_complete_result(
