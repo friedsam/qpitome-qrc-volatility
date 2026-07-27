@@ -49,7 +49,7 @@ This branch now automates:
 - RMSE, log-volatility QLIKE, and Mincer-Zarnowitz diagnostics;
 - aggregate manifests, logs, hashes, coverage, predictions, and validation.
 
-Financial QRC, MNIST, qubit scaling, noise studies, and final cross-topic artifact collection still need to be added to the same submission framework. The current classical workflow does not query or submit hardware jobs.
+Financial QRC, MNIST, qubit scaling, noise studies, and final cross-topic artifact collection still need to be added to the same submission framework. The current classical workflow does not query or submit hardware jobs. Completed hardware results will be verified and reported from committed artifacts rather than rerun by the default agent workflow.
 
 ## Frozen classical specification
 
@@ -95,7 +95,7 @@ date -u +qbraid-financial-classical-%Y%m%dT%H%M%SZ
 Use the exact source mode reported by strict preflight:
 
 ```bash
-.venv/bin/python scripts/runs/run_submission.py financial-classical \
+.venv/bin/python scripts/runs/run_submission_stage_layout.py financial-classical \
   --run-id <RUN_ID_FROM_PREVIOUS_COMMAND> \
   --transition-source-mode <MODE_FROM_PREFLIGHT>
 ```
@@ -108,23 +108,45 @@ The aggregate judge-facing run is written under:
 results/runs/<run-id>/
 ```
 
-Scientific artifacts are grouped by topic beneath:
+Scientific artifacts are grouped by pipeline stage beneath:
 
 ```text
-results/runs/<run-id>/files/transition_forecasting/
+results/runs/<run-id>/files/
 ```
 
-The classical topic is:
+The planned top-level stage names are:
 
 ```text
-modeling/classical_baselines/
+data/
+classical_baselines/
+qrc/
+quantum_studies/
+mnist/
+```
+
+Only stages included in the selected workflow are created. Committed hardware results belong beneath `files/qrc/hardware/`; the default agent workflow validates and reports them but does not submit a new hardware job.
+
+The current classical stage is:
+
+```text
+files/classical_baselines/
     linear/run/<run-id>/
     garch/run/<run-id>/
     esn/run/<run-id>/
     canonical/run/<run-id>/
+    validation/classical_baseline_audit.json
 ```
 
-`scripts/runs/run_submission.py` is the sole planned exception to the normal scientific-result mapping. Ordinary producers follow:
+The current data stage is:
+
+```text
+files/data/
+    raw/
+    processed/global_transition_dataset_1d/
+    validation/
+```
+
+`scripts/runs/run_submission_stage_layout.py` is the judge-facing aggregation exception to the normal scientific-result mapping. It delegates scientific execution to the established runner and changes only aggregate path resolution. Ordinary producers follow:
 
 ```text
 src/<domain>/<experiment>/*.py
