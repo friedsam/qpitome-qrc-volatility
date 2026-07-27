@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 3,
   "name": "Verify historical Case151 and integrate it with current pipeline folds",
   "working_directory": "repository root",
   "safety": {
